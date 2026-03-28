@@ -95,7 +95,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               Agents Bay
             </Heading>
             <Text size="tiny" light secondary>
-              AI Company Backoffice
+              Your Wix AI Company
             </Text>
           </div>
         </div>
