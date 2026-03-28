@@ -106,7 +106,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
       <div style={{ padding: "12px 16px", background: "white", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#3899ec", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>C</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>Talk to CEO</div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>CEO</div>
           <div style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: waiting ? "#ffc107" : "#00d68f" }} />
             {waiting ? "Thinking..." : "Online"}
