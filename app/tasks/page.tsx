@@ -90,7 +90,7 @@ function TasksContent() {
   const [editingStatus, setEditingStatus] = useState<string | null>(null);
 
   // Filters
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("in_progress");
 
   const load = useCallback(async () => {
     const companies = await getCompanies();
@@ -203,18 +203,22 @@ function TasksContent() {
 
   const columns = [
     {
+      title: "ID",
+      render: (row: Issue) => (
+        <Text size="small" secondary style={{ fontFamily: "monospace" }}>{row.identifier || `#${row.number}`}</Text>
+      ),
+      width: "10%",
+    },
+    {
       title: "Task",
       render: (row: Issue) => (
-        <Box direction="vertical">
-          <Text weight="bold" size="small">{row.title}</Text>
-          {row.number > 0 && <Text size="tiny" secondary>#{row.number}</Text>}
-        </Box>
+        <Text size="small">{row.title}</Text>
       ),
-      width: "40%",
+      width: "30%",
     },
     {
       title: "Assignee",
-      render: (row: Issue) => <Text size="small">{agentName(row.assigneeId)}</Text>,
+      render: (row: Issue) => <Text size="small">{agentName(row.assigneeAgentId || row.assigneeId)}</Text>,
       width: "20%",
     },
     {

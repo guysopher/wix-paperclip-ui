@@ -17,19 +17,23 @@ import {
   Inbox,
   Refresh,
 } from "@wix/wix-ui-icons-common";
+import { useBadgeCounts, type BadgeCounts } from "./providers";
 
-const NAV_ITEMS = [
+type CountKey = keyof BadgeCounts;
+
+const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; countKey?: CountKey }> = [
   { key: "/", label: "Dashboard", Icon: Dashboard },
-  { key: "/inbox", label: "Inbox", Icon: Inbox },
+  { key: "/inbox", label: "Inbox", Icon: Inbox, countKey: "inbox" },
   { key: "/team", label: "Team", Icon: Users },
-  { key: "/tasks", label: "Tasks", Icon: Checklist },
-  { key: "/runs", label: "Runs", Icon: Refresh },
-  { key: "/chat", label: "Chat", Icon: Chat },
+  { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
+  { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
+  { key: "/chat", label: "Chat", Icon: Chat, countKey: "chat" },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const counts = useBadgeCounts();
 
   return (
     <Box height="100vh" direction="horizontal">
@@ -54,6 +58,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 12px" }}>
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.key;
+            const count = item.countKey ? counts[item.countKey] : 0;
             return (
               <button
                 key={item.key}
@@ -75,6 +80,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <Text size="small" light weight={isActive ? "bold" : "normal"}>
                   {item.label}
                 </Text>
+                {count > 0 && (
+                  <span style={{
+                    marginLeft: "auto",
+                    minWidth: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: item.countKey === "inbox" ? "#ee5951" : "rgba(255,255,255,0.2)",
+                    color: "white",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 6px",
+                  }}>
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}

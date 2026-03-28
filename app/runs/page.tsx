@@ -187,7 +187,7 @@ function RunsContent() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("running");
   const [filterAgent, setFilterAgent] = useState("all");
 
   // Detail modal
@@ -221,15 +221,15 @@ function RunsContent() {
       const raw = typeof log === "string" ? log : (log.content ?? log.log ?? log.output ?? "");
       if (!raw) {
         setRunLogEntries(run.stdoutExcerpt
-          ? [{ kind: "info", text: run.stdoutExcerpt }]
-          : [{ kind: "info", text: "No output available." }]);
+          ? [{ kind: "assistant", text: run.stdoutExcerpt }]
+          : [{ kind: "assistant", text: "No output available." }]);
         setLoadingLog(false);
         return;
       }
       const entries = parseRunLog(raw);
-      setRunLogEntries(entries.length > 0 ? entries : [{ kind: "info", text: "No readable output in this run." }]);
+      setRunLogEntries(entries.length > 0 ? entries : [{ kind: "assistant", text: "No readable output in this run." }]);
     } catch {
-      setRunLogEntries([{ kind: "info", text: run.stdoutExcerpt || "Log not available." }]);
+      setRunLogEntries([{ kind: "assistant", text: run.stdoutExcerpt || "Log not available." }]);
     }
     setLoadingLog(false);
   };
@@ -251,7 +251,7 @@ function RunsContent() {
           <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#3899ec", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
             {agentName(row.agentId).charAt(0)}
           </div>
-          <Text weight="bold" size="small">{agentName(row.agentId)}</Text>
+          <Text size="small">{agentName(row.agentId)}</Text>
         </Box>
       ),
       width: "20%",
@@ -419,7 +419,7 @@ function RunsContent() {
                 {loadingLog ? (
                   <Box padding="24px" align="center"><Loader size="small" /></Box>
                 ) : (
-                  <div style={{ marginTop: 12, maxHeight: 500, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ marginTop: 12, maxHeight: 500, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
                     {runLogEntries.map((entry, i) => {
                       if (entry.kind === "assistant") {
                         return (
@@ -428,39 +428,22 @@ function RunsContent() {
                           </div>
                         );
                       }
-                      if (entry.kind === "tool") {
+                      if (entry.kind === "tools") {
                         return (
-                          <div key={i} style={{ padding: "8px 14px", background: "#fafafa", borderRadius: 6, border: "1px solid #eee" }}>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 4, fontFamily: "monospace" }}>
-                              {entry.toolName}
-                            </div>
-                            {entry.text && (
-                              <pre style={{ margin: 0, fontSize: 11, color: "#666", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5, maxHeight: 120, overflow: "hidden" }}>
-                                {entry.text}
-                              </pre>
-                            )}
+                          <div key={i} style={{ padding: "6px 14px", fontSize: 12, color: "#999", display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 14 }}>&#9881;</span>
+                            {entry.text}
                           </div>
                         );
                       }
                       if (entry.kind === "result") {
                         return (
-                          <div key={i} style={{ padding: "10px 14px", background: "#f0faf0", borderRadius: 6, borderLeft: "3px solid #4caf50", fontSize: 13, color: "#2e7d32" }}>
-                            <span style={{ fontWeight: 600 }}>Result:</span> {entry.text}
-                          </div>
-                        );
-                      }
-                      if (entry.kind === "info") {
-                        return (
-                          <div key={i} style={{ padding: "6px 12px", fontSize: 12, color: "#888", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>
+                          <div key={i} style={{ padding: "10px 14px", background: "#f0faf0", borderRadius: 6, borderLeft: "3px solid #4caf50", fontSize: 13, color: "#2e7d32", whiteSpace: "pre-wrap" }}>
                             {entry.text}
                           </div>
                         );
                       }
-                      return (
-                        <div key={i} style={{ padding: "6px 12px", fontSize: 12, color: "#999" }}>
-                          {entry.text}
-                        </div>
-                      );
+                      return null;
                     })}
                   </div>
                 )}
