@@ -49,7 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   const navButton = (item: typeof NAV_ITEMS[0]) => {
-    const isActive = pathname === item.key;
+    const isActive = item.key === "/" ? pathname === "/" : pathname.startsWith(item.key);
     const count = item.countKey ? counts[item.countKey] : 0;
     return (
       <button
