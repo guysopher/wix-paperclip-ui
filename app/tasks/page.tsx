@@ -81,6 +81,7 @@ function TasksContent() {
   const [newDesc, setNewDesc] = useState("");
   const [newPriority, setNewPriority] = useState("medium");
   const [newAssignee, setNewAssignee] = useState<string | undefined>();
+  const ceoAgent = agents.find((a) => a.role === "ceo");
 
   // Detail modal
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
@@ -279,7 +280,7 @@ function TasksContent() {
               <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
                 Refresh
               </Button>
-              <Button size="small" prefixIcon={<Add />} onClick={() => setShowCreate(true)}>
+              <Button size="small" prefixIcon={<Add />} onClick={() => { setNewAssignee(ceoAgent?.id); setShowCreate(true); }}>
                 New Task
               </Button>
             </Box>
@@ -357,7 +358,7 @@ function TasksContent() {
       {/* Create modal */}
       <Modal isOpen={showCreate} onRequestClose={() => setShowCreate(false)} shouldCloseOnOverlayClick>
         <CustomModalLayout
-          width="60vw"
+          width="500px"
           title="Create Task"
           primaryButtonText="Create"
           primaryButtonOnClick={handleCreate}
@@ -367,22 +368,7 @@ function TasksContent() {
         >
           <Box direction="vertical" gap="12px">
             <FormField label="Title" required>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-            </FormField>
-            <FormField label="Description">
-              <InputArea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} />
-            </FormField>
-            <FormField label="Priority">
-              <Dropdown
-                selectedId={newPriority}
-                onSelect={(option) => setNewPriority(String(option.id))}
-                options={[
-                  { id: "critical", value: "Critical" },
-                  { id: "high", value: "High" },
-                  { id: "medium", value: "Medium" },
-                  { id: "low", value: "Low" },
-                ]}
-              />
+              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="What needs to be done?" />
             </FormField>
             <FormField label="Assignee">
               <Dropdown

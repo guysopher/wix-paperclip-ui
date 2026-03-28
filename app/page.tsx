@@ -11,8 +11,14 @@ import {
   Loader,
   Button,
   Divider,
+  Modal,
+  CustomModalLayout,
+  FormField,
+  Input,
+  Dropdown,
 } from "@wix/design-system";
 import {
+  Add,
   Refresh,
   Users,
   Checklist,
@@ -31,12 +37,15 @@ import {
   getGoals,
   getIssues,
   invokeHeartbeat,
+  getRuns,
+  createIssue,
   type Company,
   type Dashboard,
   type ActivityEntry,
   type Agent,
   type Goal,
   type Issue,
+  type HeartbeatRun,
 } from "@/lib/api";
 
 interface Story { icon: string; text: string; detail?: string; link?: string; actorLink?: string; }
@@ -171,25 +180,31 @@ function DashboardContent() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
 
   const load = async () => {
     const companies = await getCompanies();
     if (companies.length > 0) {
       const c = companies[0];
       setCompany(c);
-      const [dash, act, agentList, goalList, issueList] = await Promise.all([
+      const [dash, act, agentList, goalList, issueList, runList] = await Promise.all([
         getDashboard(c.id),
         getActivity(c.id).catch(() => []),
         getAgents(c.id),
         getGoals(c.id).catch(() => []),
         getIssues(c.id).catch(() => []),
+        getRuns(c.id),
       ]);
       setDashboard(dash);
       setActivity((act || []).slice(0, 15));
       setAgents(agentList);
       setGoals(goalList);
       setIssues(issueList);
+      setRuns(runList);
     }
     setLoading(false);
   };
@@ -260,7 +275,26 @@ function DashboardContent() {
     .filter((i) => i.status !== "done" && i.status !== "cancelled" && i.title !== "Board Inbox")
     .slice(0, 5);
 
+  const ceoAgent = agents.find((a) => a.role === "ceo");
+  const agentDropdownOptions = [
+    { id: "", value: "Unassigned" },
+    ...agents.map((a) => ({ id: a.id, value: a.name })),
+  ];
+
+  const handleCreateTask = async () => {
+    if (!newTaskTitle.trim() || !company) return;
+    await createIssue(company.id, {
+      title: newTaskTitle,
+      assigneeId: newTaskAssignee,
+    });
+    setShowCreate(false);
+    setNewTaskTitle("");
+    setNewTaskAssignee(undefined);
+    load();
+  };
+
   return (
+    <>
     <Page>
       <Page.Header
         title={company.name}
@@ -298,7 +332,7 @@ function DashboardContent() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Key metrics row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
@@ -337,6 +371,25 @@ function DashboardContent() {
                   <div style={{ fontSize: 32, fontWeight: 700, color: activeTasks > 0 ? "#3899ec" : "#162d3d", marginTop: 4 }}>{activeTasks}</div>
                   <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
                     {dashboard.tasks.blocked ? `${dashboard.tasks.blocked} blocked` : "No blockers"}
+                  </div>
+                </Card.Content>
+              </Card>
+            </div>
+            <div className="metric-card-hover" style={{ borderRadius: 8 }}>
+              <Card>
+                <Card.Content>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Runs</div>
+                    <Refresh color="#b0b0b0" size="20px" />
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>
+                    {runs.filter((r) => r.status === "succeeded").length}
+                    <span style={{ fontSize: 16, color: "#999", fontWeight: 400 }}>/{runs.length}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                    {runs.filter((r) => r.status === "failed").length > 0
+                      ? `${runs.filter((r) => r.status === "failed").length} failed`
+                      : "All successful"}
                   </div>
                 </Card.Content>
               </Card>
@@ -424,7 +477,12 @@ function DashboardContent() {
             <Card>
               <Card.Header
                 title="Open Work"
-                suffix={<a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all tasks</a>}
+                suffix={
+                  <Box direction="horizontal" gap="12px" verticalAlign="middle">
+                    <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>Create Task</Button>
+                    <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>
+                  </Box>
+                }
               />
               <Card.Content>
                 {recentIssues.length === 0 ? (
@@ -480,7 +538,7 @@ function DashboardContent() {
                     suffix={<span style={{ fontSize: 12, color: "#999" }}>Completed work</span>}
                   />
                   <Card.Content>
-                    {doneIssues.slice(0, 10).map((issue, i) => {
+                    {doneIssues.slice(0, 5).map((issue, i) => {
                       const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
                       const completedDate = issue.completedAt || issue.updatedAt;
                       const desc = issue.description || "";
@@ -496,7 +554,7 @@ function DashboardContent() {
                             display: "flex",
                             gap: 12,
                             padding: "12px 0",
-                            borderBottom: i < Math.min(doneIssues.length, 10) - 1 ? "1px solid #f0f0f0" : "none",
+                            borderBottom: i < Math.min(doneIssues.length, 5) - 1 ? "1px solid #f0f0f0" : "none",
                             textDecoration: "none",
                             color: "inherit",
                           }}
@@ -530,10 +588,10 @@ function DashboardContent() {
                         </a>
                       );
                     })}
-                    {doneIssues.length > 10 && (
+                    {doneIssues.length > 5 && (
                       <div style={{ padding: "10px 0", textAlign: "center" }}>
                         <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
-                          View all {doneIssues.length} achievements →
+                          See all tasks →
                         </a>
                       </div>
                     )}
@@ -603,6 +661,33 @@ function DashboardContent() {
         </div>
       </Page.Content>
     </Page>
+
+    <Modal isOpen={showCreate} onRequestClose={() => setShowCreate(false)} shouldCloseOnOverlayClick>
+      <CustomModalLayout
+        width="500px"
+        title="Create Task"
+        primaryButtonText="Create"
+        primaryButtonOnClick={handleCreateTask}
+        secondaryButtonText="Cancel"
+        secondaryButtonOnClick={() => setShowCreate(false)}
+        onCloseButtonClick={() => setShowCreate(false)}
+      >
+        <Box direction="vertical" gap="12px">
+          <FormField label="Title" required>
+            <Input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="What needs to be done?" />
+          </FormField>
+          <FormField label="Assignee">
+            <Dropdown
+              selectedId={newTaskAssignee || ""}
+              onSelect={(option) => setNewTaskAssignee(option.id ? String(option.id) : undefined)}
+              options={agentDropdownOptions}
+              placeholder="Select agent..."
+            />
+          </FormField>
+        </Box>
+      </CustomModalLayout>
+    </Modal>
+    </>
   );
 }
 
