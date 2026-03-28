@@ -35,8 +35,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const counts = useBadgeCounts();
-  const [chatOpen, setChatOpen] = useState(true);
-  const [chatVisible, setChatVisible] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Slide transition for chat panel
@@ -171,7 +171,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           >
             <Chat color="white" />
             <Text size="small" light weight="bold">
-              Talk to CEO
+              Call the CEO
             </Text>
           </button>
         </div>

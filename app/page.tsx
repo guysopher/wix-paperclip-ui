@@ -30,6 +30,7 @@ import {
   getAgents,
   getGoals,
   getIssues,
+  invokeHeartbeat,
   type Company,
   type Dashboard,
   type ActivityEntry,
@@ -297,7 +298,7 @@ function DashboardContent() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Key metrics row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
@@ -340,36 +341,6 @@ function DashboardContent() {
                 </Card.Content>
               </Card>
             </div>
-            <a href="/approvals" style={{ textDecoration: "none", color: "inherit" }}>
-              <div className="metric-card-hover" style={{ borderRadius: 8 }}>
-                <Card>
-                  <Card.Content>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Approvals</div>
-                      <Confirm color="#b0b0b0" size="20px" />
-                    </div>
-                    <div style={{ fontSize: 32, fontWeight: 700, color: dashboard.pendingApprovals > 0 ? "#ee5951" : "#162d3d", marginTop: 4 }}>{dashboard.pendingApprovals}</div>
-                    <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
-                      {dashboard.pendingApprovals > 0 ? "need your review" : "All clear"}
-                    </div>
-                  </Card.Content>
-                </Card>
-              </div>
-            </a>
-            <div className="metric-card-hover" style={{ borderRadius: 8 }}>
-              <Card>
-                <Card.Content>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Spend</div>
-                    <Statistics color="#b0b0b0" size="20px" />
-                  </div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>${((dashboard.costs.monthSpendCents || 0) / 100).toFixed(0)}</div>
-                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
-                    {dashboard.costs.monthBudgetCents ? `of $${(dashboard.costs.monthBudgetCents / 100).toFixed(0)} budget` : "This month"}
-                  </div>
-                </Card.Content>
-              </Card>
-            </div>
           </div>
 
           {/* Team + Open work row */}
@@ -398,8 +369,8 @@ function DashboardContent() {
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
                           <div style={{ fontSize: 12, color: "#999" }}>{agent.title}</div>
                         </a>
-                        {/* Status */}
-                        <div style={{ textAlign: "right" }}>
+                        {/* Status + wake */}
+                        <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 8 }}>
                           {agent.status === "running" ? (
                             <a href={`/runs?agent=${agent.id}&status=running`} style={{ textDecoration: "none" }}>
                               <Badge size="tiny" skin="success">Working</Badge>
@@ -409,9 +380,38 @@ function DashboardContent() {
                           ) : agent.status === "error" ? (
                             <Badge size="tiny" skin="danger">Needs attention</Badge>
                           ) : (
-                            <span style={{ color: "#999", fontSize: 12 }}>
-                              {statusText}
-                            </span>
+                            <>
+                              <span style={{ color: "#999", fontSize: 12 }}>
+                                {statusText}
+                              </span>
+                              <button
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  const btn = e.currentTarget;
+                                  btn.disabled = true;
+                                  btn.textContent = "Waking...";
+                                  try {
+                                    await invokeHeartbeat(agent.id);
+                                    btn.textContent = "Woke!";
+                                    setTimeout(() => load(), 2000);
+                                  } catch {
+                                    btn.textContent = "Failed";
+                                  }
+                                }}
+                                style={{
+                                  background: "none",
+                                  border: "1px solid #ddd",
+                                  borderRadius: 4,
+                                  padding: "2px 8px",
+                                  fontSize: 11,
+                                  color: "#3899ec",
+                                  cursor: "pointer",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Wake up
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -465,6 +465,83 @@ function DashboardContent() {
               </Card.Content>
             </Card>
           </div>
+
+          {/* Achievements */}
+          {(() => {
+            const doneIssues = issues
+              .filter((i) => i.status === "done" && i.title !== "Board Inbox")
+              .sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime());
+            if (doneIssues.length === 0) return null;
+            return (
+              <div>
+                <Card>
+                  <Card.Header
+                    title={`Achievements (${doneIssues.length})`}
+                    suffix={<span style={{ fontSize: 12, color: "#999" }}>Completed work</span>}
+                  />
+                  <Card.Content>
+                    {doneIssues.slice(0, 10).map((issue, i) => {
+                      const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
+                      const completedDate = issue.completedAt || issue.updatedAt;
+                      const desc = issue.description || "";
+                      const summary = desc
+                        .split("\n")
+                        .map((l: string) => l.replace(/^#+\s*/, "").replace(/^\*+/, "").trim())
+                        .filter((l: string) => l.length > 10 && !l.startsWith("---") && !l.startsWith("|"))[0] || "";
+                      return (
+                        <a
+                          key={issue.id}
+                          href={`/tasks?issue=${issue.identifier}`}
+                          style={{
+                            display: "flex",
+                            gap: 12,
+                            padding: "12px 0",
+                            borderBottom: i < Math.min(doneIssues.length, 10) - 1 ? "1px solid #f0f0f0" : "none",
+                            textDecoration: "none",
+                            color: "inherit",
+                          }}
+                        >
+                          <div style={{
+                            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                            background: "#e8f7e8", color: "#00a854",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 14, marginTop: 2,
+                          }}>
+                            ✓
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                              <div style={{ fontWeight: 600, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
+                              <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }} title={new Date(completedDate).toLocaleString()}>
+                                {timeAgo(completedDate)}
+                              </span>
+                            </div>
+                            {summary && (
+                              <div style={{ fontSize: 13, color: "#666", marginTop: 3, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {summary}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 12, color: "#999", marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
+                              <span style={{ fontFamily: "monospace", fontSize: 11 }}>{issue.identifier}</span>
+                              <span>·</span>
+                              <span>{assignee?.name || "Unassigned"}</span>
+                            </div>
+                          </div>
+                        </a>
+                      );
+                    })}
+                    {doneIssues.length > 10 && (
+                      <div style={{ padding: "10px 0", textAlign: "center" }}>
+                        <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
+                          View all {doneIssues.length} achievements →
+                        </a>
+                      </div>
+                    )}
+                  </Card.Content>
+                </Card>
+              </div>
+            );
+          })()}
 
           {/* Activity feed */}
           <div>

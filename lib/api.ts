@@ -185,6 +185,7 @@ export interface Issue {
   isUnreadForMe?: boolean;
   lastExternalCommentAt?: string | null;
   myLastTouchAt?: string | null;
+  completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
