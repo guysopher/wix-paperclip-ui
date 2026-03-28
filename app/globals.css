@@ -158,13 +158,19 @@ html, body {
 @media (max-width: 768px) {
   /* Shell: hide sidebar, show mobile header */
   .shell-sidebar {
-    position: fixed;
-    left: -260px;
+    position: fixed !important;
+    left: -240px;
     top: 0;
     bottom: 0;
+    width: 220px !important;
     z-index: 1000;
     transition: left 0.25s ease;
     box-shadow: none;
+  }
+  /* Zero out sidebar space in flex layout since it's position:fixed */
+  .shell-sidebar[style] {
+    flex: 0 0 0px !important;
+    min-width: 0 !important;
   }
   .shell-sidebar.open {
     left: 0;
@@ -192,7 +198,8 @@ html, body {
     position: fixed !important;
     inset: 0 !important;
     width: 100% !important;
-    z-index: 998;
+    height: 100% !important;
+    z-index: 1001;
     border-left: none !important;
   }
 
@@ -204,16 +211,27 @@ html, body {
     grid-template-columns: 1fr !important;
   }
 
-  /* Tables: horizontal scroll */
+  /* Wix Page component: tighter padding */
+  [data-hook="page-content"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Tables: horizontal scroll wrapper */
   [data-hook="table-content"] {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+  /* Make tables scrollable */
+  table {
+    min-width: 600px;
+  }
 
-  /* Modals: full width */
+  /* Modals: full width on mobile */
   [data-hook="modal-overlay"] [class*="ModalLayout"] {
     width: 95vw !important;
     max-width: 95vw !important;
+    max-height: 90vh !important;
   }
 
   /* Run detail modal metadata */
@@ -240,15 +258,41 @@ html, body {
     display: inline-flex !important;
   }
 
-  /* Page header actions: wrap */
+  /* Page headers: smaller title, wrap actions */
+  [data-hook="page-header-title"] h2 {
+    font-size: 22px !important;
+  }
   [data-hook="page-header-actionbar"] {
     flex-wrap: wrap;
     gap: 6px;
+  }
+
+  /* Team status in dashboard: stack status + button */
+  .team-status-row {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+  .team-status-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Company page max-width override */
+  .company-content {
+    max-width: 100% !important;
   }
 }
 
 @media (max-width: 480px) {
   .dashboard-metrics {
     grid-template-columns: 1fr !important;
+  }
+  .shell-main-content {
+    padding-top: 50px;
+  }
+  /* Even tighter page padding */
+  [data-hook="page-content"] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
   }
 }

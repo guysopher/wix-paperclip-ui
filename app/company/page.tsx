@@ -114,7 +114,7 @@ function CompanyContent() {
           }
         />
         <Page.Content>
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 800 }}>
+          <div className="company-content" style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 800 }}>
             {/* Company details */}
             <Card>
               <Card.Header
