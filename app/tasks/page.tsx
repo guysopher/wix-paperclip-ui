@@ -25,10 +25,9 @@ import {
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Providers } from "../providers";
+import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
-  getCompanies,
   getIssues,
   getAgents,
   getComments,
@@ -68,11 +67,11 @@ const PRIORITY_SKINS: Record<string, "general" | "success" | "warning" | "danger
 };
 
 function TasksContent() {
+  const { companyId } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [companyId, setCompanyId] = useState("");
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [autoOpened, setAutoOpened] = useState(false);
@@ -103,18 +102,15 @@ function TasksContent() {
   };
 
   const load = useCallback(async () => {
-    const companies = await getCompanies();
-    if (companies.length > 0) {
-      setCompanyId(companies[0].id);
-      const [issueData, agentData] = await Promise.all([
-        getIssues(companies[0].id),
-        getAgents(companies[0].id),
-      ]);
-      setIssues(issueData.filter((i: Issue) => i.title !== "Board Inbox"));
-      setAgents(agentData);
-    }
+    if (!companyId) { setLoading(false); return; }
+    const [issueData, agentData] = await Promise.all([
+      getIssues(companyId),
+      getAgents(companyId),
+    ]);
+    setIssues(issueData.filter((i: Issue) => i.title !== "Board Inbox"));
+    setAgents(agentData);
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
 

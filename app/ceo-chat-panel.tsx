@@ -6,7 +6,6 @@ import { Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  getCompanies,
   getAgents,
   getIssues,
   getComments,
@@ -17,8 +16,10 @@ import {
   type Issue,
   type Comment,
 } from "@/lib/api";
+import { useCompany } from "./providers";
 
 export function CeoChatPanel({ onClose }: { onClose: () => void }) {
+  const { companyId } = useCompany();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [ceo, setCeo] = useState<Agent | null>(null);
   const [inboxIssue, setInboxIssue] = useState<Issue | null>(null);
@@ -32,9 +33,8 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     (async () => {
-      const companies = await getCompanies();
-      if (!companies.length) { setLoading(false); return; }
-      const cId = companies[0].id;
+      if (!companyId) { setLoading(false); return; }
+      const cId = companyId;
       const agentData = await getAgents(cId);
       setAgents(agentData);
       const ceoAgent = agentData.find((a) => a.role === "ceo");
@@ -55,7 +55,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
       setComments(commentData);
       setLoading(false);
     })();
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     // Scroll only within the chat messages container, not the whole page

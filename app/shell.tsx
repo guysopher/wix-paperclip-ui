@@ -7,6 +7,7 @@ import {
   Text,
   Heading,
   Divider,
+  Dropdown,
 } from "@wix/design-system";
 import {
   Dashboard,
@@ -17,9 +18,11 @@ import {
   Refresh,
   Confirm,
   Globe,
+  ChevronDown,
 } from "@wix/wix-ui-icons-common";
-import { useBadgeCounts, type BadgeCounts } from "./providers";
+import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
+import { CreateCompanyWizard } from "./create-company-wizard";
 
 type CountKey = keyof BadgeCounts;
 
@@ -37,8 +40,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const counts = useBadgeCounts();
+  const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Close menu on navigation
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -93,6 +98,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
   };
 
   const totalBadge = (counts.inbox || 0) + (counts.approvals || 0);
+
+  const currentCompany = companies.find((c) => c.id === companyId);
+
+  const companyDropdownOptions = [
+    ...companies.map((c) => ({ id: c.id, value: c.name })),
+    { id: "__new__", value: "+ New Company" },
+  ];
+
+  const handleCompanySelect = (option: { id: string | number }) => {
+    if (option.id === "__new__") {
+      setWizardOpen(true);
+    } else {
+      setCompanyId(String(option.id));
+    }
+  };
+
+  const handleCompanyCreated = async (newCompanyId: string) => {
+    await refreshCompanies();
+    setCompanyId(newCompanyId);
+    setWizardOpen(false);
+  };
 
   return (
     <Box height="100vh" direction="horizontal">
@@ -161,7 +187,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           flexDirection: "column",
         }}
       >
-        <div style={{ padding: "0 18px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "0 18px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 34, height: 34, borderRadius: "50%",
             background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
@@ -175,6 +201,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Text size="tiny" light secondary>Your Wix AI Company</Text>
           </div>
         </div>
+
+        {/* Company switcher */}
+        <div style={{ padding: "0 12px", marginBottom: 16 }}>
+          <Dropdown
+            size="small"
+            placeholder="Select company"
+            selectedId={companyId}
+            options={companyDropdownOptions}
+            onSelect={handleCompanySelect}
+          />
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 12px" }}>
           {NAV_ITEMS.map(navButton)}
         </div>
@@ -220,6 +258,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <CeoChatPanel onClose={() => setChatOpen(false)} />
         </div>
       )}
+
+      {/* Create Company Wizard */}
+      <CreateCompanyWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onCreated={handleCompanyCreated}
+      />
     </Box>
   );
 }

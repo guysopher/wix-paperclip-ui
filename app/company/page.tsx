@@ -17,10 +17,10 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh, Add, Delete } from "@wix/wix-ui-icons-common";
-import { Providers } from "../providers";
+import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
-  getCompanies,
+  getCompany,
   getGoals,
   updateCompany,
   createGoal,
@@ -30,6 +30,7 @@ import {
 } from "@/lib/api";
 
 function CompanyContent() {
+  const { companyId } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,9 +47,8 @@ function CompanyContent() {
   const [newGoalDesc, setNewGoalDesc] = useState("");
 
   const load = useCallback(async () => {
-    const companies = await getCompanies();
-    if (!companies.length) { setLoading(false); return; }
-    const c = companies[0];
+    if (!companyId) { setLoading(false); return; }
+    const c = await getCompany(companyId);
     setCompany(c);
     setEditName(c.name);
     setEditDescription(c.description);
@@ -56,7 +56,7 @@ function CompanyContent() {
     const goalList = await getGoals(c.id).catch(() => []);
     setGoals(goalList);
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
 

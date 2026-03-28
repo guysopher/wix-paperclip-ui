@@ -13,10 +13,9 @@ import {
 import { Refresh, Inbox as InboxIcon, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Providers } from "../providers";
+import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
-  getCompanies,
   getAgents,
   getMyIssues,
   getComments,
@@ -40,6 +39,7 @@ function timeAgo(date: string) {
 const TAB_KEYS = ["needs-reply", "active", "done", "archived"];
 
 function InboxContent() {
+  const { companyId } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -80,18 +80,16 @@ function InboxContent() {
   }, [agents]);
 
   const load = useCallback(async () => {
-    const companies = await getCompanies();
-    if (!companies.length) { setLoading(false); return; }
-    const cId = companies[0].id;
+    if (!companyId) { setLoading(false); return; }
     const [agentList, myIssues] = await Promise.all([
-      getAgents(cId),
-      getMyIssues(cId),
+      getAgents(companyId),
+      getMyIssues(companyId),
     ]);
     setAgents(agentList);
     // Filter out Board Inbox
     setIssues(myIssues.filter((i) => i.title !== "Board Inbox"));
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [comments]);

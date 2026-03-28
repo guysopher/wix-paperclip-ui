@@ -20,10 +20,9 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers } from "../providers";
+import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
-  getCompanies,
   getAgents,
   getApprovals,
   updateApproval,
@@ -76,6 +75,7 @@ function summarizePayload(payload: Record<string, unknown>): string {
 }
 
 function ApprovalsContent() {
+  const { companyId } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -96,16 +96,15 @@ function ApprovalsContent() {
   const [notes, setNotes] = useState("");
 
   const load = useCallback(async () => {
-    const companies = await getCompanies();
-    if (!companies.length) { setLoading(false); return; }
+    if (!companyId) { setLoading(false); return; }
     const [agentList, approvalList] = await Promise.all([
-      getAgents(companies[0].id),
-      getApprovals(companies[0].id),
+      getAgents(companyId),
+      getApprovals(companyId),
     ]);
     setAgents(agentList);
     setApprovals(approvalList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
 

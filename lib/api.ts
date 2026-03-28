@@ -132,8 +132,16 @@ export interface HeartbeatRun {
 }
 
 // Company
+export const createCompany = (data: Partial<Company>) =>
+  request<Company>("/companies", { method: "POST", body: JSON.stringify(data) });
 export const updateCompany = (companyId: string, data: Partial<Company>) =>
   request<Company>(`/companies/${companyId}`, { method: "PATCH", body: JSON.stringify(data) });
+export const archiveCompany = (companyId: string) =>
+  request<Company>(`/companies/${companyId}/archive`, { method: "POST" });
+
+// Agents — create
+export const createAgent = (companyId: string, data: Record<string, unknown>) =>
+  request<Agent>(`/companies/${companyId}/agents`, { method: "POST", body: JSON.stringify(data) });
 
 // Goals
 export const getGoals = (companyId: string) =>

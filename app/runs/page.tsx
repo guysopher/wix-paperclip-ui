@@ -20,10 +20,9 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers } from "../providers";
+import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
-  getCompanies,
   getAgents,
   getHeartbeatRuns,
   getHeartbeatRunLog,
@@ -193,6 +192,7 @@ function parseRunLog(raw: string): LogEntry[] {
 }
 
 function RunsContent() {
+  const { companyId } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
@@ -216,17 +216,16 @@ function RunsContent() {
   const [loadingLog, setLoadingLog] = useState(false);
 
   const load = useCallback(async () => {
-    const companies = await getCompanies();
-    if (!companies.length) { setLoading(false); return; }
+    if (!companyId) { setLoading(false); return; }
     const [agentList, runList] = await Promise.all([
-      getAgents(companies[0].id),
-      getHeartbeatRuns(companies[0].id),
+      getAgents(companyId),
+      getHeartbeatRuns(companyId),
     ]);
     setAgents(agentList);
     // Sort by most recent
     setRuns(runList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     setLoading(false);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
 

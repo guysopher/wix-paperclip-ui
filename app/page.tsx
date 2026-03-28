@@ -28,10 +28,9 @@ import {
   Confirm,
   Activity,
 } from "@wix/wix-ui-icons-common";
-import { Providers } from "./providers";
+import { Providers, useCompany } from "./providers";
 import { Shell } from "./shell";
 import {
-  getCompanies,
   getDashboard,
   getActivity,
   getAgents,
@@ -41,6 +40,7 @@ import {
   getRuns,
   createIssue,
   runHealthCheck,
+  getCompany,
   type Company,
   type Dashboard,
   type ActivityEntry,
@@ -176,6 +176,7 @@ function agentStatusText(agent: Agent): string {
 }
 
 function DashboardContent() {
+  const { companyId } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -194,29 +195,27 @@ function DashboardContent() {
   const [healthLoading, setHealthLoading] = useState(false);
 
   const load = async () => {
-    const companies = await getCompanies();
-    if (companies.length > 0) {
-      const c = companies[0];
-      setCompany(c);
-      const [dash, act, agentList, goalList, issueList, runList] = await Promise.all([
-        getDashboard(c.id),
-        getActivity(c.id).catch(() => []),
-        getAgents(c.id),
-        getGoals(c.id).catch(() => []),
-        getIssues(c.id).catch(() => []),
-        getRuns(c.id),
-      ]);
-      setDashboard(dash);
-      setActivity((act || []).slice(0, 15));
-      setAgents(agentList);
-      setGoals(goalList);
-      setIssues(issueList);
-      setRuns(runList);
-    }
+    if (!companyId) { setLoading(false); return; }
+    const c = await getCompany(companyId);
+    setCompany(c);
+    const [dash, act, agentList, goalList, issueList, runList] = await Promise.all([
+      getDashboard(companyId),
+      getActivity(companyId).catch(() => []),
+      getAgents(companyId),
+      getGoals(companyId).catch(() => []),
+      getIssues(companyId).catch(() => []),
+      getRuns(companyId),
+    ]);
+    setDashboard(dash);
+    setActivity((act || []).slice(0, 15));
+    setAgents(agentList);
+    setGoals(goalList);
+    setIssues(issueList);
+    setRuns(runList);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   if (loading) {
     return (

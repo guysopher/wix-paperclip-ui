@@ -23,10 +23,9 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh, InfoCircleSmall } from "@wix/wix-ui-icons-common";
-import { Providers } from "../providers";
+import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
-  getCompanies,
   getAgents,
   getOrg,
   invokeHeartbeat,
@@ -78,6 +77,7 @@ const SCHEDULE_OPTIONS = [
 ];
 
 function TeamContent() {
+  const { companyId } = useCompany();
   const searchParams = useSearchParams();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,15 +98,13 @@ function TeamContent() {
   const [editPrompt, setEditPrompt] = useState("");
 
   const load = async () => {
-    const companies = await getCompanies();
-    if (companies.length > 0) {
-      const agentData = await getAgents(companies[0].id);
-      setAgents(agentData);
-    }
+    if (!companyId) { setLoading(false); return; }
+    const agentData = await getAgents(companyId);
+    setAgents(agentData);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   // Auto-open agent from ?agent={id} query param
   useEffect(() => {
