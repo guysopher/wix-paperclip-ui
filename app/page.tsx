@@ -17,9 +17,12 @@ import {
   Input,
   Dropdown,
   Tooltip,
+  PopoverMenu,
+  IconButton,
 } from "@wix/design-system";
 import {
   Add,
+  More,
   Refresh,
   Users,
   Checklist,
@@ -285,6 +288,53 @@ function DashboardContent() {
     .filter((i) => i.status !== "done" && i.status !== "cancelled" && i.title !== "Board Inbox")
     .slice(0, 5);
 
+  // Token usage analytics
+  const tokenStats = (() => {
+    type Usage = { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number; rawInputTokens?: number; rawOutputTokens?: number; costUsd?: number; model?: string };
+    const parsed: Array<{ usage: Usage; agentId: string; date: string }> = [];
+    for (const r of runs) {
+      if (!r.usageJson) continue;
+      try {
+        const u: Usage = typeof r.usageJson === "string" ? JSON.parse(r.usageJson) : r.usageJson;
+        parsed.push({ usage: u, agentId: r.agentId, date: r.createdAt });
+      } catch { /* skip */ }
+    }
+
+    // Totals
+    let totalInput = 0, totalOutput = 0, totalCached = 0, totalCost = 0;
+    for (const p of parsed) {
+      totalInput += p.usage.rawInputTokens || p.usage.inputTokens || 0;
+      totalOutput += p.usage.rawOutputTokens || p.usage.outputTokens || 0;
+      totalCached += p.usage.cachedInputTokens || 0;
+      totalCost += p.usage.costUsd || 0;
+    }
+
+    // By agent
+    const byAgent: Record<string, { input: number; output: number; cached: number; runs: number }> = {};
+    for (const p of parsed) {
+      if (!byAgent[p.agentId]) byAgent[p.agentId] = { input: 0, output: 0, cached: 0, runs: 0 };
+      byAgent[p.agentId].input += p.usage.rawInputTokens || p.usage.inputTokens || 0;
+      byAgent[p.agentId].output += p.usage.rawOutputTokens || p.usage.outputTokens || 0;
+      byAgent[p.agentId].cached += p.usage.cachedInputTokens || 0;
+      byAgent[p.agentId].runs += 1;
+    }
+
+    // By day (last 7 days)
+    const byDay: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      byDay[d.toISOString().slice(0, 10)] = 0;
+    }
+    for (const p of parsed) {
+      const day = p.date.slice(0, 10);
+      if (day in byDay) byDay[day] += (p.usage.rawOutputTokens || p.usage.outputTokens || 0) + (p.usage.rawInputTokens || p.usage.inputTokens || 0);
+    }
+
+    return { totalInput, totalOutput, totalCached, totalCost, byAgent, byDay, totalRuns: parsed.length };
+  })();
+
   const ceoAgent = agents.find((a) => a.role === "ceo");
   const agentDropdownOptions = [
     { id: "", value: "Unassigned" },
@@ -307,57 +357,55 @@ function DashboardContent() {
     <>
     <Page>
       <Page.Header
-        title={`The ${company.name} Company`}
+        title={company.name}
         actionsBar={
-          <Box direction="horizontal" gap="6px">
-            {(() => {
-              const allPaused = agents.length > 0 && agents.every((a) => a.status === "paused");
-              const anyRunning = agents.some((a) => a.status === "running");
-              return (
-                <Tooltip content={allPaused ? "Resume all agents — they will start checking in again" : "Pause all agents — they will stop all scheduled work"} placement="bottom">
-                  <Button
-                    size="small"
-                    priority="secondary"
-                    skin={allPaused ? "standard" : "light"}
-                    prefixIcon={allPaused ? <PlayFilled /> : <PauseFilled />}
-                    disabled={anyRunning}
-                    onClick={async () => {
-                      for (const agent of agents) {
-                        try {
-                          if (allPaused) await resumeAgent(agent.id);
-                          else await pauseAgent(agent.id);
-                        } catch {}
-                      }
-                      load();
-                    }}
-                  >
-                    {allPaused ? "Resume Company" : "Pause Company"}
-                  </Button>
-                </Tooltip>
-              );
-            })()}
-            <Tooltip content="Run diagnostics: check API health, cancel stale runs, verify the scheduler is working." placement="bottom">
-              <Button size="small" priority="secondary" onClick={async () => {
-                setHealthLoading(true);
-                setHealthResult(null);
-                try {
-                  const result = await runHealthCheck();
-                  setHealthResult(result);
-                } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [] }); }
-                setHealthLoading(false);
-              }} disabled={healthLoading}>
-                {healthLoading ? "Checking..." : "Health Check"}
-              </Button>
-            </Tooltip>
-            <button
-              onClick={() => setShowLearnMore(true)}
-              style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", color: "#3899ec", fontWeight: 500 }}
-            >
-              Learn more
-            </button>
-            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
+          <Box direction="horizontal" gap="6px" verticalAlign="middle">
+            <Button size="tiny" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
               Refresh
             </Button>
+            <PopoverMenu
+              placement="bottom-end"
+              triggerElement={
+                <IconButton size="small" priority="secondary">
+                  <More />
+                </IconButton>
+              }
+            >
+              <PopoverMenu.MenuItem
+                text={healthLoading ? "Checking..." : "Health Check"}
+                subtitle="Run diagnostics and fix stale runs"
+                disabled={healthLoading}
+                onClick={async () => {
+                  setHealthLoading(true);
+                  setHealthResult(null);
+                  try {
+                    const result = await runHealthCheck();
+                    setHealthResult(result);
+                  } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [] }); }
+                  setHealthLoading(false);
+                }}
+              />
+              <PopoverMenu.MenuItem
+                text={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Resume All Agents" : "Pause All Agents"}
+                subtitle={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Agents will start checking in again" : "Stop all scheduled work"}
+                disabled={agents.some((a) => a.status === "running")}
+                onClick={async () => {
+                  const allPaused = agents.every((a) => a.status === "paused");
+                  for (const agent of agents) {
+                    try {
+                      if (allPaused) await resumeAgent(agent.id);
+                      else await pauseAgent(agent.id);
+                    } catch {}
+                  }
+                  load();
+                }}
+              />
+              <PopoverMenu.Divider />
+              <PopoverMenu.MenuItem
+                text="About"
+                onClick={() => setShowLearnMore(true)}
+              />
+            </PopoverMenu>
           </Box>
         }
       />
@@ -769,6 +817,95 @@ function DashboardContent() {
               </Card.Content>
             </Card>
           </div>
+          {/* Token Usage Analytics */}
+          {tokenStats.totalRuns > 0 && (
+            <div>
+              <Card>
+                <Card.Header title="Token Usage" subtitle={`${tokenStats.totalRuns} runs tracked`} />
+                <Card.Content>
+                  {/* Summary stats */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalOutput / 1000).toFixed(1)}k</div>
+                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Output tokens</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalInput / 1000).toFixed(1)}k</div>
+                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Input tokens</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalCached / 1000).toFixed(1)}k</div>
+                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Cached tokens</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>${tokenStats.totalCost.toFixed(2)}</div>
+                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Total cost</div>
+                    </div>
+                  </div>
+
+                  <Divider />
+
+                  {/* Daily usage bar chart */}
+                  <div style={{ marginTop: 20, marginBottom: 24 }}>
+                    <Text size="small" weight="bold" secondary>DAILY USAGE (last 7 days)</Text>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 12, height: 120 }}>
+                      {(() => {
+                        const days = Object.entries(tokenStats.byDay);
+                        const maxVal = Math.max(...days.map(([, v]) => v), 1);
+                        return days.map(([day, val]) => {
+                          const pct = (val / maxVal) * 100;
+                          const label = new Date(day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" });
+                          return (
+                            <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                              <div style={{ fontSize: 10, color: "#999" }}>{val > 0 ? `${(val / 1000).toFixed(1)}k` : ""}</div>
+                              <div style={{ width: "100%", maxWidth: 48, height: `${Math.max(pct, 2)}%`, background: val > 0 ? "linear-gradient(180deg, #3899ec 0%, #1a6fbf 100%)" : "#eee", borderRadius: "4px 4px 0 0", transition: "height 0.3s ease" }} />
+                              <div style={{ fontSize: 11, color: "#666" }}>{label}</div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+
+                  <Divider />
+
+                  {/* Usage by agent */}
+                  <div style={{ marginTop: 20 }}>
+                    <Text size="small" weight="bold" secondary>USAGE BY AGENT</Text>
+                    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                      {(() => {
+                        const agentEntries = Object.entries(tokenStats.byAgent)
+                          .map(([id, data]) => ({ id, name: agents.find((a) => a.id === id)?.name || "Unknown", ...data, total: data.input + data.output }))
+                          .sort((a, b) => b.total - a.total);
+                        const maxTotal = Math.max(...agentEntries.map((a) => a.total), 1);
+
+                        return agentEntries.map((agent) => (
+                          <div key={agent.id}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                              <a href={`/team/${agent.id}`} style={{ fontSize: 13, fontWeight: 500, color: "#162d3d", textDecoration: "none" }}>{agent.name}</a>
+                              <div style={{ fontSize: 12, color: "#666" }}>
+                                {(agent.total / 1000).toFixed(1)}k tokens · {agent.runs} runs
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "#f0f0f0" }}>
+                              <div style={{ width: `${(agent.output / maxTotal) * 100}%`, background: "#3899ec", transition: "width 0.3s" }} title={`Output: ${(agent.output / 1000).toFixed(1)}k`} />
+                              <div style={{ width: `${(agent.input / maxTotal) * 100}%`, background: "#7bc8f6", transition: "width 0.3s" }} title={`Input: ${(agent.input / 1000).toFixed(1)}k`} />
+                              <div style={{ width: `${(agent.cached / maxTotal) * 100}%`, background: "#d6e6f2", transition: "width 0.3s" }} title={`Cached: ${(agent.cached / 1000).toFixed(1)}k`} />
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, color: "#999" }}>
+                      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#3899ec", marginRight: 4, verticalAlign: "middle" }} />Output</span>
+                      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#7bc8f6", marginRight: 4, verticalAlign: "middle" }} />Input</span>
+                      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#d6e6f2", marginRight: 4, verticalAlign: "middle" }} />Cached</span>
+                    </div>
+                  </div>
+                </Card.Content>
+              </Card>
+            </div>
+          )}
         </div>
       </Page.Content>
     </Page>
