@@ -16,6 +16,7 @@ import {
   Inbox,
   Refresh,
   Confirm,
+  Globe,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
@@ -29,6 +30,7 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
   { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
   { key: "/team", label: "Team", Icon: Users },
+  { key: "/company", label: "Company", Icon: Globe },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {

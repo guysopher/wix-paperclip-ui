@@ -125,9 +125,17 @@ export interface HeartbeatRun {
   updatedAt: string;
 }
 
+// Company
+export const updateCompany = (companyId: string, data: Partial<Company>) =>
+  request<Company>(`/companies/${companyId}`, { method: "PATCH", body: JSON.stringify(data) });
+
 // Goals
 export const getGoals = (companyId: string) =>
   request<Goal[]>(`/companies/${companyId}/goals`);
+export const createGoal = (companyId: string, data: Partial<Goal>) =>
+  request<Goal>(`/companies/${companyId}/goals`, { method: "POST", body: JSON.stringify(data) });
+export const deleteGoal = (goalId: string) =>
+  request<Goal>(`/goals/${goalId}`, { method: "DELETE" });
 
 // Types
 export interface Company {
