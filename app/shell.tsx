@@ -37,7 +37,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const counts = useBadgeCounts();
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
 
   return (
     <Box height="100vh" direction="horizontal">
