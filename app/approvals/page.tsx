@@ -17,6 +17,7 @@ import {
   CustomModalLayout,
   Divider,
   InputArea,
+  Tooltip,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { Providers } from "../providers";
@@ -191,7 +192,7 @@ function ApprovalsContent() {
       <Page>
         <Page.Header
           title="Approvals"
-          subtitle={pendingCount > 0 ? `${pendingCount} pending` : "All clear"}
+          subtitle={pendingCount > 0 ? `${pendingCount} awaiting your decision` : "No pending approvals"}
           actionsBar={
             <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
           }
@@ -264,6 +265,11 @@ function ApprovalsContent() {
             } : undefined}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {selected.status === "pending" && (
+                <div style={{ padding: "10px 14px", background: "#fff8e1", borderRadius: 6, fontSize: 13, color: "#7a6200", lineHeight: 1.5 }}>
+                  An agent is requesting permission to proceed. Review the details below and approve or reject.
+                </div>
+              )}
               {/* Payload details */}
               <div>
                 <Text size="small" weight="bold" secondary>REQUEST DETAILS</Text>
@@ -287,7 +293,8 @@ function ApprovalsContent() {
               {selected.status === "pending" ? (
                 <div>
                   <Text size="small" weight="bold" secondary>NOTES (optional)</Text>
-                  <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 12, color: "#999", marginTop: 2, marginBottom: 6 }}>Your note will be shared with the agent so they understand your decision.</div>
+                  <div>
                     <InputArea
                       size="small"
                       placeholder="Add a note for the agent..."

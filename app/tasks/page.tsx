@@ -20,6 +20,7 @@ import {
   Table,
   TableToolbar,
   Search,
+  Tooltip,
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
@@ -375,7 +376,7 @@ function TasksContent() {
           onCloseButtonClick={() => setShowCreate(false)}
         >
           <Box direction="vertical" gap="12px">
-            <FormField label="What needs to be done?" required>
+            <FormField label="What needs to be done?" required infoContent="Be specific. The assigned agent will read this and work on it during their next check-in.">
               <InputArea
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -384,7 +385,7 @@ function TasksContent() {
                 resizable
               />
             </FormField>
-            <FormField label="Assign to">
+            <FormField label="Assign to" infoContent="The agent who will work on this task. They'll pick it up during their next scheduled check-in, or you can wake them up manually.">
               <Dropdown
                 selectedId={newAssignee || ""}
                 onSelect={(option) => setNewAssignee(option.id ? String(option.id) : undefined)}

@@ -20,8 +20,9 @@ import {
   Dropdown,
   Input,
   InputArea,
+  Tooltip,
 } from "@wix/design-system";
-import { Refresh } from "@wix/wix-ui-icons-common";
+import { Refresh, InfoCircleSmall } from "@wix/wix-ui-icons-common";
 import { Providers } from "../providers";
 import { Shell } from "../shell";
 import {
@@ -327,17 +328,21 @@ function TeamContent() {
             <div style={{ maxHeight: "calc(90vh - 250px)", overflowY: "auto" }}>
               {/* Quick actions */}
               <Box direction="horizontal" gap="8px" marginBottom="18px">
-                <Button size="tiny" priority="secondary" onClick={async () => {
-                  await handleHeartbeat(selectedAgent);
-                  closeDetail();
-                  router.push("/runs");
-                }} disabled={acting}>
-                  Wake up
-                </Button>
-                {selectedAgent.status === "paused" && (
-                  <Button size="tiny" priority="secondary" onClick={() => handleTogglePause(selectedAgent)} disabled={acting}>
-                    Bring back
+                <Tooltip content="Immediately trigger a check-in. The agent will review their tasks, process new messages, and take action." placement="bottom">
+                  <Button size="tiny" priority="secondary" onClick={async () => {
+                    await handleHeartbeat(selectedAgent);
+                    closeDetail();
+                    router.push("/runs");
+                  }} disabled={acting}>
+                    Wake up
                   </Button>
+                </Tooltip>
+                {selectedAgent.status === "paused" && (
+                  <Tooltip content="Resume this agent so they can respond to scheduled check-ins, mentions, and task assignments again." placement="bottom">
+                    <Button size="tiny" priority="secondary" onClick={() => handleTogglePause(selectedAgent)} disabled={acting}>
+                      Bring back
+                    </Button>
+                  </Tooltip>
                 )}
               </Box>
 
@@ -349,7 +354,7 @@ function TeamContent() {
                 <FormField label="Title">
                   <Input size="small" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
                 </FormField>
-                <FormField label="Manager">
+                <FormField label="Manager" infoContent="Who this team member reports to. Their manager can delegate tasks and review their work.">
                   <Dropdown
                     size="small"
                     selectedId={editManager || "__none__"}
@@ -357,7 +362,7 @@ function TeamContent() {
                     options={managerOptions}
                   />
                 </FormField>
-                <FormField label="Seniority level">
+                <FormField label="Seniority level" infoContent="Senior agents (Opus) are more capable and thorough but cost more. Standard agents (Sonnet) are faster and more cost-effective for routine work.">
                   <Dropdown
                     size="small"
                     selectedId={editModel}
@@ -365,7 +370,7 @@ function TeamContent() {
                     options={MODEL_OPTIONS}
                   />
                 </FormField>
-                <FormField label="Check-in schedule">
+                <FormField label="Check-in schedule" infoContent="How often this agent automatically wakes up to check for new tasks, messages, and updates. You can also wake them up manually at any time.">
                   <Dropdown
                     size="small"
                     selectedId={editSchedule}
@@ -398,21 +403,23 @@ function TeamContent() {
                 <>
                   <Divider />
                   <div style={{ marginTop: 18 }}>
-                    <button
-                      onClick={() => setShowPauseConfirm(true)}
-                      disabled={acting}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#ee5951",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        padding: 0,
-                      }}
-                    >
-                      Put on leave
-                    </button>
+                    <Tooltip content="Pause this agent. They won't respond to scheduled check-ins, mentions, or task assignments until brought back." placement="right">
+                      <button
+                        onClick={() => setShowPauseConfirm(true)}
+                        disabled={acting}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#ee5951",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        Put on leave
+                      </button>
+                    </Tooltip>
                   </div>
                 </>
               )}

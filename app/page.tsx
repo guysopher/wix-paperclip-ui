@@ -16,6 +16,7 @@ import {
   FormField,
   Input,
   Dropdown,
+  Tooltip,
 } from "@wix/design-system";
 import {
   Add,
@@ -182,6 +183,7 @@ function DashboardContent() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLearnMore, setShowLearnMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
@@ -299,9 +301,17 @@ function DashboardContent() {
       <Page.Header
         title={company.name}
         actionsBar={
-          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
-            Refresh
-          </Button>
+          <Box direction="horizontal" gap="6px">
+            <button
+              onClick={() => setShowLearnMore(true)}
+              style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", color: "#3899ec", fontWeight: 500 }}
+            >
+              Learn more
+            </button>
+            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
+              Refresh
+            </Button>
+          </Box>
         }
       />
       <Page.Content>
@@ -685,6 +695,52 @@ function DashboardContent() {
             />
           </FormField>
         </Box>
+      </CustomModalLayout>
+    </Modal>
+
+    {/* Learn More modal */}
+    <Modal isOpen={showLearnMore} onRequestClose={() => setShowLearnMore(false)} shouldCloseOnOverlayClick>
+      <CustomModalLayout
+        width="640px"
+        title="How your AI company works"
+        onCloseButtonClick={() => setShowLearnMore(false)}
+        primaryButtonText="Got it"
+        primaryButtonOnClick={() => setShowLearnMore(false)}
+      >
+        <div style={{ fontSize: 14, lineHeight: 1.7, color: "#333" }}>
+          <p style={{ marginTop: 0 }}>
+            <strong>You are running a company staffed entirely by AI agents.</strong> Each team member is an autonomous AI that can read code, write code, create tasks, communicate with other agents, and report back to you.
+          </p>
+
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>🏢 Your Team</h3>
+          <p>
+            Your company has a real org chart — a CEO, managers, engineers, and QA. Each agent has a role description that defines how they think and work. The CEO coordinates everyone and reports directly to you.
+          </p>
+
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>⏰ How They Work</h3>
+          <p>
+            Agents work in <strong>check-ins</strong> (called heartbeats). During each check-in, an agent wakes up, reads their inbox, reviews tasks, does work, and goes back to sleep. You can set how often each agent checks in, or wake them up manually anytime.
+          </p>
+
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>💬 Talking to the CEO</h3>
+          <p>
+            The chat panel on the right is your direct line to the CEO. Send a message and the CEO will wake up, read it, take action (assign tasks, make decisions, coordinate the team), and reply. Think of it like messaging a real executive.
+          </p>
+
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>📋 Tasks &amp; Inbox</h3>
+          <p>
+            Work is tracked as tasks. Agents create, assign, and complete tasks autonomously. Your <strong>Inbox</strong> shows conversations that need your input — when an agent asks a question or reports results, it appears there. Reply directly to keep things moving.
+          </p>
+
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>📊 Runs</h3>
+          <p>
+            Every time an agent wakes up and does work, it creates a <strong>run</strong> — a complete log of what they thought, what tools they used, and what they accomplished. You can review any run to see exactly what happened.
+          </p>
+
+          <div style={{ marginTop: 16, padding: "12px 16px", background: "#f0f4f7", borderRadius: 8, fontSize: 13, color: "#666" }}>
+            <strong>Powered by Paperclip</strong> — an open-source platform for orchestrating AI agent teams. Your agents run Claude and other AI models, coordinated through a control plane that manages tasks, budgets, and governance.
+          </div>
+        </div>
       </CustomModalLayout>
     </Modal>
     </>

@@ -17,6 +17,7 @@ import {
   Modal,
   CustomModalLayout,
   Divider,
+  Tooltip,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { Providers } from "../providers";
@@ -299,7 +300,7 @@ function RunsContent() {
       width: "12%",
     },
     {
-      title: "Trigger",
+      title: <Tooltip content="What caused this run: Scheduled (automatic check-in), Manual (you woke them up), Mentioned (tagged in a comment), or Assigned (given a new task)."><span>Trigger</span></Tooltip>,
       render: (row: HeartbeatRun) => (
         <Text size="small">{SOURCE_LABELS[row.invocationSource] || row.invocationSource}</Text>
       ),
@@ -313,7 +314,7 @@ function RunsContent() {
       width: "10%",
     },
     {
-      title: "Cost",
+      title: <Tooltip content="Estimated API cost for this run based on tokens used."><span>Cost</span></Tooltip>,
       render: (row: HeartbeatRun) => {
         const usage = parseUsage(row.usageJson);
         return <Text size="small">{usage?.cost || "—"}</Text>;
@@ -321,7 +322,7 @@ function RunsContent() {
       width: "10%",
     },
     {
-      title: "Tokens",
+      title: <Tooltip content="Total tokens consumed (input + output + cached). Reflects the amount of thinking and writing the agent did."><span>Tokens</span></Tooltip>,
       render: (row: HeartbeatRun) => {
         const usage = parseUsage(row.usageJson);
         return <Text size="small" secondary>{usage?.tokens || "—"}</Text>;
