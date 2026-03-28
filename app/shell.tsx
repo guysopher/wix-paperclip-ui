@@ -187,30 +187,49 @@ export function Shell({ children }: { children: React.ReactNode }) {
           flexDirection: "column",
         }}
       >
-        <div style={{ padding: "0 18px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: "50%",
-            background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "white", fontSize: 13, fontWeight: 700, flexShrink: 0, letterSpacing: 0.5,
-          }}>
-            AB
+        <div style={{ padding: "0 14px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: "50%",
+              background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "white", fontSize: 13, fontWeight: 700, flexShrink: 0, letterSpacing: 0.5,
+            }}>
+              {(currentCompany?.name || "AB").slice(0, 2).toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Heading size="small" light>{currentCompany?.name || "Select Company"}</Heading>
+              <Text size="tiny" light secondary>Your Wix AI Company</Text>
+            </div>
+            {/* Switcher icon */}
+            <div style={{ position: "relative" }}>
+              <select
+                value={companyId}
+                onChange={(e) => {
+                  if (e.target.value === "__new__") setWizardOpen(true);
+                  else setCompanyId(e.target.value);
+                }}
+                style={{
+                  position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: 28, height: 28,
+                }}
+              >
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+                <option value="__new__">+ New Company</option>
+              </select>
+              <div style={{
+                width: 28, height: 28, borderRadius: 6,
+                background: "rgba(255,255,255,0.1)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#b0b0b0">
+                  <path d="M7 10l5 5 5-5z"/>
+                </svg>
+              </div>
+            </div>
           </div>
-          <div>
-            <Heading size="small" light>Agents Bay</Heading>
-            <Text size="tiny" light secondary>Your Wix AI Company</Text>
-          </div>
-        </div>
-
-        {/* Company switcher */}
-        <div style={{ padding: "0 12px", marginBottom: 16 }}>
-          <Dropdown
-            size="small"
-            placeholder="Select company"
-            selectedId={companyId}
-            options={companyDropdownOptions}
-            onSelect={handleCompanySelect}
-          />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 12px" }}>
