@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   Page,
   Card,
@@ -184,13 +184,6 @@ function DashboardContent() {
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLearnMore, setShowLearnMore] = useState(false);
-  const [now, setNow] = useState(Date.now());
-
-  // Tick every second for live countdowns
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
   const [showCreate, setShowCreate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
@@ -433,11 +426,11 @@ function DashboardContent() {
                     const lastHb = agent.lastHeartbeatAt;
                     let nextRunText = "";
                     if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
-                      const elapsed = Math.round((now - new Date(lastHb).getTime()) / 1000);
+                      const elapsed = Math.round((Date.now() - new Date(lastHb).getTime()) / 1000);
                       const remaining = interval - (elapsed % interval);
-                      const min = Math.floor(remaining / 60);
-                      const sec = remaining % 60;
-                      nextRunText = `Next in ${min}:${sec.toString().padStart(2, "0")}`;
+                      const min = Math.ceil(remaining / 60);
+                      if (min <= 1) nextRunText = "Next run in ~1 minute";
+                      else nextRunText = `Next run in ${min} minutes`;
                     } else if (interval && agent.status !== "running" && agent.status !== "paused") {
                       const schedMin = Math.round(interval / 60);
                       nextRunText = `Every ${schedMin}m`;
