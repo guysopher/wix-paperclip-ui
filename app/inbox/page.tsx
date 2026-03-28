@@ -8,7 +8,7 @@ import {
   Loader,
   Tabs,
 } from "@wix/design-system";
-import { Refresh } from "@wix/wix-ui-icons-common";
+import { Refresh, Inbox as InboxIcon, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Providers } from "../providers";
@@ -184,8 +184,8 @@ function InboxContent() {
         <div style={{ width: selected ? 380 : "100%", flexShrink: 0, overflowY: "auto", borderRight: selected ? "1px solid #eee" : "none", background: "white" }}>
           {sorted.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 20px", color: "#999" }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>✓</div>
-              <div style={{ fontWeight: 600, color: "#333" }}>
+              <InboxIcon color="#b0b0b0" size="48px" />
+              <div style={{ fontWeight: 600, color: "#333", marginTop: 8 }}>
                 {activeTab === 0 ? "All caught up" : activeTab === 1 ? "No active tasks" : activeTab === 2 ? "No completed tasks" : "No archived items"}
               </div>
               <div style={{ fontSize: 13, marginTop: 4 }}>
@@ -220,7 +220,7 @@ function InboxContent() {
                         {issue.title}
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0, marginLeft: 8 }}>{timeAgo(activityTime)}</span>
+                    <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0, marginLeft: 8 }} title={new Date(activityTime).toLocaleString()}>{timeAgo(activityTime)}</span>
                   </div>
                   <div style={{ fontSize: 12, color: "#999", marginTop: 3, display: "flex", gap: 6, alignItems: "center" }}>
                     <span>{issue.identifier}</span>

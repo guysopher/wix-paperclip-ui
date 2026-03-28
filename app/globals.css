@@ -109,3 +109,41 @@ html, body {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1); }
 }
+
+/* Shimmer skeleton animation */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-bar {
+  background: linear-gradient(90deg, #eee 25%, #e0e0e0 50%, #eee 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 6px;
+}
+
+/* Hover lift effect for dashboard metric cards */
+.metric-card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.metric-card-hover:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* CEO chat panel slide transition */
+.ceo-chat-panel {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.ceo-chat-panel-enter {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.ceo-chat-panel-active {
+  transform: translateX(0);
+  opacity: 1;
+}

@@ -12,7 +12,15 @@ import {
   Button,
   Divider,
 } from "@wix/design-system";
-import { Refresh } from "@wix/wix-ui-icons-common";
+import {
+  Refresh,
+  Users,
+  Checklist,
+  Promote,
+  Statistics,
+  Confirm,
+  Activity,
+} from "@wix/wix-ui-icons-common";
 import { Providers } from "./providers";
 import { Shell } from "./shell";
 import {
@@ -165,7 +173,51 @@ function DashboardContent() {
   useEffect(() => { load(); }, []);
 
   if (loading) {
-    return <Box align="center" verticalAlign="middle" height="400px"><Loader size="medium" /></Box>;
+    return (
+      <Page>
+        <Page.Header title={<div className="skeleton-bar" style={{ width: 180, height: 28 }} />} />
+        <Page.Content>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Card key={n}>
+                <Card.Content>
+                  <div className="skeleton-bar" style={{ width: 60, height: 10, marginBottom: 12 }} />
+                  <div className="skeleton-bar" style={{ width: 50, height: 28, marginBottom: 8 }} />
+                  <div className="skeleton-bar" style={{ width: 90, height: 10 }} />
+                </Card.Content>
+              </Card>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "5fr 7fr", gap: 16 }}>
+            <Card>
+              <Card.Content>
+                {[1, 2, 3].map((n) => (
+                  <div key={n} style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: n < 3 ? "1px solid #f0f0f0" : "none" }}>
+                    <div className="skeleton-bar" style={{ width: 10, height: 10, borderRadius: "50%" }} />
+                    <div style={{ flex: 1 }}>
+                      <div className="skeleton-bar" style={{ width: "70%", height: 14, marginBottom: 6 }} />
+                      <div className="skeleton-bar" style={{ width: "40%", height: 10 }} />
+                    </div>
+                  </div>
+                ))}
+              </Card.Content>
+            </Card>
+            <Card>
+              <Card.Content>
+                {[1, 2, 3].map((n) => (
+                  <div key={n} style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: n < 3 ? "1px solid #f0f0f0" : "none" }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="skeleton-bar" style={{ width: "80%", height: 14, marginBottom: 6 }} />
+                      <div className="skeleton-bar" style={{ width: "50%", height: 10 }} />
+                    </div>
+                  </div>
+                ))}
+              </Card.Content>
+            </Card>
+          </div>
+        </Page.Content>
+      </Page>
+    );
   }
 
   if (!company || !dashboard) {
@@ -223,53 +275,78 @@ function DashboardContent() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Key metrics row */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16 }}>
-            <Card>
-              <Card.Content>
-                <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Team</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>{agents.length}</div>
-                <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
-                  {runningAgents.length > 0 ? `${runningAgents.length} working now` : "All available"}
-                </div>
-              </Card.Content>
-            </Card>
-            <Card>
-              <Card.Content>
-                <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Tasks Done</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>{doneTasks}<span style={{ fontSize: 16, color: "#999", fontWeight: 400 }}>/{totalTasks}</span></div>
-                <div style={{ width: "100%", height: 4, background: "#eee", borderRadius: 2, marginTop: 8 }}>
-                  <div style={{ width: `${progressPct}%`, height: 4, background: "#00d68f", borderRadius: 2 }} />
-                </div>
-              </Card.Content>
-            </Card>
-            <Card>
-              <Card.Content>
-                <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Active Work</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: activeTasks > 0 ? "#3899ec" : "#162d3d", marginTop: 4 }}>{activeTasks}</div>
-                <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
-                  {dashboard.tasks.blocked ? `${dashboard.tasks.blocked} blocked` : "No blockers"}
-                </div>
-              </Card.Content>
-            </Card>
-            <a href="/approvals" style={{ textDecoration: "none", color: "inherit" }}>
+            <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
-                  <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Approvals</div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: dashboard.pendingApprovals > 0 ? "#ee5951" : "#162d3d", marginTop: 4 }}>{dashboard.pendingApprovals}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Team</div>
+                    <Users color="#b0b0b0" size="20px" />
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>{agents.length}</div>
                   <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
-                    {dashboard.pendingApprovals > 0 ? "need your review" : "All clear"}
+                    {runningAgents.length > 0 ? `${runningAgents.length} working now` : "All available"}
                   </div>
                 </Card.Content>
               </Card>
+            </div>
+            <div className="metric-card-hover" style={{ borderRadius: 8 }}>
+              <Card>
+                <Card.Content>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Tasks Done</div>
+                    <Checklist color="#b0b0b0" size="20px" />
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>{doneTasks}<span style={{ fontSize: 16, color: "#999", fontWeight: 400 }}>/{totalTasks}</span></div>
+                  <div style={{ width: "100%", height: 4, background: "#eee", borderRadius: 2, marginTop: 8 }}>
+                    <div style={{ width: `${progressPct}%`, height: 4, background: "#00d68f", borderRadius: 2 }} />
+                  </div>
+                </Card.Content>
+              </Card>
+            </div>
+            <div className="metric-card-hover" style={{ borderRadius: 8 }}>
+              <Card>
+                <Card.Content>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Active Work</div>
+                    <Promote color="#b0b0b0" size="20px" />
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: activeTasks > 0 ? "#3899ec" : "#162d3d", marginTop: 4 }}>{activeTasks}</div>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                    {dashboard.tasks.blocked ? `${dashboard.tasks.blocked} blocked` : "No blockers"}
+                  </div>
+                </Card.Content>
+              </Card>
+            </div>
+            <a href="/approvals" style={{ textDecoration: "none", color: "inherit" }}>
+              <div className="metric-card-hover" style={{ borderRadius: 8 }}>
+                <Card>
+                  <Card.Content>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Approvals</div>
+                      <Confirm color="#b0b0b0" size="20px" />
+                    </div>
+                    <div style={{ fontSize: 32, fontWeight: 700, color: dashboard.pendingApprovals > 0 ? "#ee5951" : "#162d3d", marginTop: 4 }}>{dashboard.pendingApprovals}</div>
+                    <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                      {dashboard.pendingApprovals > 0 ? "need your review" : "All clear"}
+                    </div>
+                  </Card.Content>
+                </Card>
+              </div>
             </a>
-            <Card>
-              <Card.Content>
-                <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Spend</div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>${((dashboard.costs.monthSpendCents || 0) / 100).toFixed(0)}</div>
-                <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
-                  {dashboard.costs.monthBudgetCents ? `of $${(dashboard.costs.monthBudgetCents / 100).toFixed(0)} budget` : "This month"}
-                </div>
-              </Card.Content>
-            </Card>
+            <div className="metric-card-hover" style={{ borderRadius: 8 }}>
+              <Card>
+                <Card.Content>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Spend</div>
+                    <Statistics color="#b0b0b0" size="20px" />
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>${((dashboard.costs.monthSpendCents || 0) / 100).toFixed(0)}</div>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                    {dashboard.costs.monthBudgetCents ? `of $${(dashboard.costs.monthBudgetCents / 100).toFixed(0)} budget` : "This month"}
+                  </div>
+                </Card.Content>
+              </Card>
+            </div>
           </div>
 
           {/* Team + Open work row */}
@@ -327,7 +404,10 @@ function DashboardContent() {
               <Card.Content>
                 {recentIssues.length === 0 ? (
                   <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <Text secondary>No open tasks. The team is ready for new work.</Text>
+                    <Checklist color="#b0b0b0" size="48px" />
+                    <div style={{ marginTop: 8 }}>
+                      <Text secondary>No open tasks. The team is ready for new work.</Text>
+                    </div>
                   </div>
                 ) : (
                   recentIssues.map((issue, i) => {
@@ -368,7 +448,10 @@ function DashboardContent() {
               <Card.Content>
                 {activity.length === 0 ? (
                   <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <Text secondary>No activity yet. Wake up an agent to get started.</Text>
+                    <Activity color="#b0b0b0" size="48px" />
+                    <div style={{ marginTop: 8 }}>
+                      <Text secondary>No activity yet. Wake up an agent to get started.</Text>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ position: "relative", paddingLeft: 24 }}>
@@ -403,7 +486,9 @@ function DashboardContent() {
                                 {story.detail}
                               </div>
                             )}
-                            <div style={{ fontSize: 11, color: "#bbb", marginTop: 3 }}>{timeAgo(entry.createdAt)}</div>
+                            <div style={{ fontSize: 11, color: "#bbb", marginTop: 3 }}>
+                              <span title={new Date(entry.createdAt).toLocaleString()}>{timeAgo(entry.createdAt)}</span>
+                            </div>
                           </div>
                         </div>
                       );

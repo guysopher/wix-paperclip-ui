@@ -58,7 +58,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
   }, [comments]);
 
   useEffect(() => {
@@ -69,6 +69,10 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
         if (c.length > lastCount) {
           setComments(c);
           setWaiting(false);
+          // Flash document title to notify user
+          const originalTitle = document.title;
+          document.title = "\uD83D\uDCAC CEO replied \u2014 Agents Bay";
+          setTimeout(() => { document.title = originalTitle; }, 3000);
         }
       }, 5000);
       return () => { if (pollRef.current) clearInterval(pollRef.current); };

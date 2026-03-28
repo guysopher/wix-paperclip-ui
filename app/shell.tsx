@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Box,
   Text,
-  TextButton,
   Heading,
   Divider,
 } from "@wix/design-system";
@@ -14,7 +13,6 @@ import {
   Users,
   Checklist,
   Chat,
-  Settings,
   Inbox,
   Refresh,
   Confirm,
@@ -25,12 +23,12 @@ import { CeoChatPanel } from "./ceo-chat-panel";
 type CountKey = keyof BadgeCounts;
 
 const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; countKey?: CountKey }> = [
-  { key: "/", label: "Dashboard", Icon: Dashboard },
+  { key: "/", label: "Home", Icon: Dashboard },
   { key: "/inbox", label: "Inbox", Icon: Inbox, countKey: "inbox" },
-  { key: "/team", label: "Team", Icon: Users },
   { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
-  { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
+  { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
+  { key: "/team", label: "Team", Icon: Users },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -38,6 +36,29 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const counts = useBadgeCounts();
   const [chatOpen, setChatOpen] = useState(true);
+  const [chatVisible, setChatVisible] = useState(true);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Slide transition for chat panel
+  useEffect(() => {
+    if (chatOpen) {
+      setChatVisible(true);
+      // Force reflow then animate in
+      requestAnimationFrame(() => {
+        if (panelRef.current) {
+          panelRef.current.style.transform = "translateX(0)";
+          panelRef.current.style.opacity = "1";
+        }
+      });
+    } else {
+      if (panelRef.current) {
+        panelRef.current.style.transform = "translateX(100%)";
+        panelRef.current.style.opacity = "0";
+      }
+      const timer = setTimeout(() => setChatVisible(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [chatOpen]);
 
   return (
     <Box height="100vh" direction="horizontal">
@@ -52,13 +73,31 @@ export function Shell({ children }: { children: React.ReactNode }) {
           flexDirection: "column",
         }}
       >
-        <div style={{ padding: "0 18px", marginBottom: 24 }}>
-          <Heading size="small" light>
-            Agents Bay
-          </Heading>
-          <Text size="tiny" light secondary>
-            AI Company Backoffice
-          </Text>
+        <div style={{ padding: "0 18px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "white",
+            fontSize: 13,
+            fontWeight: 700,
+            flexShrink: 0,
+            letterSpacing: 0.5,
+          }}>
+            AB
+          </div>
+          <div>
+            <Heading size="small" light>
+              Agents Bay
+            </Heading>
+            <Text size="tiny" light secondary>
+              AI Company Backoffice
+            </Text>
+          </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 12px" }}>
           {NAV_ITEMS.map((item) => {
@@ -74,8 +113,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   gap: 9,
                   padding: "9px 12px",
                   borderRadius: 6,
-                  backgroundColor: isActive ? "rgba(255,255,255,0.1)" : "transparent",
+                  backgroundColor: isActive ? "rgba(255,255,255,0.15)" : "transparent",
+                  borderLeft: isActive ? "3px solid #3899ec" : "3px solid transparent",
                   border: "none",
+                  borderLeftWidth: 3,
+                  borderLeftStyle: "solid",
+                  borderLeftColor: isActive ? "#3899ec" : "transparent",
                   cursor: "pointer",
                   width: "100%",
                   textAlign: "left",
@@ -109,8 +152,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <div style={{ flexGrow: 1 }} />
 
-        {/* Talk to CEO button */}
-        <div style={{ padding: "0 12px", marginBottom: 8 }}>
+        <Divider skin="light" />
+        <div style={{ padding: "8px 12px" }}>
           <button
             onClick={() => setChatOpen(!chatOpen)}
             style={{
@@ -132,14 +175,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Text>
           </button>
         </div>
-
-        <Divider skin="light" />
-        <div style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: 9 }}>
-          <Settings color="#b0b0b0" />
-          <TextButton size="small" skin="light" onClick={() => router.push("/settings")}>
-            Settings
-          </TextButton>
-        </div>
       </div>
 
       {/* Main content */}
@@ -148,8 +183,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Box>
 
       {/* CEO Chat slide-in panel */}
-      {chatOpen && (
+      {chatVisible && (
         <div
+          ref={panelRef}
+          className="ceo-chat-panel"
           style={{
             width: 380,
             flexShrink: 0,
@@ -158,6 +195,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             display: "flex",
             flexDirection: "column",
             background: "#f7f8fa",
+            transform: "translateX(100%)",
+            opacity: 0,
           }}
         >
           <CeoChatPanel onClose={() => setChatOpen(false)} />

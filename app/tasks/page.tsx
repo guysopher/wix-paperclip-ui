@@ -21,7 +21,7 @@ import {
   TableToolbar,
   Search,
 } from "@wix/design-system";
-import { Add, Refresh } from "@wix/wix-ui-icons-common";
+import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Providers } from "../providers";
@@ -326,13 +326,16 @@ function TasksContent() {
               <Table.Content />
               {filteredIssues.length === 0 && (
                 <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                  <Text secondary>
-                    {filterStatus === "in_progress"
-                      ? "No tasks are in progress right now."
-                      : filterStatus === "all"
-                        ? "No tasks yet."
-                        : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} tasks.`}
-                  </Text>
+                  <ChecklistIcon color="#b0b0b0" size="48px" />
+                  <div style={{ marginTop: 8 }}>
+                    <Text secondary>
+                      {filterStatus === "in_progress"
+                        ? "No tasks are in progress right now."
+                        : filterStatus === "all"
+                          ? "No tasks yet."
+                          : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} tasks.`}
+                    </Text>
+                  </div>
                   {filterStatus !== "all" && (
                     <div style={{ marginTop: 8 }}>
                       <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
