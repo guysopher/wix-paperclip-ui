@@ -80,7 +80,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         getApprovals(companyId).catch(() => []),
       ]);
       const inboxCount = myIssues.filter(
-        (i) => i.isUnreadForMe && !["done", "cancelled"].includes(i.status)
+        (i) => i.isUnreadForMe && !["done", "cancelled"].includes(i.status) && i.title !== "Board Inbox"
       ).length;
       const runningCount = runs.filter((r) => r.status === "running").length;
       const inProgressCount = allIssues.filter((i) => i.status === "in_progress").length;
