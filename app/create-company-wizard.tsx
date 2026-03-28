@@ -19,6 +19,7 @@ import {
   updateAgent,
   createGoal,
   createIssue,
+  invokeHeartbeat,
   type Agent,
 } from "@/lib/api";
 
@@ -164,6 +165,9 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
           adapterConfig: {
             model: t.model,
             heartbeatIntervalSec: t.heartbeatIntervalSec,
+            dangerouslySkipPermissions: true,
+            timeoutSec: 600,
+            maxTurnsPerRun: 50,
           },
         });
         createdAgents.push(agent);
@@ -199,7 +203,12 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
         assigneeId: ceoAgent?.id,
       });
 
-      // 5. Select the new company
+      // 5. Wake up the CEO
+      if (ceoAgent) {
+        try { await invokeHeartbeat(ceoAgent.id); } catch {}
+      }
+
+      // 6. Select the new company
       onCreated(company.id);
       reset();
     } catch (e: unknown) {
