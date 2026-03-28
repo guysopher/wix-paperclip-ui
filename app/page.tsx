@@ -195,17 +195,34 @@ function DashboardContent() {
         }
       />
       <Page.Content>
-        {/* Mission */}
+        {/* Goals */}
         {goals.length > 0 && (
           <div style={{ background: "linear-gradient(135deg, #162d3d 0%, #1a4a6e 100%)", borderRadius: 12, padding: "20px 28px", marginBottom: 20, color: "white" }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, opacity: 0.6, marginBottom: 6 }}>Company Mission</div>
-            <div style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.5 }}>{goals[0].title}</div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, opacity: 0.6, marginBottom: 10 }}>Company Goals</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {goals.map((goal, i) => (
+                <div key={goal.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ fontSize: 16, marginTop: 1 }}>
+                    {goal.status === "completed" ? "✅" : goal.status === "archived" ? "📦" : "🎯"}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.5 }}>{goal.title}</div>
+                    {goal.description && (
+                      <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2, lineHeight: 1.4 }}>{goal.description}</div>
+                    )}
+                  </div>
+                  {goal.level && goal.level !== "company" && (
+                    <span style={{ fontSize: 11, opacity: 0.5, textTransform: "capitalize", marginTop: 3 }}>{goal.level}</span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Key metrics row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 16 }}>
             <Card>
               <Card.Content>
                 <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Team</div>
@@ -233,6 +250,17 @@ function DashboardContent() {
                 </div>
               </Card.Content>
             </Card>
+            <a href="/approvals" style={{ textDecoration: "none", color: "inherit" }}>
+              <Card>
+                <Card.Content>
+                  <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Approvals</div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: dashboard.pendingApprovals > 0 ? "#ee5951" : "#162d3d", marginTop: 4 }}>{dashboard.pendingApprovals}</div>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                    {dashboard.pendingApprovals > 0 ? "need your review" : "All clear"}
+                  </div>
+                </Card.Content>
+              </Card>
+            </a>
             <Card>
               <Card.Content>
                 <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Spend</div>

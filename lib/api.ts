@@ -81,6 +81,10 @@ export const getActivity = (companyId: string) =>
 export const getApprovals = (companyId: string) =>
   request<Approval[]>(`/companies/${companyId}/approvals`);
 
+// Approvals — actions
+export const updateApproval = (approvalId: string, data: { status: string; notes?: string }) =>
+  request<Approval>(`/approvals/${approvalId}`, { method: "PATCH", body: JSON.stringify(data) });
+
 // Runs
 export const getHeartbeatRuns = (companyId: string) =>
   request<HeartbeatRun[]>(`/companies/${companyId}/heartbeat-runs`);
