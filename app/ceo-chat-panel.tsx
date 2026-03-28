@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Box, Loader } from "@wix/design-system";
+import { Box, Loader, Tooltip } from "@wix/design-system";
 import { Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

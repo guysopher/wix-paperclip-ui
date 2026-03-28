@@ -8,6 +8,7 @@ import {
   Badge,
   Loader,
   Tabs,
+  Tooltip,
 } from "@wix/design-system";
 import { Refresh, Inbox as InboxIcon, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
@@ -273,13 +274,17 @@ function InboxContent() {
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {activeTab !== 3 ? (
-                    <button onClick={() => handleArchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
-                      Archive
-                    </button>
+                    <Tooltip content="Move this conversation out of your inbox. You can find it later in the Archived tab." placement="bottom">
+                      <button onClick={() => handleArchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
+                        Archive
+                      </button>
+                    </Tooltip>
                   ) : (
-                    <button onClick={() => handleUnarchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
-                      Unarchive
-                    </button>
+                    <Tooltip content="Bring this conversation back to your active inbox." placement="bottom">
+                      <button onClick={() => handleUnarchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer" }}>
+                        Unarchive
+                      </button>
+                    </Tooltip>
                   )}
                   <a href={`/tasks?issue=${selected.identifier}`} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, textDecoration: "none", color: "#333", display: "inline-block" }}>
                     Full view
@@ -339,17 +344,19 @@ function InboxContent() {
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleReply(); } }}
                 style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "9px 16px", fontSize: 13, outline: "none", background: "#f7f8fa" }}
               />
-              <button
-                onClick={handleReply}
-                disabled={!replyText.trim() || sending}
-                style={{
-                  background: replyText.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white",
-                  border: "none", borderRadius: 20, padding: "9px 18px", fontSize: 13, fontWeight: 600,
-                  cursor: replyText.trim() && !sending ? "pointer" : "default",
-                }}
-              >
-                {sending ? "Sending..." : "Reply"}
-              </button>
+              <Tooltip content="Send your reply and wake up the assigned agent so they can read and respond." placement="top">
+                <button
+                  onClick={handleReply}
+                  disabled={!replyText.trim() || sending}
+                  style={{
+                    background: replyText.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white",
+                    border: "none", borderRadius: 20, padding: "9px 18px", fontSize: 13, fontWeight: 600,
+                    cursor: replyText.trim() && !sending ? "pointer" : "default",
+                  }}
+                >
+                  {sending ? "Sending..." : "Reply"}
+                </button>
+              </Tooltip>
             </div>
           </div>
         )}

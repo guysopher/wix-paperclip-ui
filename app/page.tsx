@@ -229,7 +229,7 @@ function DashboardContent() {
               </Card>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "5fr 7fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Card>
               <Card.Content>
                 {[1, 2, 3].map((n) => (
@@ -407,18 +407,33 @@ function DashboardContent() {
           </div>
 
           {/* Team + Open work row */}
-          <div style={{ display: "grid", gridTemplateColumns: "5fr 7fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {/* Team status */}
           <Card>
               <Card.Header title="Team Status" />
               <Card.Content>
                 {agents
                   .sort((a, b) => {
-                    const order: Record<string, number> = { running: 0, idle: 1, active: 1, paused: 2, error: 3 };
-                    return (order[a.status] ?? 9) - (order[b.status] ?? 9);
+                    if (a.status === "running" && b.status !== "running") return -1;
+                    if (b.status === "running" && a.status !== "running") return 1;
+                    const aTime = a.lastHeartbeatAt ? new Date(a.lastHeartbeatAt).getTime() : 0;
+                    const bTime = b.lastHeartbeatAt ? new Date(b.lastHeartbeatAt).getTime() : 0;
+                    return bTime - aTime;
                   })
                   .map((agent, i) => {
                     const statusText = agentStatusText(agent);
+                    const interval = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
+                    const lastHb = agent.lastHeartbeatAt;
+                    let nextRunText = "";
+                    if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
+                      const nextTime = new Date(lastHb).getTime() + interval * 1000;
+                      const diffSec = Math.max(0, Math.round((nextTime - Date.now()) / 1000));
+                      if (diffSec > 0) {
+                        const min = Math.floor(diffSec / 60);
+                        const sec = diffSec % 60;
+                        nextRunText = `Next in ${min}:${sec.toString().padStart(2, "0")}`;
+                      }
+                    }
                     return (
                       <div key={agent.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < agents.length - 1 ? "1px solid #f0f0f0" : "none" }}>
                         {/* Status dot */}
@@ -444,36 +459,39 @@ function DashboardContent() {
                             <Badge size="tiny" skin="danger">Needs attention</Badge>
                           ) : (
                             <>
-                              <span style={{ color: "#999", fontSize: 12 }}>
-                                {statusText}
-                              </span>
-                              <button
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  const btn = e.currentTarget;
-                                  btn.disabled = true;
-                                  btn.textContent = "Waking...";
-                                  try {
-                                    await invokeHeartbeat(agent.id);
-                                    btn.textContent = "Woke!";
-                                    setTimeout(() => load(), 2000);
-                                  } catch {
-                                    btn.textContent = "Failed";
-                                  }
-                                }}
-                                style={{
-                                  background: "none",
-                                  border: "1px solid #ddd",
-                                  borderRadius: 4,
-                                  padding: "2px 8px",
-                                  fontSize: 11,
-                                  color: "#3899ec",
-                                  cursor: "pointer",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                Wake up
-                              </button>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ color: "#999", fontSize: 12 }}>{statusText}</div>
+                                {nextRunText && <div style={{ color: "#3899ec", fontSize: 11, fontWeight: 500, marginTop: 1 }}>{nextRunText}</div>}
+                              </div>
+                              <Tooltip content="Trigger an immediate check-in. The agent will review tasks and messages right now." placement="top">
+                                <button
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    const btn = e.currentTarget;
+                                    btn.disabled = true;
+                                    btn.textContent = "Waking...";
+                                    try {
+                                      await invokeHeartbeat(agent.id);
+                                      btn.textContent = "Woke!";
+                                      setTimeout(() => load(), 2000);
+                                    } catch {
+                                      btn.textContent = "Failed";
+                                    }
+                                  }}
+                                  style={{
+                                    background: "none",
+                                    border: "1px solid #ddd",
+                                    borderRadius: 4,
+                                    padding: "2px 8px",
+                                    fontSize: 11,
+                                    color: "#3899ec",
+                                    cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  Wake up
+                                </button>
+                              </Tooltip>
                             </>
                           )}
                         </div>
@@ -683,10 +701,10 @@ function DashboardContent() {
         onCloseButtonClick={() => setShowCreate(false)}
       >
         <Box direction="vertical" gap="12px">
-          <FormField label="Title" required>
+          <FormField label="Title" required infoContent="Be specific. The assigned agent will read this and work on it during their next check-in.">
             <Input value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="What needs to be done?" />
           </FormField>
-          <FormField label="Assignee">
+          <FormField label="Assignee" infoContent="The agent who will work on this. They'll pick it up during their next scheduled check-in, or you can wake them up manually.">
             <Dropdown
               selectedId={newTaskAssignee || ""}
               onSelect={(option) => setNewTaskAssignee(option.id ? String(option.id) : undefined)}
