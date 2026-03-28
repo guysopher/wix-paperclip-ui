@@ -304,7 +304,7 @@ function DashboardContent() {
     <>
     <Page>
       <Page.Header
-        title={company.name}
+        title={`The ${company.name} Company`}
         actionsBar={
           <Box direction="horizontal" gap="6px">
             <Tooltip content="Run diagnostics: check API health, cancel stale runs, verify the scheduler is working." placement="bottom">
