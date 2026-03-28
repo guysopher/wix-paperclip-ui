@@ -40,6 +40,7 @@ import {
   invokeHeartbeat,
   getRuns,
   createIssue,
+  runHealthCheck,
   type Company,
   type Dashboard,
   type ActivityEntry,
@@ -188,6 +189,10 @@ function DashboardContent() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
 
+  // Health check
+  const [healthResult, setHealthResult] = useState<{ status: string; checks: Array<{ name: string; status: string; detail?: string }>; actions: string[] } | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+
   const load = async () => {
     const companies = await getCompanies();
     if (companies.length > 0) {
@@ -302,6 +307,19 @@ function DashboardContent() {
         title={company.name}
         actionsBar={
           <Box direction="horizontal" gap="6px">
+            <Tooltip content="Run diagnostics: check API health, cancel stale runs, verify the scheduler is working." placement="bottom">
+              <Button size="small" priority="secondary" onClick={async () => {
+                setHealthLoading(true);
+                setHealthResult(null);
+                try {
+                  const result = await runHealthCheck();
+                  setHealthResult(result);
+                } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [] }); }
+                setHealthLoading(false);
+              }} disabled={healthLoading}>
+                {healthLoading ? "Checking..." : "Health Check"}
+              </Button>
+            </Tooltip>
             <button
               onClick={() => setShowLearnMore(true)}
               style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", color: "#3899ec", fontWeight: 500 }}
@@ -315,6 +333,36 @@ function DashboardContent() {
         }
       />
       <Page.Content>
+        {/* Health check results */}
+        {healthResult && (
+          <div style={{
+            padding: "14px 20px",
+            borderRadius: 8,
+            marginBottom: 20,
+            background: healthResult.status === "healthy" ? "#f0faf0" : healthResult.status === "repaired" ? "#fff8e1" : "#fff5f5",
+            border: `1px solid ${healthResult.status === "healthy" ? "#c8e6c9" : healthResult.status === "repaired" ? "#ffe082" : "#ffcdd2"}`,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: healthResult.status === "healthy" ? "#2e7d32" : healthResult.status === "repaired" ? "#f57f17" : "#c62828" }}>
+                {healthResult.status === "healthy" ? "All systems healthy" : healthResult.status === "repaired" ? "Issues found and repaired" : "Problems detected"}
+              </div>
+              <button onClick={() => setHealthResult(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 16 }}>x</button>
+            </div>
+            {healthResult.checks.map((check, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "#555", marginBottom: 3 }}>
+                <span>{check.status === "ok" ? "✓" : check.status === "warning" ? "⚠" : check.status === "repaired" ? "🔧" : "✗"}</span>
+                <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{check.name.replace(/_/g, " ")}</span>
+                {check.detail && <span style={{ color: "#888" }}>— {check.detail}</span>}
+              </div>
+            ))}
+            {healthResult.actions.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#666", fontStyle: "italic" }}>
+                Actions taken: {healthResult.actions.join(", ")}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Goals */}
         {goals.length > 0 && (
           <div style={{ background: "linear-gradient(135deg, #162d3d 0%, #1a4a6e 100%)", borderRadius: 12, padding: "20px 28px", marginBottom: 20, color: "white" }}>

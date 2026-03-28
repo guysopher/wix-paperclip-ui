@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { WixDesignSystemProvider } from "@wix/design-system";
-import { getCompanies, getMyIssues, getIssues, getRuns, getApprovals } from "@/lib/api";
+import { getCompanies, getMyIssues, getIssues, getRuns, getApprovals, cancelHeartbeatRun } from "@/lib/api";
 
 export interface BadgeCounts {
   inbox: number;      // unread needs-reply

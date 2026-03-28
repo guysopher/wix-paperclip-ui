@@ -20,6 +20,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// Health
+export const runHealthCheck = () =>
+  fetch("/api/health", { method: "POST" }).then((r) => r.json());
+
 // Companies
 export const getCompanies = () => request<Company[]>("/companies");
 export const getCompany = (id: string) => request<Company>(`/companies/${id}`);
@@ -92,6 +96,8 @@ export const getHeartbeatRun = (runId: string) =>
   request<HeartbeatRun>(`/heartbeat-runs/${runId}`);
 export const getHeartbeatRunLog = (runId: string) =>
   request<Record<string, string>>(`/heartbeat-runs/${runId}/log`);
+export const cancelHeartbeatRun = (runId: string) =>
+  request<HeartbeatRun>(`/heartbeat-runs/${runId}/cancel`, { method: "POST" });
 export const getRuns = (companyId: string, status?: string) =>
   request<HeartbeatRun[]>(`/companies/${companyId}/heartbeat-runs${status ? `?status=${status}` : ""}`).catch(() => [] as HeartbeatRun[]);
 
