@@ -375,10 +375,16 @@ function TasksContent() {
           onCloseButtonClick={() => setShowCreate(false)}
         >
           <Box direction="vertical" gap="12px">
-            <FormField label="Title" required>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="What needs to be done?" />
+            <FormField label="What needs to be done?" required>
+              <InputArea
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Describe the task in detail. The assigned team member will read this and act on it..."
+                rows={5}
+                resizable
+              />
             </FormField>
-            <FormField label="Assignee">
+            <FormField label="Assign to">
               <Dropdown
                 selectedId={newAssignee || ""}
                 onSelect={(option) => setNewAssignee(option.id ? String(option.id) : undefined)}
