@@ -58,8 +58,13 @@ const MODEL_OPTIONS = [
 ];
 
 const MODEL_LABELS: Record<string, string> = {
-  "claude-opus-4-6": "Senior (Opus)",
-  "claude-sonnet-4-6": "Standard (Sonnet)",
+  "claude-opus-4-6": "Senior",
+  "claude-sonnet-4-6": "Standard",
+};
+
+const MODEL_COLORS: Record<string, { bg: string; color: string }> = {
+  "claude-opus-4-6": { bg: "#f0e6ff", color: "#6b3fa0" },
+  "claude-sonnet-4-6": { bg: "#e8f4fd", color: "#2b6cb0" },
 };
 
 const SCHEDULE_OPTIONS = [
@@ -224,7 +229,16 @@ function TeamContent() {
       width: "25%",
     },
     { title: "Manager", render: (row: Agent) => <Text size="small">{managerName(row.reportsTo)}</Text>, width: "15%" },
-    { title: "Level", render: (row: Agent) => <Text size="small">{getModel(row)}</Text>, width: "15%" },
+    { title: "Level", render: (row: Agent) => {
+      const model = (row.adapterConfig?.model as string) || "";
+      const label = MODEL_LABELS[model] || "Unknown";
+      const colors = MODEL_COLORS[model] || { bg: "#f0f0f0", color: "#666" };
+      return (
+        <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600, background: colors.bg, color: colors.color }}>
+          {label}
+        </span>
+      );
+    }, width: "15%" },
     { title: "Schedule", render: (row: Agent) => <Text size="small">{getHeartbeat(row)}</Text>, width: "12%" },
     { title: "Last active", render: (row: Agent) => <Text size="small" secondary>{getLastActive(row)}</Text>, width: "13%" },
     {

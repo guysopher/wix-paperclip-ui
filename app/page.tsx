@@ -136,15 +136,31 @@ function timeAgo(date: string) {
   return `${Math.round(diff / 1440)}d ago`;
 }
 
-function nextWakeup(agent: Agent) {
+function agentStatusText(agent: Agent): string {
+  if (agent.status === "running") return "Working now";
+  if (agent.status === "paused") return "On leave";
+  if (agent.status === "error") return "Needs attention";
+
+  // Check if next heartbeat is actually upcoming
   const last = agent.lastHeartbeatAt;
   const interval = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
-  if (!last || !interval) return null;
-  const next = new Date(new Date(last).getTime() + interval * 1000);
-  const diff = Math.round((next.getTime() - Date.now()) / 60000);
-  if (diff <= 0) return "any moment";
-  if (diff < 60) return `in ${diff}m`;
-  return `in ${Math.round(diff / 60)}h`;
+  if (last && interval) {
+    const next = new Date(new Date(last).getTime() + interval * 1000);
+    const diff = Math.round((next.getTime() - Date.now()) / 60000);
+    if (diff > 0 && diff < 60) return `Wakes in ${diff}m`;
+    if (diff >= 60) return `Wakes in ${Math.round(diff / 60)}h`;
+  }
+
+  // Overdue or no schedule — show last activity
+  if (last) {
+    const ago = Math.round((Date.now() - new Date(last).getTime()) / 60000);
+    if (ago < 1) return "Active just now";
+    if (ago < 60) return `Active ${ago}m ago`;
+    if (ago < 1440) return `Active ${Math.round(ago / 60)}h ago`;
+    return `Active ${Math.round(ago / 1440)}d ago`;
+  }
+
+  return "Idle";
 }
 
 function DashboardContent() {
@@ -368,7 +384,7 @@ function DashboardContent() {
                     return (order[a.status] ?? 9) - (order[b.status] ?? 9);
                   })
                   .map((agent, i) => {
-                    const wake = nextWakeup(agent);
+                    const statusText = agentStatusText(agent);
                     return (
                       <div key={agent.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < agents.length - 1 ? "1px solid #f0f0f0" : "none" }}>
                         {/* Status dot */}
@@ -393,9 +409,9 @@ function DashboardContent() {
                           ) : agent.status === "error" ? (
                             <Badge size="tiny" skin="danger">Needs attention</Badge>
                           ) : (
-                            <a href={`/runs?agent=${agent.id}&status=all`} style={{ textDecoration: "none", color: "#999", fontSize: 12 }}>
-                              {wake ? `Wakes ${wake}` : "Available"}
-                            </a>
+                            <span style={{ color: "#999", fontSize: 12 }}>
+                              {statusText}
+                            </span>
                           )}
                         </div>
                       </div>
