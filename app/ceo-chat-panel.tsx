@@ -84,15 +84,45 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
   }, [waiting, inboxIssue, comments.length]);
 
   const handleSend = async () => {
-    if (!message.trim() || !inboxIssue || !ceo) return;
+    if (!message.trim()) return;
+    if (!inboxIssue || !ceo) {
+      console.error("Chat: cannot send", { inboxIssue: !!inboxIssue, ceo: !!ceo, companyId });
+      // Try to reload if state is stale
+      if (companyId) {
+        setLoading(true);
+        const agentData = await getAgents(companyId);
+        setAgents(agentData);
+        const ceoAgent = agentData.find((a) => a.role === "ceo");
+        if (ceoAgent) setCeo(ceoAgent);
+        const issues = await getIssues(companyId);
+        let inbox = issues.find((i) => i.title === "Board Inbox");
+        if (!inbox) {
+          inbox = await createIssue(companyId, {
+            title: "Board Inbox",
+            description: "Direct communication channel between the board operator and the CEO.",
+            priority: "high",
+            assigneeId: ceoAgent?.id,
+          });
+        }
+        setInboxIssue(inbox);
+        const commentData = await getComments(inbox.id);
+        setComments(commentData);
+        setLoading(false);
+      }
+      return;
+    }
     setSending(true);
-    await postComment(inboxIssue.id, message);
-    setMessage("");
-    const updated = await getComments(inboxIssue.id);
-    setComments(updated);
+    try {
+      await postComment(inboxIssue.id, message);
+      setMessage("");
+      const updated = await getComments(inboxIssue.id);
+      setComments(updated);
+      setWaiting(true);
+      try { await invokeHeartbeat(ceo.id); } catch {}
+    } catch (err) {
+      console.error("Chat: send failed", err);
+    }
     setSending(false);
-    setWaiting(true);
-    try { await invokeHeartbeat(ceo.id); } catch {}
   };
 
   const agentName = (id: string | null) => {
