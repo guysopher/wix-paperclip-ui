@@ -167,7 +167,7 @@ function RunDetailContent({ runId }: { runId: string }) {
                 <div>
                   <div style={{ fontSize: 11, color: "#999", marginBottom: 4 }}>Agent</div>
                   <a
-                    href={`/team?agent=${run.agentId}`}
+                    href={`/team/${run.agentId}`}
                     style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}
                   >
                     {agentName(run.agentId)}
@@ -234,7 +234,7 @@ function RunDetailContent({ runId }: { runId: string }) {
                     lineHeight: 1.6,
                   }}
                 >
-                  <Text size="small" weight="bold" skin="destructive">
+                  <Text size="small" weight="bold">
                     Error
                   </Text>
                   <div style={{ marginTop: 6 }}>{run.error}</div>

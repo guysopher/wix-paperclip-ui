@@ -10,7 +10,6 @@ import {
   Badge,
   Button,
   Loader,
-  Input,
   Modal,
   CustomModalLayout,
   FormField,
@@ -20,7 +19,6 @@ import {
   Table,
   TableToolbar,
   Search,
-  Tooltip,
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import { Providers, useCompany } from "../providers";
@@ -117,26 +115,6 @@ function TasksContent() {
       !searchTerm || i.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-  const openDetail = async (issue: Issue) => {
-    setSelectedIssue(issue);
-    setEditingStatus(issue.status);
-    setLoadingComments(true);
-    try {
-      const c = await getComments(issue.id);
-      setComments(c);
-    } catch {
-      setComments([]);
-    }
-    setLoadingComments(false);
-  };
-
-  const closeDetail = () => {
-    setSelectedIssue(null);
-    setComments([]);
-    setNewComment("");
-    setEditingStatus(null);
-  };
-
   const handleCreate = async () => {
     if (!newTitle.trim() || !companyId) return;
     await createIssue(companyId, {
@@ -151,22 +129,6 @@ function TasksContent() {
     setNewPriority("medium");
     setNewAssignee(undefined);
     load();
-  };
-
-  const handleStatusChange = async (newStatus: string) => {
-    if (!selectedIssue) return;
-    await updateIssue(selectedIssue.id, { status: newStatus });
-    setEditingStatus(newStatus);
-    setSelectedIssue({ ...selectedIssue, status: newStatus });
-    load();
-  };
-
-  const handleComment = async () => {
-    if (!newComment.trim() || !selectedIssue) return;
-    await postComment(selectedIssue.id, newComment);
-    setNewComment("");
-    const c = await getComments(selectedIssue.id);
-    setComments(c);
   };
 
   const agentDropdownOptions = [
@@ -207,7 +169,7 @@ function TasksContent() {
       render: (row: Issue) => {
         const id = row.assigneeAgentId || row.assigneeId;
         const name = agentName(id);
-        return id ? <a href={`/team?agent=${id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
+        return id ? <a href={`/team/${id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
       },
       width: "20%",
     },
@@ -233,22 +195,7 @@ function TasksContent() {
     {
       title: "",
       render: (row: Issue) => (
-        <a
-          href="#"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openDetail(row);
-          }}
-          style={{
-            color: "#3899ec",
-            textDecoration: "none",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          View
-        </a>
+        <a href={`/tasks/${row.identifier}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>View</a>
       ),
       width: "10%",
     },
@@ -373,155 +320,6 @@ function TasksContent() {
         </CustomModalLayout>
       </Modal>
 
-      {/* Detail modal */}
-      <Modal isOpen={!!selectedIssue} onRequestClose={closeDetail} shouldCloseOnOverlayClick>
-        {selectedIssue && (
-          <CustomModalLayout
-            width="90vw"
-            maxHeight="90vh"
-            title={
-              <Box direction="vertical" gap="6px">
-                <Text weight="bold" size="medium">{selectedIssue.title}</Text>
-                <Box direction="horizontal" gap="6px" verticalAlign="middle">
-                  <Text size="tiny" secondary>#{selectedIssue.number}</Text>
-                  <Badge size="tiny" skin={STATUS_SKINS[selectedIssue.status] || "general"}>
-                    {STATUS_LABELS[selectedIssue.status] || selectedIssue.status}
-                  </Badge>
-                  {selectedIssue.priority && (
-                    <Badge size="tiny" skin={PRIORITY_SKINS[selectedIssue.priority] || "general"}>
-                      {selectedIssue.priority}
-                    </Badge>
-                  )}
-                  <Dropdown
-                    size="small"
-                    selectedId={selectedIssue.assigneeId || ""}
-                    onSelect={async (option) => {
-                      const newAssigneeId = option.id ? String(option.id) : undefined;
-                      await updateIssue(selectedIssue.id, { assigneeId: newAssigneeId || null } as Partial<Issue>);
-                      setSelectedIssue({ ...selectedIssue, assigneeId: newAssigneeId || null });
-                      load();
-                    }}
-                    options={agentDropdownOptions}
-                    border="round"
-                    placeholder="Assign..."
-                  />
-                </Box>
-              </Box>
-            }
-            onCloseButtonClick={closeDetail}
-          >
-            {/* Timeline */}
-            <div style={{ maxHeight: "calc(90vh - 250px)", overflowY: "auto" }}>
-              {loadingComments ? (
-                <Box align="center" padding="24px"><Loader size="small" /></Box>
-              ) : comments.length === 0 ? (
-                <Box padding="24px" align="center">
-                  <Text secondary>No activity yet on this task.</Text>
-                </Box>
-              ) : (
-                comments.map((c, i) => {
-                  const isAgent = !!c.authorAgentId;
-                  const author = isAgent ? agentName(c.authorAgentId) : "You";
-                  return (
-                    <div key={c.id} style={{ display: "flex", gap: 12, padding: "14px 0", borderBottom: i < comments.length - 1 ? "1px solid #f0f0f0" : "none" }}>
-                      {/* Avatar */}
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          backgroundColor: isAgent ? "#3899ec" : "#162d3d",
-                          color: "white",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {author.charAt(0).toUpperCase()}
-                      </div>
-                      {/* Content */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          {isAgent && c.authorAgentId ? (
-                            <a href={`/team?agent=${c.authorAgentId}`} style={{ fontSize: 14, fontWeight: 600, color: "#3899ec", textDecoration: "none" }}>{author}</a>
-                          ) : (
-                            <Text size="small" weight="bold">{author}</Text>
-                          )}
-                          <Text size="tiny" secondary>
-                            {new Date(c.createdAt).toLocaleString()}
-                          </Text>
-                        </div>
-                        <div className="timeline-markdown" style={{ fontSize: 13, lineHeight: 1.6, color: "#32536a", wordBreak: "break-word" }}>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{c.body}</ReactMarkdown>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Reply bar */}
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                alignItems: "center",
-                background: "#f0f4f7",
-                margin: "12px -30px -30px -30px",
-                padding: "10px 24px",
-                borderRadius: "0 0 8px 8px",
-              }}
-            >
-              <input
-                type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Reply to this task..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleComment();
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  border: "1px solid #d6e6f2",
-                  borderRadius: 20,
-                  outline: "none",
-                  padding: "8px 16px",
-                  fontSize: 14,
-                  background: "white",
-                  boxSizing: "border-box",
-                  height: 38,
-                }}
-              />
-              <button
-                onClick={handleComment}
-                disabled={!newComment.trim()}
-                style={{
-                  background: newComment.trim() ? "#3899ec" : "#b6d4ee",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 20,
-                  padding: "10px 20px",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: newComment.trim() ? "pointer" : "default",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                }}
-              >
-                Send
-              </button>
-            </div>
-
-          </CustomModalLayout>
-        )}
-      </Modal>
     </>
   );
 }

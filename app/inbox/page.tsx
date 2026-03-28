@@ -239,7 +239,7 @@ function InboxContent() {
                     <span>{issue.identifier}</span>
                     <span>·</span>
                     {(issue.assigneeAgentId || issue.assigneeId) ? (
-                      <a href={`/team?agent=${issue.assigneeAgentId || issue.assigneeId}`} onClick={(e) => e.stopPropagation()} style={{ color: "#3899ec", textDecoration: "none" }}>{assignee}</a>
+                      <a href={`/team/${issue.assigneeAgentId || issue.assigneeId}`} onClick={(e) => e.stopPropagation()} style={{ color: "#3899ec", textDecoration: "none" }}>{assignee}</a>
                     ) : (
                       <span>{assignee}</span>
                     )}
@@ -270,7 +270,7 @@ function InboxContent() {
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{selected.title}</div>
                   <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
                     {selected.identifier} · {(selected.assigneeAgentId || selected.assigneeId) ? (
-                      <a href={`/team?agent=${selected.assigneeAgentId || selected.assigneeId}`} style={{ color: "#3899ec", textDecoration: "none" }}>{agentName(selected.assigneeAgentId || selected.assigneeId)}</a>
+                      <a href={`/team/${selected.assigneeAgentId || selected.assigneeId}`} style={{ color: "#3899ec", textDecoration: "none" }}>{agentName(selected.assigneeAgentId || selected.assigneeId)}</a>
                     ) : agentName(null)}
                     {selected.status && (
                       <Badge size="tiny" skin="general" style={{ marginLeft: 6 }}>{selected.status.replace(/_/g, " ")}</Badge>
@@ -291,7 +291,7 @@ function InboxContent() {
                       </button>
                     </Tooltip>
                   )}
-                  <a href={`/tasks?issue=${selected.identifier}`} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, textDecoration: "none", color: "#333", display: "inline-block" }}>
+                  <a href={`/tasks/${selected.identifier}`} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "4px 12px", fontSize: 12, textDecoration: "none", color: "#333", display: "inline-block" }}>
                     Full view
                   </a>
                 </div>
@@ -321,7 +321,7 @@ function InboxContent() {
                       <div style={{ flex: 1, background: "white", borderRadius: 8, padding: "10px 14px", border: "1px solid #eee" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                           {isAgent && c.authorAgentId ? (
-                            <a href={`/team?agent=${c.authorAgentId}`} style={{ fontWeight: 600, fontSize: 13, color: "#3899ec", textDecoration: "none" }}>{author}</a>
+                            <a href={`/team/${c.authorAgentId}`} style={{ fontWeight: 600, fontSize: 13, color: "#3899ec", textDecoration: "none" }}>{author}</a>
                           ) : (
                             <span style={{ fontWeight: 600, fontSize: 13 }}>{author}</span>
                           )}

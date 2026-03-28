@@ -195,7 +195,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
                         components={{
                           a: ({ href, children, ...props }) => {
                             const issueMatch = href?.match(/\/AGE\/issues\/(AGE-\d+)/);
-                            if (issueMatch) return <a {...props} href={`/tasks?issue=${issueMatch[1]}`} style={{ color: "#3899ec" }}>{children}</a>;
+                            if (issueMatch) return <a {...props} href={`/tasks/${issueMatch[1]}`} style={{ color: "#3899ec" }}>{children}</a>;
                             if (href && href.startsWith("/")) return <span style={{ color: "#3899ec", fontWeight: 500 }}>{children}</span>;
                             return <a {...props} href={href} target="_blank" rel="noopener noreferrer" style={{ color: "#3899ec" }}>{children}</a>;
                           },

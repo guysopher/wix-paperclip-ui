@@ -59,9 +59,9 @@ function buildStory(entry: ActivityEntry, agents: Agent[]): Story | null {
   const entityAgent = entry.entityType === "agent" ? agents.find((a) => a.id === entry.entityId) : null;
 
   const actor = isUser ? "You" : (actorAgent?.name || "An agent");
-  const actorLink = !isUser && actorAgent ? `/team?agent=${actorAgent.id}` : undefined;
-  const entityLink = entityAgent ? `/team?agent=${entityAgent.id}` : undefined;
-  const runLink = entry.entityType === "run" ? `/runs?run=${entry.entityId}` : undefined;
+  const actorLink = !isUser && actorAgent ? `/team/${actorAgent.id}` : undefined;
+  const entityLink = entityAgent ? `/team/${entityAgent.id}` : undefined;
+  const runLink = entry.entityType === "run" ? `/runs/${entry.entityId}` : undefined;
   const d = entry.details || {};
   const identifier = (d.identifier as string) || "";
   const issueTitle = (d.issueTitle as string) || "";
@@ -76,12 +76,12 @@ function buildStory(entry: ActivityEntry, agents: Agent[]): Story | null {
         icon: isUser ? "💬" : "📨",
         text: `${actor} ${isUser ? "commented on" : "posted an update on"} ${identifier || "a task"}${issueTitle && !identifier ? ` — ${issueTitle}` : ""}`,
         detail: preview ? `"${preview}${snippet.length > 120 ? "..." : ""}"` : undefined,
-        link: identifier ? `/tasks?issue=${identifier}` : undefined,
+        link: identifier ? `/tasks/${identifier}` : undefined,
         actorLink,
       };
     }
     case "issue.updated": {
-      const taskLink = identifier ? `/tasks?issue=${identifier}` : undefined;
+      const taskLink = identifier ? `/tasks/${identifier}` : undefined;
       if (status === "done") {
         return { icon: "✅", text: `${actor} completed ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
       }
@@ -97,11 +97,11 @@ function buildStory(entry: ActivityEntry, agents: Agent[]): Story | null {
       return { icon: "📝", text: `${actor} updated ${identifier || "a task"}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
     }
     case "issue.created":
-      return { icon: "➕", text: `${actor} created ${identifier ? identifier + " " : ""}${issueTitle || "a new task"}`, link: identifier ? `/tasks?issue=${identifier}` : undefined, actorLink };
+      return { icon: "➕", text: `${actor} created ${identifier ? identifier + " " : ""}${issueTitle || "a new task"}`, link: identifier ? `/tasks/${identifier}` : undefined, actorLink };
     case "issue.checked_out":
-      return { icon: "🔨", text: `${actor} picked up ${identifier}${issueTitle ? ` — ${issueTitle}` : ""} and started working`, link: identifier ? `/tasks?issue=${identifier}` : undefined, actorLink };
+      return { icon: "🔨", text: `${actor} picked up ${identifier}${issueTitle ? ` — ${issueTitle}` : ""} and started working`, link: identifier ? `/tasks/${identifier}` : undefined, actorLink };
     case "issue.released":
-      return { icon: "📤", text: `${actor} released ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined, actorLink };
+      return { icon: "📤", text: `${actor} released ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks/${identifier}` : undefined, actorLink };
     case "issue.read_marked":
       return null; // Boring, skip
     case "agent.created": {
@@ -128,7 +128,7 @@ function buildStory(entry: ActivityEntry, agents: Agent[]): Story | null {
     case "heartbeat.invoked": {
       const wokeAgent = actorAgent || entityAgent;
       const whoWoke = wokeAgent?.name || "An agent";
-      const wokeLink = wokeAgent ? `/team?agent=${wokeAgent.id}` : undefined;
+      const wokeLink = wokeAgent ? `/team/${wokeAgent.id}` : undefined;
       return { icon: "⏰", text: isUser ? `You woke up ${whoWoke} for a check-in` : `${whoWoke} started a scheduled check-in`, actorLink: wokeLink };
     }
     case "run.completed":
@@ -494,7 +494,7 @@ function DashboardContent() {
                         <a
                           href={agent.status === "running"
                             ? `/runs?agent=${agent.id}`
-                            : `/team?agent=${agent.id}`}
+                            : `/team/${agent.id}`}
                           style={{ flex: 1, textDecoration: "none", color: "inherit" }}
                         >
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
@@ -585,7 +585,7 @@ function DashboardContent() {
                     return (
                       <a
                         key={issue.id}
-                        href={`/tasks?issue=${issue.identifier}`}
+                        href={`/tasks/${issue.identifier}`}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
                       >
                         <div style={{ flex: 1 }}>
@@ -630,7 +630,7 @@ function DashboardContent() {
                       return (
                         <a
                           key={issue.id}
-                          href={`/tasks?issue=${issue.identifier}`}
+                          href={`/tasks/${issue.identifier}`}
                           style={{
                             display: "flex",
                             gap: 12,
