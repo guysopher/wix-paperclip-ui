@@ -92,6 +92,7 @@ interface LogEntry {
   kind: "assistant" | "tools" | "result";
   text: string;
   toolNames?: string[];
+  timestamp?: string;
 }
 
 function humanizeToolName(name: string): string {
@@ -107,13 +108,14 @@ function humanizeToolName(name: string): string {
 function parseRunLog(raw: string): LogEntry[] {
   const lines = raw.split("\n").filter(Boolean);
 
-  // First pass: extract raw items
-  const items: Array<{ kind: "text" | "tool" | "result"; text: string; toolName?: string }> = [];
+  // First pass: extract raw items with timestamps
+  const items: Array<{ kind: "text" | "tool" | "result"; text: string; toolName?: string; ts?: string }> = [];
 
   for (const line of lines) {
     try {
       const outer = JSON.parse(line);
       const chunkStr: string = outer.chunk ?? "";
+      const ts: string = outer.ts || "";
 
       let chunk: Record<string, unknown> | null = null;
       try { chunk = JSON.parse(chunkStr); } catch { /* plain text */ }
@@ -126,16 +128,16 @@ function parseRunLog(raw: string): LogEntry[] {
           if (msg.content) {
             for (const block of msg.content) {
               if (block.type === "text" && block.text?.trim()) {
-                items.push({ kind: "text", text: block.text.trim() });
+                items.push({ kind: "text", text: block.text.trim(), ts });
               }
               if (block.type === "tool_use" && block.name) {
-                items.push({ kind: "tool", text: "", toolName: block.name });
+                items.push({ kind: "tool", text: "", toolName: block.name, ts });
               }
             }
           }
         } else if (type === "result") {
           const result = (chunk.result as string) || "";
-          if (result) items.push({ kind: "result", text: result });
+          if (result) items.push({ kind: "result", text: result, ts });
         }
       }
     } catch { /* skip */ }
@@ -153,28 +155,34 @@ function parseRunLog(raw: string): LogEntry[] {
     const summary = Object.entries(counts)
       .map(([name, count]) => count > 1 ? `${humanizeToolName(name)} (x${count})` : humanizeToolName(name))
       .join(", ");
-    entries.push({ kind: "tools", text: summary, toolNames: [...new Set(pendingTools)] });
+    entries.push({ kind: "tools", text: summary, toolNames: [...new Set(pendingTools)], timestamp: pendingToolTs });
     pendingTools = [];
+    pendingToolTs = "";
   };
 
+  let pendingToolTs = "";
   let pendingText: string[] = [];
+  let pendingTextTs = "";
   const flushText = () => {
     if (pendingText.length === 0) return;
-    entries.push({ kind: "assistant", text: pendingText.join("\n\n") });
+    entries.push({ kind: "assistant", text: pendingText.join("\n\n"), timestamp: pendingTextTs });
     pendingText = [];
+    pendingTextTs = "";
   };
 
   for (const item of items) {
     if (item.kind === "tool") {
       flushText();
+      if (!pendingToolTs && item.ts) pendingToolTs = item.ts;
       pendingTools.push(item.toolName!);
     } else if (item.kind === "text") {
       flushTools();
+      if (!pendingTextTs && item.ts) pendingTextTs = item.ts;
       pendingText.push(item.text);
     } else if (item.kind === "result") {
       flushTools();
       flushText();
-      entries.push({ kind: "result", text: item.text });
+      entries.push({ kind: "result", text: item.text, timestamp: item.ts });
     }
   }
   flushTools();
@@ -464,10 +472,14 @@ function RunsContent() {
                 ) : (
                   <div style={{ marginTop: 12, maxHeight: 500, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
                     {runLogEntries.map((entry, i) => {
+                      const ts = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
                       if (entry.kind === "assistant") {
                         return (
-                          <div key={i} style={{ padding: "12px 16px", background: "#f7f8fa", borderRadius: 8, borderLeft: "3px solid #3899ec", fontSize: 13, lineHeight: 1.7, color: "#333", whiteSpace: "pre-wrap" }}>
-                            {entry.text}
+                          <div key={i}>
+                            {ts && <div style={{ fontSize: 10, color: "#bbb", marginBottom: 3 }}>{ts}</div>}
+                            <div style={{ padding: "12px 16px", background: "#f7f8fa", borderRadius: 8, borderLeft: "3px solid #3899ec", fontSize: 13, lineHeight: 1.7, color: "#333", whiteSpace: "pre-wrap" }}>
+                              {entry.text}
+                            </div>
                           </div>
                         );
                       }
@@ -476,13 +488,17 @@ function RunsContent() {
                           <div key={i} style={{ padding: "6px 14px", fontSize: 12, color: "#999", display: "flex", alignItems: "center", gap: 6 }}>
                             <span style={{ fontSize: 14 }}>&#9881;</span>
                             {entry.text}
+                            {ts && <span style={{ marginLeft: "auto", fontSize: 10, color: "#ccc" }}>{ts}</span>}
                           </div>
                         );
                       }
                       if (entry.kind === "result") {
                         return (
-                          <div key={i} style={{ padding: "10px 14px", background: "#f0faf0", borderRadius: 6, borderLeft: "3px solid #4caf50", fontSize: 13, color: "#2e7d32", whiteSpace: "pre-wrap" }}>
-                            {entry.text}
+                          <div key={i}>
+                            {ts && <div style={{ fontSize: 10, color: "#bbb", marginBottom: 3 }}>{ts}</div>}
+                            <div style={{ padding: "10px 14px", background: "#f0faf0", borderRadius: 6, borderLeft: "3px solid #4caf50", fontSize: 13, color: "#2e7d32", whiteSpace: "pre-wrap" }}>
+                              {entry.text}
+                            </div>
                           </div>
                         );
                       }

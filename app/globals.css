@@ -12,6 +12,12 @@ html, body {
 }
 
 /* Modal overrides */
+[data-hook="modal-overlay"] [class*="ModalLayout"] {
+  max-height: 92vh !important;
+}
+[data-hook="modal-overlay"] [data-hook="content-wrapper"] {
+  padding-bottom: 24px !important;
+}
 [data-hook="footnote"] {
   overflow: visible !important;
   padding: 0 !important;
