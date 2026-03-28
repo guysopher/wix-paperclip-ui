@@ -203,6 +203,24 @@ function ApprovalsContent() {
                 </TableToolbar.ItemGroup>
               </TableToolbar>
               <Table.Content />
+              {filtered.length === 0 && (
+                <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                  <Text secondary>
+                    {filterStatus === "pending"
+                      ? "No approvals waiting for your review."
+                      : filterStatus === "all"
+                        ? "No approvals yet."
+                        : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} approvals.`}
+                  </Text>
+                  {filterStatus !== "all" && (
+                    <div style={{ marginTop: 8 }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                        View all approvals
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
             </Table>
           </Card>
         </Page.Content>

@@ -248,6 +248,11 @@ function TeamContent() {
                 </TableToolbar.ItemGroup>
               </TableToolbar>
               <Table.Content />
+              {filtered.length === 0 && (
+                <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                  <Text secondary>No team members found.</Text>
+                </div>
+              )}
             </Table>
           </Card>
         </Page.Content>

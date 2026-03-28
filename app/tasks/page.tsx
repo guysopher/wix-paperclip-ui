@@ -324,6 +324,24 @@ function TasksContent() {
                 </TableToolbar.ItemGroup>
               </TableToolbar>
               <Table.Content />
+              {filteredIssues.length === 0 && (
+                <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                  <Text secondary>
+                    {filterStatus === "in_progress"
+                      ? "No tasks are in progress right now."
+                      : filterStatus === "all"
+                        ? "No tasks yet."
+                        : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} tasks.`}
+                  </Text>
+                  {filterStatus !== "all" && (
+                    <div style={{ marginTop: 8 }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                        View all tasks
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
             </Table>
           </Card>
         </Page.Content>

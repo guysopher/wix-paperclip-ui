@@ -356,6 +356,24 @@ function RunsContent() {
                 </TableToolbar.ItemGroup>
               </TableToolbar>
               <Table.Content />
+              {filtered.length === 0 && (
+                <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                  <Text secondary>
+                    {filterStatus === "running"
+                      ? "No runs are active right now."
+                      : filterStatus === "all"
+                        ? "No runs yet."
+                        : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} runs.`}
+                  </Text>
+                  {filterStatus !== "all" && (
+                    <div style={{ marginTop: 8 }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                        View all runs
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
             </Table>
           </Card>
         </Page.Content>
