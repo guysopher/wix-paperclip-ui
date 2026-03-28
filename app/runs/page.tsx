@@ -421,14 +421,25 @@ function RunsContent() {
             title={
               <Box direction="vertical" gap="6px">
                 <Text weight="bold" size="medium"><a href={`/team?agent=${selectedRun.agentId}`} style={{ color: "inherit", textDecoration: "none" }}>{agentName(selectedRun.agentId)}</a> — Work Session</Text>
-                <Box direction="horizontal" gap="6px" verticalAlign="middle">
+                <Box direction="horizontal" gap="12px" verticalAlign="middle" marginTop="6px">
                   <Badge size="tiny" skin={STATUS_SKINS[selectedRun.status] || "general"}>
                     {STATUS_LABELS[selectedRun.status] || selectedRun.status}
                   </Badge>
-                  <Text size="small" secondary>{duration(selectedRun.startedAt, selectedRun.finishedAt)}</Text>
-                  <Text size="small" secondary>·</Text>
-                  <Text size="small" secondary>{SOURCE_LABELS[selectedRun.invocationSource] || selectedRun.invocationSource}</Text>
-                  {(() => { const u = parseUsage(selectedRun.usageJson); return u ? <><Text size="small" secondary>·</Text><Text size="small" secondary>{u.cost}</Text><Text size="small" secondary>·</Text><Text size="small" secondary>{u.tokens}</Text></> : null; })()}
+                  <span style={{ fontSize: 12, color: "#666" }}>
+                    <strong>Started:</strong> {selectedRun.startedAt ? new Date(selectedRun.startedAt).toLocaleString() : "—"}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#666" }}>
+                    <strong>Duration:</strong> {duration(selectedRun.startedAt, selectedRun.finishedAt)}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#666" }}>
+                    <strong>Trigger:</strong> {SOURCE_LABELS[selectedRun.invocationSource] || selectedRun.invocationSource}
+                  </span>
+                  {(() => { const u = parseUsage(selectedRun.usageJson); return u ? (
+                    <>
+                      <span style={{ fontSize: 12, color: "#666" }}><strong>Cost:</strong> {u.cost}</span>
+                      <span style={{ fontSize: 12, color: "#666" }}><strong>Tokens:</strong> {u.tokens}</span>
+                    </>
+                  ) : null; })()}
                 </Box>
               </Box>
             }
