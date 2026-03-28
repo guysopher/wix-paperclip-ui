@@ -382,7 +382,7 @@ function RunsContent() {
                         ? "No runs yet."
                         : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} runs.`}
                   </Text>
-                  {filterStatus !== "all" && (
+                  {filterStatus !== "all" && runs.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
                         View all runs

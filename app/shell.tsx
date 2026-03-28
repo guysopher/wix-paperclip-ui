@@ -152,7 +152,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <div style={{ flexGrow: 1 }} />
 
-        <Divider skin="light" />
         <div style={{ padding: "8px 12px" }}>
           <button
             onClick={() => setChatOpen(!chatOpen)}
@@ -160,13 +159,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
               display: "flex",
               alignItems: "center",
               gap: 9,
-              padding: "9px 12px",
-              borderRadius: 6,
-              backgroundColor: chatOpen ? "#3899ec" : "rgba(56, 153, 236, 0.15)",
-              border: "none",
+              padding: "10px 12px",
+              borderRadius: 8,
+              backgroundColor: chatOpen ? "#3899ec" : "rgba(56, 153, 236, 0.25)",
+              border: chatOpen ? "none" : "1px solid rgba(56, 153, 236, 0.4)",
               cursor: "pointer",
               width: "100%",
               textAlign: "left",
+              boxShadow: chatOpen ? "0 2px 8px rgba(56, 153, 236, 0.3)" : "none",
             }}
           >
             <Chat color="white" />

@@ -341,7 +341,7 @@ function TasksContent() {
                           : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} tasks.`}
                     </Text>
                   </div>
-                  {filterStatus !== "all" && (
+                  {filterStatus !== "all" && issues.length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
                         View all tasks
