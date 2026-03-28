@@ -427,12 +427,19 @@ function DashboardContent() {
                     let nextRunText = "";
                     if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
                       const nextTime = new Date(lastHb).getTime() + interval * 1000;
-                      const diffSec = Math.max(0, Math.round((nextTime - Date.now()) / 1000));
+                      const diffSec = Math.round((nextTime - Date.now()) / 1000);
                       if (diffSec > 0) {
                         const min = Math.floor(diffSec / 60);
                         const sec = diffSec % 60;
                         nextRunText = `Next in ${min}:${sec.toString().padStart(2, "0")}`;
+                      } else {
+                        // Overdue — show the schedule instead
+                        const schedMin = Math.round(interval / 60);
+                        nextRunText = `Every ${schedMin}m · overdue`;
                       }
+                    } else if (interval && agent.status !== "running" && agent.status !== "paused") {
+                      const schedMin = Math.round(interval / 60);
+                      nextRunText = `Every ${schedMin}m`;
                     }
                     return (
                       <div key={agent.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < agents.length - 1 ? "1px solid #f0f0f0" : "none" }}>

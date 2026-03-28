@@ -205,13 +205,15 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
           disabled={sending}
           style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "8px 14px", fontSize: 13, outline: "none", background: "#f7f8fa" }}
         />
-        <button
-          onClick={handleSend}
-          disabled={!message.trim() || sending}
-          style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
-        >
-          <Send size="16px" />
-        </button>
+        <Tooltip content="Send your message. The CEO will be woken up to read and respond." placement="top">
+          <button
+            onClick={handleSend}
+            disabled={!message.trim() || sending}
+            style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
+          >
+            <Send size="16px" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
