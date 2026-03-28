@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Box,
@@ -38,29 +38,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const counts = useBadgeCounts();
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatVisible, setChatVisible] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Slide transition for chat panel
-  useEffect(() => {
-    if (chatOpen) {
-      setChatVisible(true);
-      requestAnimationFrame(() => {
-        if (panelRef.current) {
-          panelRef.current.style.transform = "translateX(0)";
-          panelRef.current.style.opacity = "1";
-        }
-      });
-    } else {
-      if (panelRef.current) {
-        panelRef.current.style.transform = "translateX(100%)";
-        panelRef.current.style.opacity = "0";
-      }
-      const timer = setTimeout(() => setChatVisible(false), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [chatOpen]);
 
   // Close menu on navigation
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -228,9 +206,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Box>
 
       {/* CEO Chat slide-in panel */}
-      {chatVisible && (
+      {chatOpen && (
         <div
-          ref={panelRef}
           className="ceo-chat-panel"
           style={{
             width: 380, flexShrink: 0,
@@ -238,7 +215,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             height: "100vh",
             display: "flex", flexDirection: "column",
             background: "#f7f8fa",
-            transform: "translateX(100%)", opacity: 0,
           }}
         >
           <CeoChatPanel onClose={() => setChatOpen(false)} />
