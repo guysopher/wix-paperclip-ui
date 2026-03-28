@@ -23,20 +23,14 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Providers, useCompany } from "../providers";
 import { Shell } from "../shell";
 import {
   getIssues,
   getAgents,
-  getComments,
   createIssue,
-  updateIssue,
-  postComment,
   type Issue,
   type Agent,
-  type Comment,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -74,8 +68,6 @@ function TasksContent() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [autoOpened, setAutoOpened] = useState(false);
-
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -83,13 +75,6 @@ function TasksContent() {
   const [newPriority, setNewPriority] = useState("medium");
   const [newAssignee, setNewAssignee] = useState<string | undefined>();
   const ceoAgent = agents.find((a) => a.role === "ceo");
-
-  // Detail modal
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState("");
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [editingStatus, setEditingStatus] = useState<string | null>(null);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("status") || "in_progress");
@@ -114,17 +99,12 @@ function TasksContent() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-open issue from ?issue=AGE-8 query param
-  useEffect(() => {
-    const issueParam = searchParams.get("issue");
-    if (issueParam && issues.length > 0 && !autoOpened) {
-      const match = issues.find((i) => i.identifier === issueParam);
-      if (match) {
-        openDetail(match);
-        setAutoOpened(true);
-      }
-    }
-  }, [issues, searchParams, autoOpened]);
+  // Redirect ?issue=AGE-8 to detail page
+  const issueParam = searchParams.get("issue");
+  if (issueParam) {
+    router.replace(`/tasks/${issueParam}`);
+    return null;
+  }
 
   const agentName = (id: string | null) => {
     if (!id) return "Unassigned";

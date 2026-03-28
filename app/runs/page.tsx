@@ -14,8 +14,6 @@ import {
   TableToolbar,
   Search,
   Dropdown,
-  Modal,
-  CustomModalLayout,
   Divider,
   Tooltip,
 } from "@wix/design-system";
@@ -25,7 +23,6 @@ import { Shell } from "../shell";
 import {
   getAgents,
   getHeartbeatRuns,
-  getHeartbeatRunLog,
   type Agent,
   type HeartbeatRun,
 } from "@/lib/api";
