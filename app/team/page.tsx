@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Page,
   Card,
@@ -71,12 +72,14 @@ const SCHEDULE_OPTIONS = [
 ];
 
 function TeamContent() {
+  const searchParams = useSearchParams();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [acting, setActing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [autoOpened, setAutoOpened] = useState(false);
 
   // Editable fields
   const [editName, setEditName] = useState("");
@@ -96,6 +99,18 @@ function TeamContent() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Auto-open agent from ?agent={id} query param
+  useEffect(() => {
+    const agentParam = searchParams.get("agent");
+    if (agentParam && agents.length > 0 && !autoOpened) {
+      const match = agents.find((a) => a.id === agentParam);
+      if (match) {
+        openDetail(match);
+        setAutoOpened(true);
+      }
+    }
+  }, [agents, searchParams, autoOpened]);
 
   const openDetail = (agent: Agent) => {
     setSelectedAgent(agent);
@@ -214,7 +229,7 @@ function TeamContent() {
     { title: "Last active", render: (row: Agent) => <Text size="small" secondary>{getLastActive(row)}</Text>, width: "13%" },
     {
       title: "Status",
-      render: (row: Agent) => <Badge size="small" skin={STATUS_SKINS[row.status] || "general"}>{STATUS_LABELS[row.status] || row.status}</Badge>,
+      render: (row: Agent) => <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>{STATUS_LABELS[row.status] || row.status}</Badge>,
       width: "10%",
     },
     {
@@ -272,7 +287,7 @@ function TeamContent() {
                 <Box direction="vertical">
                   <Text weight="bold" size="medium">{selectedAgent.name}</Text>
                   <Box direction="horizontal" gap="6px" verticalAlign="middle">
-                    <Badge size="small" skin={STATUS_SKINS[selectedAgent.status] || "general"}>
+                    <Badge size="tiny" skin={STATUS_SKINS[selectedAgent.status] || "general"}>
                       {STATUS_LABELS[selectedAgent.status] || selectedAgent.status}
                     </Badge>
                     <Text size="tiny" secondary>Last active: {getLastActive(selectedAgent)}</Text>
@@ -361,7 +376,9 @@ export default function TeamPage() {
   return (
     <Providers>
       <Shell>
-        <TeamContent />
+        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+          <TeamContent />
+        </Suspense>
       </Shell>
     </Providers>
   );

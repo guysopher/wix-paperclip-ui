@@ -259,7 +259,7 @@ function RunsContent() {
     {
       title: "Status",
       render: (row: HeartbeatRun) => (
-        <Badge size="small" skin={STATUS_SKINS[row.status] || "general"}>
+        <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>
           {STATUS_LABELS[row.status] || row.status}
         </Badge>
       ),
@@ -389,13 +389,13 @@ function RunsContent() {
               <Box direction="vertical" gap="6px">
                 <Text weight="bold" size="medium">{agentName(selectedRun.agentId)} — Work Session</Text>
                 <Box direction="horizontal" gap="6px" verticalAlign="middle">
-                  <Badge size="small" skin={STATUS_SKINS[selectedRun.status] || "general"}>
+                  <Badge size="tiny" skin={STATUS_SKINS[selectedRun.status] || "general"}>
                     {STATUS_LABELS[selectedRun.status] || selectedRun.status}
                   </Badge>
-                  <Text size="tiny" secondary>{duration(selectedRun.startedAt, selectedRun.finishedAt)}</Text>
-                  <Text size="tiny" secondary>·</Text>
-                  <Text size="tiny" secondary>{SOURCE_LABELS[selectedRun.invocationSource] || selectedRun.invocationSource}</Text>
-                  {(() => { const u = parseUsage(selectedRun.usageJson); return u ? <><Text size="tiny" secondary>·</Text><Text size="tiny" secondary>{u.cost}</Text><Text size="tiny" secondary>·</Text><Text size="tiny" secondary>{u.tokens}</Text></> : null; })()}
+                  <Text size="small" secondary>{duration(selectedRun.startedAt, selectedRun.finishedAt)}</Text>
+                  <Text size="small" secondary>·</Text>
+                  <Text size="small" secondary>{SOURCE_LABELS[selectedRun.invocationSource] || selectedRun.invocationSource}</Text>
+                  {(() => { const u = parseUsage(selectedRun.usageJson); return u ? <><Text size="small" secondary>·</Text><Text size="small" secondary>{u.cost}</Text><Text size="small" secondary>·</Text><Text size="small" secondary>{u.tokens}</Text></> : null; })()}
                 </Box>
               </Box>
             }

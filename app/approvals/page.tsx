@@ -135,7 +135,7 @@ function ApprovalsContent() {
     {
       title: "Status",
       render: (row: Approval) => (
-        <Badge size="small" skin={STATUS_SKINS[row.status] || "general"}>
+        <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>
           {STATUS_LABELS[row.status] || row.status}
         </Badge>
       ),
@@ -234,7 +234,7 @@ function ApprovalsContent() {
             title={humanizeType(selected.type)}
             subtitle={
               <Box direction="horizontal" gap="6px" verticalAlign="middle">
-                <Badge size="small" skin={STATUS_SKINS[selected.status] || "general"}>
+                <Badge size="tiny" skin={STATUS_SKINS[selected.status] || "general"}>
                   {STATUS_LABELS[selected.status] || selected.status}
                 </Badge>
                 <Text size="tiny" secondary>{new Date(selected.createdAt).toLocaleString()}</Text>

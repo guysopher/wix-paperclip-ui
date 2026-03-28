@@ -378,11 +378,11 @@ function DashboardContent() {
                         {/* Status */}
                         <div style={{ textAlign: "right" }}>
                           {agent.status === "running" ? (
-                            <Badge size="small" skin="success">Working</Badge>
+                            <Badge size="tiny" skin="success">Working</Badge>
                           ) : agent.status === "paused" ? (
-                            <Badge size="small" skin="warning">On leave</Badge>
+                            <Badge size="tiny" skin="warning">On leave</Badge>
                           ) : agent.status === "error" ? (
-                            <Badge size="small" skin="danger">Needs attention</Badge>
+                            <Badge size="tiny" skin="danger">Needs attention</Badge>
                           ) : (
                             <div style={{ fontSize: 12, color: "#999" }}>
                               {wake ? `Wakes ${wake}` : "Available"}
@@ -430,7 +430,7 @@ function DashboardContent() {
                             {issue.identifier} · {assignee ? assignee.name : "Unassigned"}
                           </div>
                         </div>
-                        <Badge size="small" skin={statusSkin[issue.status] || "general"}>
+                        <Badge size="tiny" skin={statusSkin[issue.status] || "general"}>
                           {statusLabel[issue.status] || issue.status}
                         </Badge>
                       </a>

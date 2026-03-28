@@ -225,7 +225,7 @@ function TasksContent() {
       title: "Priority",
       render: (row: Issue) =>
         row.priority ? (
-          <Badge size="small" skin={PRIORITY_SKINS[row.priority] || "general"}>
+          <Badge size="tiny" skin={PRIORITY_SKINS[row.priority] || "general"}>
             {row.priority}
           </Badge>
         ) : null,
@@ -234,7 +234,7 @@ function TasksContent() {
     {
       title: "Status",
       render: (row: Issue) => (
-        <Badge size="small" skin={STATUS_SKINS[row.status] || "general"}>
+        <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>
           {STATUS_LABELS[row.status] || row.status}
         </Badge>
       ),
@@ -403,11 +403,11 @@ function TasksContent() {
                 <Text weight="bold" size="medium">{selectedIssue.title}</Text>
                 <Box direction="horizontal" gap="6px" verticalAlign="middle">
                   <Text size="tiny" secondary>#{selectedIssue.number}</Text>
-                  <Badge size="small" skin={STATUS_SKINS[selectedIssue.status] || "general"}>
+                  <Badge size="tiny" skin={STATUS_SKINS[selectedIssue.status] || "general"}>
                     {STATUS_LABELS[selectedIssue.status] || selectedIssue.status}
                   </Badge>
                   {selectedIssue.priority && (
-                    <Badge size="small" skin={PRIORITY_SKINS[selectedIssue.priority] || "general"}>
+                    <Badge size="tiny" skin={PRIORITY_SKINS[selectedIssue.priority] || "general"}>
                       {selectedIssue.priority}
                     </Badge>
                   )}

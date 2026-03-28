@@ -58,7 +58,11 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    // Scroll only within the chat messages container, not the whole page
+    const el = messagesEndRef.current;
+    if (el?.parentElement) {
+      el.parentElement.scrollTop = el.parentElement.scrollHeight;
+    }
   }, [comments]);
 
   useEffect(() => {
