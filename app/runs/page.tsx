@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
   Card,
@@ -185,6 +185,7 @@ function parseRunLog(raw: string): LogEntry[] {
 
 function RunsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +193,13 @@ function RunsContent() {
   const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "running");
   const [filterAgent, setFilterAgent] = useState(searchParams.get("agent") || "all");
   const [autoOpened, setAutoOpened] = useState(false);
+
+  const updateFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "all" || value === "running" && key === "status") params.delete(key);
+    else params.set(key, value);
+    router.replace(`/runs${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  };
 
   // Detail modal
   const [selectedRun, setSelectedRun] = useState<HeartbeatRun | null>(null);
@@ -360,10 +368,10 @@ function RunsContent() {
                     <Box height="18px"><Divider direction="vertical" /></Box>
                   </TableToolbar.Item>
                   <TableToolbar.Item>
-                    <Dropdown size="small" selectedId={filterAgent} onSelect={(o) => setFilterAgent(String(o.id))} options={agentOptions} border="round" />
+                    <Dropdown size="small" selectedId={filterAgent} onSelect={(o) => { setFilterAgent(String(o.id)); updateFilter("agent", String(o.id)); }} options={agentOptions} border="round" />
                   </TableToolbar.Item>
                   <TableToolbar.Item>
-                    <Dropdown size="small" selectedId={filterStatus} onSelect={(o) => setFilterStatus(String(o.id))} options={statusOptions} border="round" />
+                    <Dropdown size="small" selectedId={filterStatus} onSelect={(o) => { setFilterStatus(String(o.id)); updateFilter("status", String(o.id)); }} options={statusOptions} border="round" />
                   </TableToolbar.Item>
                 </TableToolbar.ItemGroup>
                 <TableToolbar.ItemGroup position="end">
@@ -384,7 +392,7 @@ function RunsContent() {
                   </Text>
                   {filterStatus !== "all" && runs.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilter("status", "all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
                         View all runs
                       </a>
                     </div>

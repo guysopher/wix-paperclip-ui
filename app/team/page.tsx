@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
   Card,
@@ -84,6 +84,8 @@ function TeamContent() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [acting, setActing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const router = useRouter();
   const [autoOpened, setAutoOpened] = useState(false);
 
   // Editable fields
@@ -325,12 +327,18 @@ function TeamContent() {
             <div style={{ maxHeight: "calc(90vh - 250px)", overflowY: "auto" }}>
               {/* Quick actions */}
               <Box direction="horizontal" gap="8px" marginBottom="18px">
-                <Button size="tiny" priority="secondary" onClick={() => handleHeartbeat(selectedAgent)} disabled={acting}>
+                <Button size="tiny" priority="secondary" onClick={async () => {
+                  await handleHeartbeat(selectedAgent);
+                  closeDetail();
+                  router.push("/runs");
+                }} disabled={acting}>
                   Wake up
                 </Button>
-                <Button size="tiny" priority="secondary" onClick={() => handleTogglePause(selectedAgent)} disabled={acting}>
-                  {selectedAgent.status === "paused" ? "Bring back" : "Put on leave"}
-                </Button>
+                {selectedAgent.status === "paused" && (
+                  <Button size="tiny" priority="secondary" onClick={() => handleTogglePause(selectedAgent)} disabled={acting}>
+                    Bring back
+                  </Button>
+                )}
               </Box>
 
               {/* Editable fields */}
@@ -384,9 +392,57 @@ function TeamContent() {
                   />
                 </FormField>
               </Box>
+
+              {/* Danger zone */}
+              {selectedAgent.status !== "paused" && (
+                <>
+                  <Divider />
+                  <div style={{ marginTop: 18 }}>
+                    <button
+                      onClick={() => setShowPauseConfirm(true)}
+                      disabled={acting}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ee5951",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      Put on leave
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </CustomModalLayout>
         )}
+      </Modal>
+
+      {/* Pause confirmation modal */}
+      <Modal isOpen={showPauseConfirm} onRequestClose={() => setShowPauseConfirm(false)} shouldCloseOnOverlayClick>
+        <CustomModalLayout
+          title="Put team member on leave?"
+          subtitle={selectedAgent ? `${selectedAgent.name} will stop all scheduled work until brought back.` : ""}
+          primaryButtonText="Yes, put on leave"
+          primaryButtonOnClick={async () => {
+            if (selectedAgent) {
+              await handleTogglePause(selectedAgent);
+              setShowPauseConfirm(false);
+              closeDetail();
+            }
+          }}
+          primaryButtonProps={{ skin: "destructive" } as Record<string, unknown>}
+          secondaryButtonText="Cancel"
+          secondaryButtonOnClick={() => setShowPauseConfirm(false)}
+          onCloseButtonClick={() => setShowPauseConfirm(false)}
+        >
+          <Text size="small">
+            This will immediately pause {selectedAgent?.name}. They will not wake up for scheduled check-ins or respond to mentions until you bring them back.
+          </Text>
+        </CustomModalLayout>
       </Modal>
     </>
   );

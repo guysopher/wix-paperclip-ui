@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
   Card,
@@ -74,10 +75,19 @@ function summarizePayload(payload: Record<string, unknown>): string {
 }
 
 function ApprovalsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState("pending");
+  const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "pending");
+
+  const updateFilterUrl = (status: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (status === "pending") params.delete("status");
+    else params.set("status", status);
+    router.replace(`/approvals${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  };
   const [acting, setActing] = useState<string | null>(null);
 
   // Detail modal
@@ -198,7 +208,7 @@ function ApprovalsContent() {
                     <Box height="18px"><Divider direction="vertical" /></Box>
                   </TableToolbar.Item>
                   <TableToolbar.Item>
-                    <Dropdown size="small" selectedId={filterStatus} onSelect={(o) => setFilterStatus(String(o.id))} options={statusOptions} border="round" />
+                    <Dropdown size="small" selectedId={filterStatus} onSelect={(o) => { const s = String(o.id); setFilterStatus(s); updateFilterUrl(s); }} options={statusOptions} border="round" />
                   </TableToolbar.Item>
                 </TableToolbar.ItemGroup>
               </TableToolbar>
@@ -214,7 +224,7 @@ function ApprovalsContent() {
                   </Text>
                   {filterStatus !== "all" && approvals.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilterUrl("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
                         View all approvals
                       </a>
                     </div>
@@ -305,7 +315,9 @@ export default function ApprovalsPage() {
   return (
     <Providers>
       <Shell>
-        <ApprovalsContent />
+        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+          <ApprovalsContent />
+        </Suspense>
       </Shell>
     </Providers>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Box,
   Text,
@@ -35,11 +36,24 @@ function timeAgo(date: string) {
   return `${Math.round(diff / 1440)}d`;
 }
 
+const TAB_KEYS = ["needs-reply", "active", "done", "archived"];
+
 function InboxContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
+  const initialTab = Math.max(0, TAB_KEYS.indexOf(searchParams.get("tab") || ""));
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  const updateTab = (tabId: number) => {
+    setActiveTab(tabId);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tabId === 0) params.delete("tab");
+    else params.set("tab", TAB_KEYS[tabId]);
+    router.replace(`/inbox${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  };
 
   // Selected
   const [selected, setSelected] = useState<Issue | null>(null);
@@ -168,7 +182,7 @@ function InboxContent() {
         </div>
         <Tabs
           activeId={activeTab}
-          onClick={(tab) => { setActiveTab(tab.id as number); setSelected(null); }}
+          onClick={(tab) => { updateTab(tab.id as number); setSelected(null); }}
           items={[
             { id: 0, title: `Needs reply (${needsReply.length})` },
             { id: 1, title: `Active (${activeIssues.length})` },
@@ -348,7 +362,9 @@ export default function InboxPage() {
   return (
     <Providers>
       <Shell>
-        <InboxContent />
+        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+          <InboxContent />
+        </Suspense>
       </Shell>
     </Providers>
   );

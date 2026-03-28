@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
   Card,
@@ -68,6 +68,7 @@ const PRIORITY_SKINS: Record<string, "general" | "success" | "warning" | "danger
 
 function TasksContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [companyId, setCompanyId] = useState("");
@@ -91,7 +92,14 @@ function TasksContent() {
   const [editingStatus, setEditingStatus] = useState<string | null>(null);
 
   // Filters
-  const [filterStatus, setFilterStatus] = useState<string>("in_progress");
+  const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("status") || "in_progress");
+
+  const updateFilterUrl = (status: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (status === "in_progress") params.delete("status");
+    else params.set("status", status);
+    router.replace(`/tasks${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  };
 
   const load = useCallback(async () => {
     const companies = await getCompanies();
@@ -306,7 +314,7 @@ function TasksContent() {
                     <Dropdown
                       size="small"
                       selectedId={filterStatus}
-                      onSelect={(o) => setFilterStatus(String(o.id))}
+                      onSelect={(o) => { const s = String(o.id); setFilterStatus(s); updateFilterUrl(s); }}
                       options={[
                         { id: "all", value: "All statuses" },
                         ...statusDropdownOptions,
@@ -343,7 +351,7 @@ function TasksContent() {
                   </div>
                   {filterStatus !== "all" && issues.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilterUrl("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
                         View all tasks
                       </a>
                     </div>
