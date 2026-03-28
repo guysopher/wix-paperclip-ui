@@ -218,7 +218,11 @@ function TasksContent() {
     },
     {
       title: "Assignee",
-      render: (row: Issue) => <Text size="small">{agentName(row.assigneeAgentId || row.assigneeId)}</Text>,
+      render: (row: Issue) => {
+        const id = row.assigneeAgentId || row.assigneeId;
+        const name = agentName(id);
+        return id ? <a href={`/team?agent=${id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
+      },
       width: "20%",
     },
     {
@@ -464,7 +468,11 @@ function TasksContent() {
                       {/* Content */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <Text size="small" weight="bold">{author}</Text>
+                          {isAgent && c.authorAgentId ? (
+                            <a href={`/team?agent=${c.authorAgentId}`} style={{ fontSize: 14, fontWeight: 600, color: "#3899ec", textDecoration: "none" }}>{author}</a>
+                          ) : (
+                            <Text size="small" weight="bold">{author}</Text>
+                          )}
                           <Text size="tiny" secondary>
                             {new Date(c.createdAt).toLocaleString()}
                           </Text>

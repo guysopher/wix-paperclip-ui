@@ -229,7 +229,13 @@ function TeamContent() {
     { title: "Last active", render: (row: Agent) => <Text size="small" secondary>{getLastActive(row)}</Text>, width: "13%" },
     {
       title: "Status",
-      render: (row: Agent) => <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>{STATUS_LABELS[row.status] || row.status}</Badge>,
+      render: (row: Agent) => row.status === "running" ? (
+        <a href={`/runs?agent=${row.id}&status=running`} style={{ textDecoration: "none" }}>
+          <Badge size="tiny" skin="success">Working</Badge>
+        </a>
+      ) : (
+        <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>{STATUS_LABELS[row.status] || row.status}</Badge>
+      ),
       width: "10%",
     },
     {

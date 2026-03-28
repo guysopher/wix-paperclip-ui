@@ -38,13 +38,18 @@ import {
   type Issue,
 } from "@/lib/api";
 
-function buildStory(entry: ActivityEntry, agents: Agent[]): { icon: string; text: string; detail?: string; link?: string } | null {
+interface Story { icon: string; text: string; detail?: string; link?: string; actorLink?: string; }
+
+function buildStory(entry: ActivityEntry, agents: Agent[]): Story | null {
   const isUser = entry.actorType === "user";
   const actorAgent = entry.agentId ? agents.find((a) => a.id === entry.agentId) : null;
   // For agent.updated, the entity IS the agent being updated
   const entityAgent = entry.entityType === "agent" ? agents.find((a) => a.id === entry.entityId) : null;
 
   const actor = isUser ? "You" : (actorAgent?.name || "An agent");
+  const actorLink = !isUser && actorAgent ? `/team?agent=${actorAgent.id}` : undefined;
+  const entityLink = entityAgent ? `/team?agent=${entityAgent.id}` : undefined;
+  const runLink = entry.entityType === "run" ? `/runs?run=${entry.entityId}` : undefined;
   const d = entry.details || {};
   const identifier = (d.identifier as string) || "";
   const issueTitle = (d.issueTitle as string) || "";
@@ -60,62 +65,64 @@ function buildStory(entry: ActivityEntry, agents: Agent[]): { icon: string; text
         text: `${actor} ${isUser ? "commented on" : "posted an update on"} ${identifier || "a task"}${issueTitle && !identifier ? ` — ${issueTitle}` : ""}`,
         detail: preview ? `"${preview}${snippet.length > 120 ? "..." : ""}"` : undefined,
         link: identifier ? `/tasks?issue=${identifier}` : undefined,
+        actorLink,
       };
     }
     case "issue.updated": {
+      const taskLink = identifier ? `/tasks?issue=${identifier}` : undefined;
       if (status === "done") {
-        return { icon: "✅", text: `${actor} completed ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+        return { icon: "✅", text: `${actor} completed ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
       }
       if (status === "in_progress") {
-        return { icon: "🔨", text: `${actor} started working on ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+        return { icon: "🔨", text: `${actor} started working on ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
       }
       if (status === "in_review") {
-        return { icon: "👀", text: `${actor} moved ${identifier} to review${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+        return { icon: "👀", text: `${actor} moved ${identifier} to review${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
       }
       if (status === "blocked") {
-        return { icon: "🚫", text: `${identifier} is blocked${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+        return { icon: "🚫", text: `${identifier} is blocked${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
       }
-      return { icon: "📝", text: `${actor} updated ${identifier || "a task"}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+      return { icon: "📝", text: `${actor} updated ${identifier || "a task"}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
     }
     case "issue.created":
-      return { icon: "➕", text: `${actor} created ${identifier ? identifier + " " : ""}${issueTitle || "a new task"}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+      return { icon: "➕", text: `${actor} created ${identifier ? identifier + " " : ""}${issueTitle || "a new task"}`, link: identifier ? `/tasks?issue=${identifier}` : undefined, actorLink };
     case "issue.checked_out":
-      return { icon: "🔨", text: `${actor} picked up ${identifier}${issueTitle ? ` — ${issueTitle}` : ""} and started working`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+      return { icon: "🔨", text: `${actor} picked up ${identifier}${issueTitle ? ` — ${issueTitle}` : ""} and started working`, link: identifier ? `/tasks?issue=${identifier}` : undefined, actorLink };
     case "issue.released":
-      return { icon: "📤", text: `${actor} released ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined };
+      return { icon: "📤", text: `${actor} released ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks?issue=${identifier}` : undefined, actorLink };
     case "issue.read_marked":
       return null; // Boring, skip
     case "agent.created": {
       const who = entityAgent?.name || "A new team member";
-      return { icon: "👋", text: `${who} joined the team as ${entityAgent?.title || "a new role"}` };
+      return { icon: "👋", text: `${who} joined the team as ${entityAgent?.title || "a new role"}`, actorLink: entityLink };
     }
     case "agent.updated": {
       const who = entityAgent?.name || "A team member";
       const keys = (d.changedTopLevelKeys as string[]) || [];
       const configKeys = (d.changedAdapterConfigKeys as string[]) || [];
-      if (keys.includes("name")) return { icon: "✏️", text: `${who} was renamed` };
+      if (keys.includes("name")) return { icon: "✏️", text: `${who} was renamed`, actorLink: entityLink };
       if (configKeys.includes("promptTemplate") && configKeys.length <= 3) {
-        return { icon: "📋", text: `${who}'s role description was updated` };
+        return { icon: "📋", text: `${who}'s role description was updated`, actorLink: entityLink };
       }
       if (configKeys.includes("model")) {
-        return { icon: "⚙️", text: `${who}'s seniority level was changed` };
+        return { icon: "⚙️", text: `${who}'s seniority level was changed`, actorLink: entityLink };
       }
       if (configKeys.length > 3) {
-        return { icon: "⚙️", text: `${who}'s profile was reconfigured` };
+        return { icon: "⚙️", text: `${who}'s profile was reconfigured`, actorLink: entityLink };
       }
-      if (keys.includes("reportsTo")) return { icon: "🔀", text: `${who}'s reporting line was changed` };
+      if (keys.includes("reportsTo")) return { icon: "🔀", text: `${who}'s reporting line was changed`, actorLink: entityLink };
       return null; // Skip other generic updates
     }
     case "heartbeat.invoked": {
-      // Find which agent was woken from entityId (heartbeat run → agent)
       const wokeAgent = actorAgent || entityAgent;
       const whoWoke = wokeAgent?.name || "An agent";
-      return { icon: "⏰", text: isUser ? `You woke up ${whoWoke} for a check-in` : `${whoWoke} started a scheduled check-in` };
+      const wokeLink = wokeAgent ? `/team?agent=${wokeAgent.id}` : undefined;
+      return { icon: "⏰", text: isUser ? `You woke up ${whoWoke} for a check-in` : `${whoWoke} started a scheduled check-in`, actorLink: wokeLink };
     }
     case "run.completed":
-      return { icon: "✔️", text: `${actor} finished a work session` };
+      return { icon: "✔️", text: `${actor} finished a work session`, link: runLink, actorLink };
     case "run.failed":
-      return { icon: "⚠️", text: `${actor}'s work session failed`, detail: (d.error as string) || undefined };
+      return { icon: "⚠️", text: `${actor}'s work session failed`, detail: (d.error as string) || undefined, link: runLink, actorLink };
     default:
       return null; // Skip unknown actions instead of showing raw text
   }
@@ -371,22 +378,24 @@ function DashboardContent() {
                           boxShadow: agent.status === "running" ? "0 0 6px #00d68f" : "none",
                         }} />
                         {/* Name */}
-                        <div style={{ flex: 1 }}>
+                        <a href={`/team?agent=${agent.id}`} style={{ flex: 1, textDecoration: "none", color: "inherit" }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
                           <div style={{ fontSize: 12, color: "#999" }}>{agent.title}</div>
-                        </div>
+                        </a>
                         {/* Status */}
                         <div style={{ textAlign: "right" }}>
                           {agent.status === "running" ? (
-                            <Badge size="tiny" skin="success">Working</Badge>
+                            <a href={`/runs?agent=${agent.id}&status=running`} style={{ textDecoration: "none" }}>
+                              <Badge size="tiny" skin="success">Working</Badge>
+                            </a>
                           ) : agent.status === "paused" ? (
                             <Badge size="tiny" skin="warning">On leave</Badge>
                           ) : agent.status === "error" ? (
                             <Badge size="tiny" skin="danger">Needs attention</Badge>
                           ) : (
-                            <div style={{ fontSize: 12, color: "#999" }}>
+                            <a href={`/runs?agent=${agent.id}&status=all`} style={{ textDecoration: "none", color: "#999", fontSize: 12 }}>
                               {wake ? `Wakes ${wake}` : "Available"}
-                            </div>
+                            </a>
                           )}
                         </div>
                       </div>

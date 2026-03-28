@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Page,
   Card,
@@ -183,12 +184,14 @@ function parseRunLog(raw: string): LogEntry[] {
 }
 
 function RunsContent() {
+  const searchParams = useSearchParams();
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("running");
-  const [filterAgent, setFilterAgent] = useState("all");
+  const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "running");
+  const [filterAgent, setFilterAgent] = useState(searchParams.get("agent") || "all");
+  const [autoOpened, setAutoOpened] = useState(false);
 
   // Detail modal
   const [selectedRun, setSelectedRun] = useState<HeartbeatRun | null>(null);
@@ -209,6 +212,18 @@ function RunsContent() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-open run from ?run={id} query param
+  useEffect(() => {
+    const runParam = searchParams.get("run");
+    if (runParam && runs.length > 0 && !autoOpened) {
+      const match = runs.find((r) => r.id === runParam);
+      if (match) {
+        openDetail(match);
+        setAutoOpened(true);
+      }
+    }
+  }, [runs, searchParams, autoOpened]);
 
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name || "Unknown";
 
@@ -247,12 +262,14 @@ function RunsContent() {
     {
       title: "Agent",
       render: (row: HeartbeatRun) => (
-        <Box direction="horizontal" gap="8px" verticalAlign="middle">
-          <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#3899ec", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-            {agentName(row.agentId).charAt(0)}
-          </div>
-          <Text size="small">{agentName(row.agentId)}</Text>
-        </Box>
+        <a href={`/team?agent=${row.agentId}`} style={{ textDecoration: "none", color: "inherit" }}>
+          <Box direction="horizontal" gap="8px" verticalAlign="middle">
+            <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#3899ec", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+              {agentName(row.agentId).charAt(0)}
+            </div>
+            <Text size="small">{agentName(row.agentId)}</Text>
+          </Box>
+        </a>
       ),
       width: "20%",
     },
@@ -387,7 +404,7 @@ function RunsContent() {
             maxHeight="90vh"
             title={
               <Box direction="vertical" gap="6px">
-                <Text weight="bold" size="medium">{agentName(selectedRun.agentId)} — Work Session</Text>
+                <Text weight="bold" size="medium"><a href={`/team?agent=${selectedRun.agentId}`} style={{ color: "inherit", textDecoration: "none" }}>{agentName(selectedRun.agentId)}</a> — Work Session</Text>
                 <Box direction="horizontal" gap="6px" verticalAlign="middle">
                   <Badge size="tiny" skin={STATUS_SKINS[selectedRun.status] || "general"}>
                     {STATUS_LABELS[selectedRun.status] || selectedRun.status}
@@ -478,7 +495,9 @@ export default function RunsPage() {
   return (
     <Providers>
       <Shell>
-        <RunsContent />
+        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+          <RunsContent />
+        </Suspense>
       </Shell>
     </Providers>
   );

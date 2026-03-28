@@ -225,7 +225,11 @@ function InboxContent() {
                   <div style={{ fontSize: 12, color: "#999", marginTop: 3, display: "flex", gap: 6, alignItems: "center" }}>
                     <span>{issue.identifier}</span>
                     <span>·</span>
-                    <span>{assignee}</span>
+                    {(issue.assigneeAgentId || issue.assigneeId) ? (
+                      <a href={`/team?agent=${issue.assigneeAgentId || issue.assigneeId}`} onClick={(e) => e.stopPropagation()} style={{ color: "#3899ec", textDecoration: "none" }}>{assignee}</a>
+                    ) : (
+                      <span>{assignee}</span>
+                    )}
                     {hasNewAgentComment && (
                       <Badge size="tiny" skin="general">replied</Badge>
                     )}
@@ -245,7 +249,9 @@ function InboxContent() {
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{selected.title}</div>
                   <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
-                    {selected.identifier} · {agentName(selected.assigneeAgentId || selected.assigneeId)}
+                    {selected.identifier} · {(selected.assigneeAgentId || selected.assigneeId) ? (
+                      <a href={`/team?agent=${selected.assigneeAgentId || selected.assigneeId}`} style={{ color: "#3899ec", textDecoration: "none" }}>{agentName(selected.assigneeAgentId || selected.assigneeId)}</a>
+                    ) : agentName(null)}
                     {selected.status && (
                       <Badge size="tiny" skin="general" style={{ marginLeft: 6 }}>{selected.status.replace(/_/g, " ")}</Badge>
                     )}
@@ -290,7 +296,11 @@ function InboxContent() {
                       </div>
                       <div style={{ flex: 1, background: "white", borderRadius: 8, padding: "10px 14px", border: "1px solid #eee" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600, fontSize: 13 }}>{author}</span>
+                          {isAgent && c.authorAgentId ? (
+                            <a href={`/team?agent=${c.authorAgentId}`} style={{ fontWeight: 600, fontSize: 13, color: "#3899ec", textDecoration: "none" }}>{author}</a>
+                          ) : (
+                            <span style={{ fontWeight: 600, fontSize: 13 }}>{author}</span>
+                          )}
                           <span style={{ fontSize: 11, color: "#999" }}>{timeAgo(c.createdAt)}</span>
                         </div>
                         <div className="timeline-markdown" style={{ fontSize: 13, lineHeight: 1.6, color: "#333" }}>
