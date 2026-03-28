@@ -40,7 +40,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const loadCompanies = useCallback(async () => {
     try {
-      const list = await getCompanies();
+      const all = await getCompanies();
+      const list = all.filter((c) => c.status !== "archived");
       setCompanies(list);
       if (list.length > 0) {
         const stored = typeof window !== "undefined" ? localStorage.getItem("selectedCompanyId") : null;
