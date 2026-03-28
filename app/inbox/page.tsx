@@ -194,9 +194,9 @@ function InboxContent() {
       </div>
 
       {/* Split view */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div className="inbox-split" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Thread list */}
-        <div style={{ width: selected ? 380 : "100%", flexShrink: 0, overflowY: "auto", borderRight: selected ? "1px solid #eee" : "none", background: "white" }}>
+        <div className={`inbox-list${selected ? " has-selection" : ""}`} style={{ width: selected ? 380 : "100%", flexShrink: 0, overflowY: "auto", borderRight: selected ? "1px solid #eee" : "none", background: "white" }}>
           {sorted.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 20px", color: "#999" }}>
               <InboxIcon color="#b0b0b0" size="48px" />
@@ -257,11 +257,18 @@ function InboxContent() {
 
         {/* Detail pane */}
         {selected && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fafbfc" }}>
+          <div className="inbox-detail" style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fafbfc" }}>
             {/* Header */}
             <div style={{ padding: "14px 20px", background: "white", borderBottom: "1px solid #eee", flexShrink: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
+                  <button
+                    className="inbox-back-btn"
+                    onClick={() => setSelected(null)}
+                    style={{ display: "none", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#3899ec", fontSize: 13, padding: 0, marginBottom: 6 }}
+                  >
+                    ← Back
+                  </button>
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{selected.title}</div>
                   <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
                     {selected.identifier} · {(selected.assigneeAgentId || selected.assigneeId) ? (

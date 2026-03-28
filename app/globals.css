@@ -153,3 +153,102 @@ html, body {
   transform: translateX(0);
   opacity: 1;
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  /* Shell: hide sidebar, show mobile header */
+  .shell-sidebar {
+    position: fixed;
+    left: -260px;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    transition: left 0.25s ease;
+    box-shadow: none;
+  }
+  .shell-sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+  }
+  .shell-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 999;
+  }
+  .shell-overlay.open {
+    display: block;
+  }
+  .shell-mobile-header {
+    display: flex !important;
+  }
+  .shell-main-content {
+    padding-top: 50px;
+  }
+
+  /* CEO chat panel: full width overlay */
+  .ceo-chat-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    z-index: 998;
+    border-left: none !important;
+  }
+
+  /* Dashboard grids */
+  .dashboard-metrics {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .dashboard-panels {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tables: horizontal scroll */
+  [data-hook="table-content"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modals: full width */
+  [data-hook="modal-overlay"] [class*="ModalLayout"] {
+    width: 95vw !important;
+    max-width: 95vw !important;
+  }
+
+  /* Run detail modal metadata */
+  .run-meta-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Inbox: stack list and detail */
+  .inbox-split {
+    flex-direction: column !important;
+  }
+  .inbox-list {
+    width: 100% !important;
+    max-height: none !important;
+    border-right: none !important;
+  }
+  .inbox-list.has-selection {
+    display: none !important;
+  }
+  .inbox-detail {
+    width: 100% !important;
+  }
+  .inbox-back-btn {
+    display: inline-flex !important;
+  }
+
+  /* Page header actions: wrap */
+  [data-hook="page-header-actionbar"] {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-metrics {
+    grid-template-columns: 1fr !important;
+  }
+}

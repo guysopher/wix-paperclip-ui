@@ -390,7 +390,7 @@ function DashboardContent() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Key metrics row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
+          <div className="dashboard-metrics" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
@@ -455,7 +455,7 @@ function DashboardContent() {
           </div>
 
           {/* Team + Open work row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div className="dashboard-panels" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {/* Team status */}
           <Card>
               <Card.Header title="Team Status" />
@@ -492,7 +492,12 @@ function DashboardContent() {
                           boxShadow: agent.status === "running" ? "0 0 6px #00d68f" : "none",
                         }} />
                         {/* Name */}
-                        <a href={`/team?agent=${agent.id}`} style={{ flex: 1, textDecoration: "none", color: "inherit" }}>
+                        <a
+                          href={agent.status === "running"
+                            ? `/runs?agent=${agent.id}`
+                            : `/team?agent=${agent.id}`}
+                          style={{ flex: 1, textDecoration: "none", color: "inherit" }}
+                        >
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
                           <div style={{ fontSize: 12, color: "#999" }}>{agent.title}</div>
                         </a>
