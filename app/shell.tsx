@@ -27,7 +27,7 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/team", label: "Team", Icon: Users },
   { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
-  { key: "/chat", label: "Chat", Icon: Chat, countKey: "chat" },
+  { key: "/chat", label: "Talk to CEO", Icon: Chat, countKey: "chat" },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
