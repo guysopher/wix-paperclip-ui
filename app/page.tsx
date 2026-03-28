@@ -27,6 +27,8 @@ import {
   Statistics,
   Confirm,
   Activity,
+  PauseFilled,
+  PlayFilled,
 } from "@wix/wix-ui-icons-common";
 import { Providers, useCompany } from "./providers";
 import { Shell } from "./shell";
@@ -37,6 +39,8 @@ import {
   getGoals,
   getIssues,
   invokeHeartbeat,
+  pauseAgent,
+  resumeAgent,
   getRuns,
   createIssue,
   runHealthCheck,
@@ -306,6 +310,32 @@ function DashboardContent() {
         title={`The ${company.name} Company`}
         actionsBar={
           <Box direction="horizontal" gap="6px">
+            {(() => {
+              const allPaused = agents.length > 0 && agents.every((a) => a.status === "paused");
+              const anyRunning = agents.some((a) => a.status === "running");
+              return (
+                <Tooltip content={allPaused ? "Resume all agents — they will start checking in again" : "Pause all agents — they will stop all scheduled work"} placement="bottom">
+                  <Button
+                    size="small"
+                    priority="secondary"
+                    skin={allPaused ? "standard" : "light"}
+                    prefixIcon={allPaused ? <PlayFilled /> : <PauseFilled />}
+                    disabled={anyRunning}
+                    onClick={async () => {
+                      for (const agent of agents) {
+                        try {
+                          if (allPaused) await resumeAgent(agent.id);
+                          else await pauseAgent(agent.id);
+                        } catch {}
+                      }
+                      load();
+                    }}
+                  >
+                    {allPaused ? "Resume Company" : "Pause Company"}
+                  </Button>
+                </Tooltip>
+              );
+            })()}
             <Tooltip content="Run diagnostics: check API health, cancel stale runs, verify the scheduler is working." placement="bottom">
               <Button size="small" priority="secondary" onClick={async () => {
                 setHealthLoading(true);
