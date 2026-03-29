@@ -19,6 +19,7 @@ import {
   Confirm,
   Globe,
   ChevronDown,
+  Settings,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
@@ -34,6 +35,7 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
   { key: "/team", label: "Team", Icon: Users },
   { key: "/company", label: "Company", Icon: Globe },
+  { key: "/settings", label: "Settings", Icon: Settings },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {

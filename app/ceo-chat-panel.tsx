@@ -77,6 +77,8 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
           const originalTitle = document.title;
           document.title = "\uD83D\uDCAC CEO replied \u2014 Agents Bay";
           setTimeout(() => { document.title = originalTitle; }, 3000);
+          // Trigger Telegram outbound relay
+          fetch("/api/telegram/poll").catch(() => {});
         }
       }, 5000);
       return () => { if (pollRef.current) clearInterval(pollRef.current); };
