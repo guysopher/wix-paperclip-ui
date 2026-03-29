@@ -170,8 +170,38 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
   },
 ];
 
+// Map of known Wix app IDs to human-readable names and capabilities
+const WIX_APP_MAP: Record<string, { name: string; capability: string }> = {
+  "215238eb-22a5-4c36-9e7b-e7c08025e04e": { name: "Wix Stores", capability: "e-commerce, product management, inventory, orders" },
+  "13d21c63-b5ec-5912-8397-c3a5ddb27a97": { name: "Wix Bookings", capability: "appointment scheduling, service management, staff calendars" },
+  "14bcded7-0066-7c35-14d7-466cb3f09103": { name: "Wix Blog", capability: "content creation, blog posts, categories, SEO" },
+  "1522827f-c56c-a5c9-2ac9-00f9e6ae12d3": { name: "Wix Pricing Plans", capability: "subscription plans, memberships, recurring payments" },
+  "225dd912-7dea-4738-8688-4b8c6955ffc2": { name: "Wix Forms", capability: "form building, lead capture, submissions" },
+  "14cc59bc-f0b7-15b8-e1c7-89ce41d0e0c9": { name: "Wix Members Area", capability: "user accounts, member profiles, gated content" },
+  "b278a256-2757-4f19-9313-c05c783bec92": { name: "Wix Restaurants", capability: "restaurant menus, online ordering, table management" },
+  "d90652a2-f5a1-4c7c-84c4-d4cdcc41f130": { name: "Wix Portfolio", capability: "portfolio showcase, project galleries" },
+};
+
+function generateFromWixSite(siteName: string, apps: string[]): { description: string; goalTitle: string; goalDesc: string } {
+  const appNames = apps.map((id) => WIX_APP_MAP[id]?.name).filter(Boolean);
+  const capabilities = apps.map((id) => WIX_APP_MAP[id]?.capability).filter(Boolean);
+
+  let type = "online business";
+  if (apps.some((id) => WIX_APP_MAP[id]?.name === "Wix Stores")) type = "online store";
+  else if (apps.some((id) => WIX_APP_MAP[id]?.name === "Wix Bookings")) type = "service business";
+  else if (apps.some((id) => WIX_APP_MAP[id]?.name === "Wix Restaurants")) type = "restaurant";
+  else if (apps.some((id) => WIX_APP_MAP[id]?.name === "Wix Blog")) type = "content platform";
+
+  const description = `${siteName} is a${["a","e","i","o","u"].includes(type[0]) ? "n" : ""} ${type} powered by Wix.${appNames.length > 0 ? ` It uses ${appNames.join(", ")} to manage its ${capabilities.slice(0, 3).join(", ")}.` : ""} Agents have full access to the Wix site via MCP tools to manage products, content, bookings, and more.`;
+
+  const goalTitle = `Grow and optimize ${siteName}`;
+  const goalDesc = `Build, manage, and grow the ${type}. Use Wix MCP tools to manage the site — ${capabilities.slice(0, 4).join(", ")}. Focus on driving engagement, improving the customer experience, and expanding the business.`;
+
+  return { description, goalTitle, goalDesc };
+}
+
 export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(-1); // -1 = source selection
   const [companyName, setCompanyName] = useState("");
   const [companyDesc, setCompanyDesc] = useState("");
   const [teamChoice, setTeamChoice] = useState("full");
@@ -180,8 +210,14 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
+  // Wix site import
+  const [wixSiteId, setWixSiteId] = useState("");
+  const [wixSiteName, setWixSiteName] = useState("");
+  const [wixSiteUrl, setWixSiteUrl] = useState("");
+  const [wixApps, setWixApps] = useState<string[]>([]);
+
   const reset = () => {
-    setStep(0);
+    setStep(-1);
     setCompanyName("");
     setCompanyDesc("");
     setTeamChoice("full");
@@ -189,6 +225,10 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
     setGoalDesc("");
     setCreating(false);
     setError("");
+    setWixSiteId("");
+    setWixSiteName("");
+    setWixSiteUrl("");
+    setWixApps([]);
   };
 
   const handleClose = () => {
@@ -264,12 +304,28 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
         assigneeId: ceoAgent?.id,
       });
 
-      // 5. Wake up the CEO
+      // 5. Connect Wix site if provided
+      if (wixSiteId.trim()) {
+        try {
+          await fetch("/api/wix-config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: company.id,
+              siteId: wixSiteId.trim(),
+              siteName: wixSiteName.trim() || companyName,
+              siteUrl: wixSiteUrl.trim() || undefined,
+            }),
+          });
+        } catch { /* non-critical */ }
+      }
+
+      // 6. Wake up the CEO
       if (ceoAgent) {
         try { await invokeHeartbeat(ceoAgent.id); } catch {}
       }
 
-      // 6. Select the new company
+      // 7. Select the new company
       onCreated(company.id);
       reset();
     } catch (e: unknown) {
@@ -278,8 +334,89 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
     }
   };
 
+  const handleWixImport = () => {
+    const generated = generateFromWixSite(wixSiteName || "My Site", wixApps);
+    setCompanyName(wixSiteName || "My Site");
+    setCompanyDesc(generated.description);
+    setGoalTitle(generated.goalTitle);
+    setGoalDesc(generated.goalDesc);
+    setStep(0); // Jump to name/desc step (pre-filled) for review
+  };
+
   const stepContent = () => {
     switch (step) {
+      case -1:
+        return (
+          <Box direction="vertical" gap="12px">
+            <button
+              onClick={() => setStep(-2)}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                padding: "18px 16px", borderRadius: 8,
+                border: "2px solid #0C6EFC", backgroundColor: "#f0f5ff", cursor: "pointer",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: "#0C6EFC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div>
+                  <Text weight="bold">Start from a Wix site</Text>
+                  <br />
+                  <Text size="small" secondary>Paste your Wix Site ID — name, description, and goals will be auto-generated</Text>
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => setStep(0)}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                padding: "18px 16px", borderRadius: 8,
+                border: "1px solid #dfe5eb", backgroundColor: "#fff", cursor: "pointer",
+              }}
+            >
+              <Text weight="bold">Start from scratch</Text>
+              <br />
+              <Text size="small" secondary>Manually set up company name, description, team, and goals</Text>
+            </button>
+          </Box>
+        );
+      case -2:
+        return (
+          <Box direction="vertical" gap="14px">
+            <div style={{ padding: "10px 14px", background: "#f0f5ff", borderRadius: 6, fontSize: 13, color: "#444", lineHeight: 1.6 }}>
+              Enter your Wix Site ID and we'll auto-generate the company details. You can find the Site ID in your Wix dashboard under Settings, or from the site list below.
+            </div>
+            <FormField label="Wix Site ID" required>
+              <Input
+                value={wixSiteId}
+                onChange={(e) => setWixSiteId(e.currentTarget.value)}
+                placeholder="e.g., 7c833926-ed51-4b50-bf91-5448e2c8b2cd"
+              />
+            </FormField>
+            <FormField label="Site name">
+              <Input
+                value={wixSiteName}
+                onChange={(e) => setWixSiteName(e.currentTarget.value)}
+                placeholder="e.g., Hap Toy Store"
+              />
+            </FormField>
+            <FormField label="Site URL (optional)">
+              <Input
+                value={wixSiteUrl}
+                onChange={(e) => setWixSiteUrl(e.currentTarget.value)}
+                placeholder="https://..."
+              />
+            </FormField>
+            <FormField label="Installed apps (comma-separated app IDs, optional)">
+              <Input
+                value={wixApps.join(", ")}
+                onChange={(e) => setWixApps(e.currentTarget.value.split(",").map((s) => s.trim()).filter(Boolean))}
+                placeholder="e.g., 215238eb-22a5-4c36-9e7b-e7c08025e04e"
+              />
+            </FormField>
+          </Box>
+        );
       case 0:
         return (
           <Box direction="vertical" gap="18px">
@@ -350,14 +487,39 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
     }
   };
 
-  const stepTitles = ["Name your company", "Choose a starting team", "Set your first goal"];
+  const stepTitles: Record<number, string> = {
+    [-1]: "How do you want to start?",
+    [-2]: "Connect your Wix site",
+    0: "Name your company",
+    1: "Choose a starting team",
+    2: "Set your first goal",
+  };
 
   const canAdvance = () => {
+    if (step === -1) return true;
+    if (step === -2) return wixSiteId.trim().length > 0;
     if (step === 0) return companyName.trim().length > 0;
     if (step === 1) return true;
     if (step === 2) return goalTitle.trim().length > 0;
     return true;
   };
+
+  const handlePrimary = () => {
+    if (step === -1) return; // handled by buttons inside
+    if (step === -2) { handleWixImport(); return; }
+    if (step < 2) { setStep(step + 1); return; }
+    handleSubmit();
+  };
+
+  const handleSecondary = () => {
+    if (step === -2) { setStep(-1); return; }
+    if (step === 0 && wixSiteId) { setStep(-2); return; }
+    if (step > 0) { setStep(step - 1); return; }
+    handleClose();
+  };
+
+  const totalSteps = 3;
+  const currentStep = step >= 0 ? step + 1 : undefined;
 
   if (!open) return null;
 
@@ -365,12 +527,12 @@ export function CreateCompanyWizard({ open, onClose, onCreated }: Props) {
     <Modal isOpen={open} onRequestClose={handleClose} shouldCloseOnOverlayClick>
       <CustomModalLayout
         title={stepTitles[step]}
-        subtitle={`Step ${step + 1} of 3`}
-        primaryButtonText={step < 2 ? "Next" : (creating ? "Creating..." : "Create Company")}
-        primaryButtonOnClick={step < 2 ? () => setStep(step + 1) : handleSubmit}
+        subtitle={currentStep ? `Step ${currentStep} of ${totalSteps}` : undefined}
+        primaryButtonText={step === -1 ? undefined : step === -2 ? "Generate company" : step < 2 ? "Next" : (creating ? "Creating..." : "Create Company")}
+        primaryButtonOnClick={handlePrimary}
         primaryButtonProps={{ disabled: !canAdvance() || creating }}
-        secondaryButtonText={step > 0 ? "Back" : "Cancel"}
-        secondaryButtonOnClick={step > 0 ? () => setStep(step - 1) : handleClose}
+        secondaryButtonText={step === -1 ? "Cancel" : "Back"}
+        secondaryButtonOnClick={step === -1 ? handleClose : handleSecondary}
         onCloseButtonClick={handleClose}
         content={
           <Box direction="vertical" gap="12px">
