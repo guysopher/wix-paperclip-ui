@@ -29,12 +29,26 @@ import {
   type Goal,
 } from "@/lib/api";
 
+interface WixSiteConfig {
+  siteId: string;
+  siteName: string;
+  siteUrl?: string;
+  connectedAt: string;
+}
+
 function CompanyContent() {
   const { companyId } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Wix integration
+  const [wixConfig, setWixConfig] = useState<WixSiteConfig | null>(null);
+  const [wixSiteId, setWixSiteId] = useState("");
+  const [wixSiteName, setWixSiteName] = useState("");
+  const [wixSiteUrl, setWixSiteUrl] = useState("");
+  const [wixConnecting, setWixConnecting] = useState(false);
 
   // Editable company fields
   const [editName, setEditName] = useState("");
@@ -53,8 +67,12 @@ function CompanyContent() {
     setEditName(c.name);
     setEditDescription(c.description);
     setEditPrefix(c.issuePrefix);
-    const goalList = await getGoals(c.id).catch(() => []);
+    const [goalList, wixCfg] = await Promise.all([
+      getGoals(c.id).catch(() => []),
+      fetch(`/api/wix-config?companyId=${c.id}`).then((r) => r.json()).catch(() => null),
+    ]);
     setGoals(goalList);
+    if (wixCfg) setWixConfig(wixCfg);
     setLoading(false);
   }, [companyId]);
 
@@ -102,6 +120,34 @@ function CompanyContent() {
   }
 
   const hasChanges = editName !== company.name || editDescription !== company.description || editPrefix !== company.issuePrefix;
+
+  const handleConnectWix = async () => {
+    if (!company || !wixSiteId.trim()) return;
+    setWixConnecting(true);
+    try {
+      const result = await fetch("/api/wix-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: company.id,
+          siteId: wixSiteId.trim(),
+          siteName: wixSiteName.trim() || "Wix Site",
+          siteUrl: wixSiteUrl.trim() || undefined,
+        }),
+      }).then((r) => r.json());
+      setWixConfig(result);
+      setWixSiteId("");
+      setWixSiteName("");
+      setWixSiteUrl("");
+    } catch { /* silent */ }
+    setWixConnecting(false);
+  };
+
+  const handleDisconnectWix = async () => {
+    if (!company) return;
+    await fetch(`/api/wix-config?companyId=${company.id}`, { method: "DELETE" });
+    setWixConfig(null);
+  };
 
   return (
     <>
@@ -217,6 +263,71 @@ function CompanyContent() {
                         </Tooltip>
                       </div>
                     ))}
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
+            {/* Wix Integration */}
+            <Card>
+              <Card.Header
+                title="Wix Site"
+                subtitle="Connect a Wix site so your agents can manage it — create products, blog posts, bookings, and more."
+              />
+              <Card.Content>
+                {wixConfig ? (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#f0faf0", borderRadius: 8, border: "1px solid #c8e6c9" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 8, background: "#0C6EFC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{wixConfig.siteName}</div>
+                        {wixConfig.siteUrl && (
+                          <a href={wixConfig.siteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#3899ec", textDecoration: "none" }}>
+                            {wixConfig.siteUrl}
+                          </a>
+                        )}
+                        <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+                          Site ID: <code style={{ fontSize: 11 }}>{wixConfig.siteId}</code> · Connected {new Date(wixConfig.connectedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                        <span style={{ fontSize: 12, color: "#2e7d32", fontWeight: 500 }}>Connected</span>
+                        <button
+                          onClick={handleDisconnectWix}
+                          style={{ background: "none", border: "none", color: "#999", fontSize: 12, cursor: "pointer", padding: 0 }}
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12, padding: "10px 14px", background: "#f7f8fa", borderRadius: 6, fontSize: 13, color: "#555", lineHeight: 1.6 }}>
+                      Your agents now have access to Wix tools during their work sessions. They can manage products, blog posts, bookings, contacts, CMS content, and more on this site.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ padding: "16px 0 12px", fontSize: 13, color: "#666", lineHeight: 1.6 }}>
+                      Connect a Wix site to enable your agents to manage it. You can find your Site ID in the Wix dashboard under Settings or from the URL when editing your site.
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <FormField label="Site ID" required infoContent="The unique identifier for your Wix site. Found in your Wix dashboard under Settings > General.">
+                        <Input size="small" value={wixSiteId} onChange={(e) => setWixSiteId(e.target.value)} placeholder="e.g., 7c833926-ed51-4b50-bf91-5448e2c8b2cd" />
+                      </FormField>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <FormField label="Site name" infoContent="A friendly name to identify this site in the backoffice.">
+                          <Input size="small" value={wixSiteName} onChange={(e) => setWixSiteName(e.target.value)} placeholder="e.g., My Online Store" />
+                        </FormField>
+                        <FormField label="Site URL (optional)">
+                          <Input size="small" value={wixSiteUrl} onChange={(e) => setWixSiteUrl(e.target.value)} placeholder="https://..." />
+                        </FormField>
+                      </div>
+                      <div>
+                        <Button size="small" onClick={handleConnectWix} disabled={!wixSiteId.trim() || wixConnecting}>
+                          {wixConnecting ? "Connecting..." : "Connect Site"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </Card.Content>
