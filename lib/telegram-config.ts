@@ -21,6 +21,28 @@ const DEFAULT_CONFIG: TelegramConfig = {
 };
 
 export async function loadConfig(): Promise<TelegramConfig> {
+  // Try env var first (for Vercel/serverless)
+  const envConfig = process.env.TELEGRAM_CONFIG;
+  if (envConfig) {
+    try { return JSON.parse(envConfig) as TelegramConfig; } catch {}
+  }
+
+  // Try env vars for simple setup
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (token) {
+    const config: TelegramConfig = { botToken: token, companies: {} };
+    // Parse TELEGRAM_CHAT_MAP: "companyId1:chatId1,companyId2:chatId2"
+    const chatMap = process.env.TELEGRAM_CHAT_MAP || "";
+    for (const pair of chatMap.split(",").filter(Boolean)) {
+      const [companyId, chatId] = pair.split(":");
+      if (companyId && chatId) {
+        config.companies[companyId] = { chatId, enabled: true, lastSentCommentId: null };
+      }
+    }
+    return config;
+  }
+
+  // Fallback to file (local dev)
   try {
     const raw = await readFile(CONFIG_PATH, "utf-8");
     return JSON.parse(raw) as TelegramConfig;
@@ -30,6 +52,11 @@ export async function loadConfig(): Promise<TelegramConfig> {
 }
 
 export async function saveConfig(config: TelegramConfig): Promise<void> {
-  await mkdir(CONFIG_DIR, { recursive: true });
-  await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+  try {
+    await mkdir(CONFIG_DIR, { recursive: true });
+    await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+  } catch {
+    // On Vercel/serverless, filesystem writes may fail — that's OK
+    console.log("telegram-config: cannot write to filesystem (serverless?), config is in-memory only");
+  }
 }
