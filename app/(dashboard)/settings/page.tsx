@@ -15,8 +15,7 @@ import {
   SectionHelper,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../providers";
-import { Shell } from "../shell";
+import { useCompany } from "../../providers";
 import type { TelegramConfig, CompanyTelegramConfig } from "@/lib/telegram-config";
 
 interface WebhookInfo {
@@ -332,11 +331,5 @@ function SettingsContent() {
 }
 
 export default function SettingsPage() {
-  return (
-    <Providers>
-      <Shell>
-        <SettingsContent />
-      </Shell>
-    </Providers>
-  );
+  return <SettingsContent />;
 }

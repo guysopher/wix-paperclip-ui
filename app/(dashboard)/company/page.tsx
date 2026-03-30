@@ -12,53 +12,48 @@ import {
   Input,
   InputArea,
   Divider,
+  Dropdown,
   Modal,
   CustomModalLayout,
   Tooltip,
 } from "@wix/design-system";
 import { Refresh, Add, Delete } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../providers";
-import { Shell } from "../shell";
+import { useCompany } from "../../providers";
 import {
   getCompany,
   getGoals,
   updateCompany,
+  archiveCompany,
   createGoal,
   deleteGoal,
   type Company,
   type Goal,
 } from "@/lib/api";
 
-interface WixSiteConfig {
-  siteId: string;
-  siteName: string;
-  siteUrl?: string;
-  connectedAt: string;
-}
-
 function CompanyContent() {
-  const { companyId } = useCompany();
+  const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  // Wix integration
-  const [wixConfig, setWixConfig] = useState<WixSiteConfig | null>(null);
-  const [wixSiteId, setWixSiteId] = useState("");
-  const [wixSiteName, setWixSiteName] = useState("");
-  const [wixSiteUrl, setWixSiteUrl] = useState("");
-  const [wixConnecting, setWixConnecting] = useState(false);
 
   // Editable company fields
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrefix, setEditPrefix] = useState("");
 
+  // Throttling controls
+  const [editMaxTokensPerHour, setEditMaxTokensPerHour] = useState<string>("0");
+  const [editDisableOnDemandWakeup, setEditDisableOnDemandWakeup] = useState<boolean>(false);
+
   // New goal modal
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState("");
   const [newGoalDesc, setNewGoalDesc] = useState("");
+
+  // Delete company
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!companyId) { setLoading(false); return; }
@@ -67,12 +62,10 @@ function CompanyContent() {
     setEditName(c.name);
     setEditDescription(c.description);
     setEditPrefix(c.issuePrefix);
-    const [goalList, wixCfg] = await Promise.all([
-      getGoals(c.id).catch(() => []),
-      fetch(`/api/wix-config?companyId=${c.id}`).then((r) => r.json()).catch(() => null),
-    ]);
+    setEditMaxTokensPerHour(String(c.maxTokensPerHour ?? 0));
+    setEditDisableOnDemandWakeup(c.disableOnDemandWakeup ?? false);
+    const goalList = await getGoals(c.id).catch(() => []);
     setGoals(goalList);
-    if (wixCfg) setWixConfig(wixCfg);
     setLoading(false);
   }, [companyId]);
 
@@ -86,6 +79,8 @@ function CompanyContent() {
         name: editName,
         description: editDescription,
         issuePrefix: editPrefix,
+        maxTokensPerHour: parseInt(editMaxTokensPerHour) || 0,
+        disableOnDemandWakeup: editDisableOnDemandWakeup,
       });
       setCompany(updated);
     } catch { /* silent */ }
@@ -111,6 +106,25 @@ function CompanyContent() {
     setGoals(goals.filter((g) => g.id !== goalId));
   };
 
+  const handleDeleteCompany = async () => {
+    if (!company) return;
+    setDeleting(true);
+    try {
+      await archiveCompany(company.id);
+      await refreshCompanies();
+      // Switch to another company if available
+      const remaining = companies.filter((c) => c.id !== company.id);
+      if (remaining.length > 0) {
+        setCompanyId(remaining[0].id);
+      } else {
+        setCompanyId("");
+      }
+      setShowDeleteModal(false);
+    } catch {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return <Box align="center" verticalAlign="middle" height="400px"><Loader size="medium" /></Box>;
   }
@@ -119,35 +133,12 @@ function CompanyContent() {
     return <Text>No company found.</Text>;
   }
 
-  const hasChanges = editName !== company.name || editDescription !== company.description || editPrefix !== company.issuePrefix;
-
-  const handleConnectWix = async () => {
-    if (!company || !wixSiteId.trim()) return;
-    setWixConnecting(true);
-    try {
-      const result = await fetch("/api/wix-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId: company.id,
-          siteId: wixSiteId.trim(),
-          siteName: wixSiteName.trim() || "Wix Site",
-          siteUrl: wixSiteUrl.trim() || undefined,
-        }),
-      }).then((r) => r.json());
-      setWixConfig(result);
-      setWixSiteId("");
-      setWixSiteName("");
-      setWixSiteUrl("");
-    } catch { /* silent */ }
-    setWixConnecting(false);
-  };
-
-  const handleDisconnectWix = async () => {
-    if (!company) return;
-    await fetch(`/api/wix-config?companyId=${company.id}`, { method: "DELETE" });
-    setWixConfig(null);
-  };
+  const hasChanges =
+    editName !== company.name ||
+    editDescription !== company.description ||
+    editPrefix !== company.issuePrefix ||
+    parseInt(editMaxTokensPerHour) !== (company.maxTokensPerHour ?? 0) ||
+    editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false);
 
   return (
     <>
@@ -199,6 +190,51 @@ function CompanyContent() {
                     </FormField>
                     <FormField label="Created">
                       <Text size="small">{new Date(company.createdAt).toLocaleDateString()}</Text>
+                    </FormField>
+                  </div>
+                </div>
+              </Card.Content>
+            </Card>
+
+            {/* Activity controls */}
+            <Card>
+              <Card.Header
+                title="Activity controls"
+                subtitle="Throttle agent activity to manage costs and control when agents can be woken up."
+                suffix={
+                  <Button size="tiny" disabled={!hasChanges || saving} onClick={handleSaveCompany}>
+                    {saving ? "Saving..." : "Save changes"}
+                  </Button>
+                }
+              />
+              <Card.Content>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <FormField
+                      label="Max tokens per hour"
+                      infoContent="Limit how many tokens all agents combined can consume per hour. Set to 0 for no limit. Helps prevent runaway costs."
+                    >
+                      <Input
+                        size="small"
+                        value={editMaxTokensPerHour}
+                        onChange={(e) => setEditMaxTokensPerHour(e.target.value.replace(/[^0-9]/g, ""))}
+                        placeholder="0 = unlimited"
+                        suffix={<Text size="tiny" secondary>tokens/hr</Text>}
+                      />
+                    </FormField>
+                    <FormField
+                      label="Immediate wake-ups"
+                      infoContent="When disabled, agents can only be triggered by their scheduled heartbeat — not manually. Useful for reducing unplanned activity."
+                    >
+                      <Dropdown
+                        size="small"
+                        selectedId={editDisableOnDemandWakeup ? "disabled" : "enabled"}
+                        onSelect={(o) => setEditDisableOnDemandWakeup(o.id === "disabled")}
+                        options={[
+                          { id: "enabled", value: "Allowed" },
+                          { id: "disabled", value: "Blocked" },
+                        ]}
+                      />
                     </FormField>
                   </div>
                 </div>
@@ -267,69 +303,18 @@ function CompanyContent() {
                 )}
               </Card.Content>
             </Card>
-            {/* Wix Integration */}
+            {/* Danger Zone */}
             <Card>
-              <Card.Header
-                title="Wix Site"
-                subtitle="Connect a Wix site so your agents can manage it — create products, blog posts, bookings, and more."
-              />
               <Card.Content>
-                {wixConfig ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#f0faf0", borderRadius: 8, border: "1px solid #c8e6c9" }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, background: "#0C6EFC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{wixConfig.siteName}</div>
-                        {wixConfig.siteUrl && (
-                          <a href={wixConfig.siteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#3899ec", textDecoration: "none" }}>
-                            {wixConfig.siteUrl}
-                          </a>
-                        )}
-                        <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
-                          Site ID: <code style={{ fontSize: 11 }}>{wixConfig.siteId}</code> · Connected {new Date(wixConfig.connectedAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                        <span style={{ fontSize: 12, color: "#2e7d32", fontWeight: 500 }}>Connected</span>
-                        <button
-                          onClick={handleDisconnectWix}
-                          style={{ background: "none", border: "none", color: "#999", fontSize: 12, cursor: "pointer", padding: 0 }}
-                        >
-                          Disconnect
-                        </button>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 12, padding: "10px 14px", background: "#f7f8fa", borderRadius: 6, fontSize: 13, color: "#555", lineHeight: 1.6 }}>
-                      Your agents now have access to Wix tools during their work sessions. They can manage products, blog posts, bookings, contacts, CMS content, and more on this site.
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#d32f2f" }}>Delete company</div>
+                    <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>Permanently remove this company and all its agents, tasks, and data.</div>
                   </div>
-                ) : (
-                  <div>
-                    <div style={{ padding: "16px 0 12px", fontSize: 13, color: "#666", lineHeight: 1.6 }}>
-                      Connect a Wix site to enable your agents to manage it. You can find your Site ID in the Wix dashboard under Settings or from the URL when editing your site.
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      <FormField label="Site ID" required infoContent="The unique identifier for your Wix site. Found in your Wix dashboard under Settings > General.">
-                        <Input size="small" value={wixSiteId} onChange={(e) => setWixSiteId(e.target.value)} placeholder="e.g., 7c833926-ed51-4b50-bf91-5448e2c8b2cd" />
-                      </FormField>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                        <FormField label="Site name" infoContent="A friendly name to identify this site in the backoffice.">
-                          <Input size="small" value={wixSiteName} onChange={(e) => setWixSiteName(e.target.value)} placeholder="e.g., My Online Store" />
-                        </FormField>
-                        <FormField label="Site URL (optional)">
-                          <Input size="small" value={wixSiteUrl} onChange={(e) => setWixSiteUrl(e.target.value)} placeholder="https://..." />
-                        </FormField>
-                      </div>
-                      <div>
-                        <Button size="small" onClick={handleConnectWix} disabled={!wixSiteId.trim() || wixConnecting}>
-                          {wixConnecting ? "Connecting..." : "Connect Site"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  <Button size="small" skin="destructive" onClick={() => setShowDeleteModal(true)}>
+                    Delete
+                  </Button>
+                </div>
               </Card.Content>
             </Card>
           </div>
@@ -363,16 +348,34 @@ function CompanyContent() {
           </Box>
         </CustomModalLayout>
       </Modal>
+
+      {/* Delete Company confirmation */}
+      <Modal isOpen={showDeleteModal} onRequestClose={() => setShowDeleteModal(false)} shouldCloseOnOverlayClick>
+        <CustomModalLayout
+          width="440px"
+          title="Delete company"
+          primaryButtonText={deleting ? "Deleting..." : "Delete permanently"}
+          primaryButtonOnClick={handleDeleteCompany}
+          primaryButtonProps={{ skin: "destructive", disabled: deleting }}
+          secondaryButtonText="Cancel"
+          secondaryButtonOnClick={() => setShowDeleteModal(false)}
+          onCloseButtonClick={() => setShowDeleteModal(false)}
+          content={
+            <Box direction="vertical" gap="12px">
+              <div style={{
+                padding: "14px 16px", background: "#fef2f2", borderRadius: 8,
+                border: "1px solid #fecaca", fontSize: 13, color: "#991b1b", lineHeight: 1.6,
+              }}>
+                This will permanently delete <strong>{company?.name}</strong> and all its agents, tasks, goals, and conversation history. This action cannot be undone.
+              </div>
+            </Box>
+          }
+        />
+      </Modal>
     </>
   );
 }
 
 export default function CompanyPage() {
-  return (
-    <Providers>
-      <Shell>
-        <CompanyContent />
-      </Shell>
-    </Providers>
-  );
+  return <CompanyContent />;
 }

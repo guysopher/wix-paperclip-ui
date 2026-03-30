@@ -33,8 +33,7 @@ import {
   PauseFilled,
   PlayFilled,
 } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "./providers";
-import { Shell } from "./shell";
+import { useCompany } from "../providers";
 import {
   getDashboard,
   getActivity,
@@ -388,7 +387,7 @@ function DashboardContent() {
               <PopoverMenu.MenuItem
                 text={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Resume All Agents" : "Pause All Agents"}
                 subtitle={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Agents will start checking in again" : "Stop all scheduled work"}
-                disabled={agents.some((a) => a.status === "running")}
+                disabled={agents.length === 0}
                 onClick={async () => {
                   const allPaused = agents.every((a) => a.status === "paused");
                   for (const agent of agents) {
@@ -986,11 +985,5 @@ function DashboardContent() {
 }
 
 export default function Home() {
-  return (
-    <Providers>
-      <Shell>
-        <DashboardContent />
-      </Shell>
-    </Providers>
-  );
+  return <DashboardContent />;
 }

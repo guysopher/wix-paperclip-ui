@@ -15,9 +15,8 @@ import {
 } from "@wix/design-system";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Providers, useCompany } from "../../providers";
-import { Shell } from "../../shell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { useCompany } from "../../../providers";
+import { Breadcrumbs } from "../../../components/breadcrumbs";
 import {
   getIssues,
   getAgents,
@@ -139,9 +138,9 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
   const handleAssigneeChange = async (newAssigneeId: string | undefined) => {
     if (!issue) return;
     await updateIssue(issue.id, {
-      assigneeId: newAssigneeId || null,
+      assigneeAgentId: newAssigneeId || null,
     } as Partial<Issue>);
-    setIssue({ ...issue, assigneeId: newAssigneeId || null });
+    setIssue({ ...issue, assigneeAgentId: newAssigneeId || null });
     load();
   };
 
@@ -249,7 +248,7 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
                   </Text>
                   <Dropdown
                     size="small"
-                    selectedId={issue.assigneeId || ""}
+                    selectedId={issue.assigneeAgentId || issue.assigneeId || ""}
                     onSelect={(option) =>
                       handleAssigneeChange(
                         option.id ? String(option.id) : undefined
@@ -460,16 +459,12 @@ export default function TaskDetailPage({
   const { identifier } = use(params);
 
   return (
-    <Providers>
-      <Shell>
-        <Suspense
-          fallback={
-            <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>
-          }
-        >
-          <TaskDetailContent identifier={identifier} />
-        </Suspense>
-      </Shell>
-    </Providers>
+    <Suspense
+      fallback={
+        <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>
+      }
+    >
+      <TaskDetailContent identifier={identifier} />
+    </Suspense>
   );
 }

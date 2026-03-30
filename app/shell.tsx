@@ -20,6 +20,7 @@ import {
   Globe,
   ChevronDown,
   Settings,
+  Code,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
@@ -33,7 +34,8 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
   { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
-  { key: "/team", label: "Team", Icon: Users },
+  { key: "/team", label: "Team", Icon: Users, countKey: "team" },
+  { key: "/wix", label: "Wix", Icon: Code },
   { key: "/company", label: "Company", Icon: Globe },
   { key: "/settings", label: "Settings", Icon: Settings },
 ];
@@ -165,9 +167,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1 }} />
         <button
           onClick={() => setChatOpen(!chatOpen)}
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 4, position: "relative" }}
         >
           <Chat color="white" size="22px" />
+          {counts.chat > 0 && !chatOpen && (
+            <span style={{
+              position: "absolute", top: -2, right: -2,
+              minWidth: 14, height: 14, borderRadius: 7,
+              backgroundColor: "#ee5951", color: "white",
+              fontSize: 9, fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>!</span>
+          )}
         </button>
       </div>
 
@@ -245,20 +256,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
             style={{
               display: "flex", alignItems: "center", gap: 9,
               padding: "10px 12px", borderRadius: 8,
-              backgroundColor: chatOpen ? "#3899ec" : "rgba(56, 153, 236, 0.25)",
-              border: chatOpen ? "none" : "1px solid rgba(56, 153, 236, 0.4)",
+              backgroundColor: chatOpen ? "#3899ec" : counts.chat > 0 ? "rgba(56, 153, 236, 0.4)" : "rgba(56, 153, 236, 0.25)",
+              border: chatOpen ? "none" : counts.chat > 0 ? "1px solid #3899ec" : "1px solid rgba(56, 153, 236, 0.4)",
               cursor: "pointer", width: "100%", textAlign: "left",
               boxShadow: chatOpen ? "0 2px 8px rgba(56, 153, 236, 0.3)" : "none",
+              position: "relative",
             }}
           >
             <Chat color="white" />
             <Text size="small" light weight="bold">Call the CEO</Text>
+            {counts.chat > 0 && !chatOpen && (
+              <span style={{
+                marginLeft: "auto",
+                minWidth: 18, height: 18, borderRadius: 9,
+                backgroundColor: "#ee5951",
+                color: "white", fontSize: 10, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "0 5px",
+                animation: "pulse 2s infinite",
+              }}>
+                !
+              </span>
+            )}
           </button>
         </div>
       </div>
 
       {/* Main content */}
-      <Box direction="vertical" flexGrow={1} overflow="auto" backgroundColor="D70" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+      <Box direction="vertical" flexGrow={1} overflow="auto" backgroundColor="D70" style={{ paddingTop: "env(safe-area-inset-top)", minWidth: 0 }}>
         <div className="shell-main-content">
           {children}
         </div>

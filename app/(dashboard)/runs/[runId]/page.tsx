@@ -24,9 +24,8 @@ import {
   duration,
   timeAgo,
 } from "@/lib/run-utils";
-import { Providers, useCompany } from "../../providers";
-import { Shell } from "../../shell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { useCompany } from "../../../providers";
+import { Breadcrumbs } from "../../../components/breadcrumbs";
 
 const STATUS_SKINS: Record<string, "success" | "warning" | "neutral" | "danger" | "general"> = {
   succeeded: "success",
@@ -359,11 +358,5 @@ function RunDetailContent({ runId }: { runId: string }) {
 export default function RunDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = use(params);
 
-  return (
-    <Providers>
-      <Shell>
-        <RunDetailContent runId={runId} />
-      </Shell>
-    </Providers>
-  );
+  return <RunDetailContent runId={runId} />;
 }

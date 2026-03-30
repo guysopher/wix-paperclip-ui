@@ -15,11 +15,13 @@ import {
   Search,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../providers";
-import { Shell } from "../shell";
+import { useCompany } from "../../providers";
 import {
   getAgents,
+  getRuns,
+  invokeHeartbeat,
   type Agent,
+  type HeartbeatRun,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,13 +41,15 @@ const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" 
 };
 
 const MODEL_LABELS: Record<string, string> = {
-  "claude-opus-4-6": "Senior",
-  "claude-sonnet-4-6": "Standard",
+  "claude-opus-4-6": "Expert",
+  "claude-sonnet-4-6": "Senior",
+  "claude-haiku-4-5-20251001": "Junior",
 };
 
 const MODEL_COLORS: Record<string, { bg: string; color: string }> = {
   "claude-opus-4-6": { bg: "#f0e6ff", color: "#6b3fa0" },
   "claude-sonnet-4-6": { bg: "#e8f4fd", color: "#2b6cb0" },
+  "claude-haiku-4-5-20251001": { bg: "#e6f4ea", color: "#2e7d32" },
 };
 
 function TeamContent() {
@@ -53,8 +57,10 @@ function TeamContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   // Redirect ?agent=xxx to /team/xxx
   const agentParam = searchParams.get("agent");
@@ -65,12 +71,32 @@ function TeamContent() {
 
   const load = async () => {
     if (!companyId) { setLoading(false); return; }
-    const agentData = await getAgents(companyId);
+    const [agentData, runData] = await Promise.all([
+      getAgents(companyId),
+      getRuns(companyId).catch(() => []),
+    ]);
     setAgents(agentData);
+    setRuns(runData);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [companyId]);
+
+  /** Get the last failed run for an agent */
+  const getLastError = (agentId: string): string | null => {
+    const agentRuns = runs
+      .filter((r) => r.agentId === agentId && r.status === "failed")
+      .sort((a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime());
+    const lastFailed = agentRuns[0];
+    if (!lastFailed) return null;
+    return lastFailed.error || lastFailed.stdoutExcerpt?.slice(0, 150) || "Unknown error";
+  };
+
+  const handleRetry = async (agentId: string) => {
+    setRetrying(agentId);
+    try { await invokeHeartbeat(agentId); } catch {}
+    setTimeout(() => { setRetrying(null); load(); }, 2000);
+  };
 
   const managerName = (id: string | null) => {
     if (!id) return "—";
@@ -83,7 +109,9 @@ function TeamContent() {
     const sec = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
     if (!sec) return "Manual";
     if (sec < 60) return `${sec}s`;
-    return `Every ${Math.round(sec / 60)} min`;
+    if (sec < 3600) return `Every ${Math.round(sec / 60)} min`;
+    const h = Math.round(sec / 3600);
+    return `Every ${h}h`;
   };
 
   const getLastActive = (agent: Agent) => {
@@ -149,14 +177,47 @@ function TeamContent() {
     { title: "Last active", render: (row: Agent) => <Text size="small" secondary>{getLastActive(row)}</Text>, width: "13%" },
     {
       title: "Status",
-      render: (row: Agent) => row.status === "running" ? (
-        <a href={`/runs?agent=${row.id}&status=running`} style={{ textDecoration: "none" }}>
-          <Badge size="tiny" skin="success">Working</Badge>
-        </a>
-      ) : (
-        <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>{STATUS_LABELS[row.status] || row.status}</Badge>
-      ),
-      width: "10%",
+      render: (row: Agent) => {
+        if (row.status === "running") {
+          return (
+            <a href={`/runs?agent=${row.id}&status=running`} style={{ textDecoration: "none" }}>
+              <Badge size="tiny" skin="success">Working</Badge>
+            </a>
+          );
+        }
+        if (row.status === "error") {
+          const errorMsg = getLastError(row.id);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <Badge size="tiny" skin="danger">Error</Badge>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRetry(row.id); }}
+                  disabled={retrying === row.id}
+                  style={{
+                    background: "none", border: "1px solid #ddd", borderRadius: 4,
+                    padding: "1px 8px", fontSize: 11, cursor: "pointer", color: "#3899ec",
+                  }}
+                >
+                  {retrying === row.id ? "..." : "Retry"}
+                </button>
+                <a href={`/runs?agent=${row.id}`} style={{ fontSize: 11, color: "#999", textDecoration: "none" }}>
+                  Runs
+                </a>
+              </div>
+              {errorMsg && (
+                <div style={{ fontSize: 11, color: "#d32f2f", lineHeight: 1.3, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={errorMsg}>
+                  {errorMsg}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <Badge size="tiny" skin={STATUS_SKINS[row.status] || "general"}>{STATUS_LABELS[row.status] || row.status}</Badge>
+        );
+      },
+      width: "15%",
     },
     {
       title: "",
@@ -165,7 +226,7 @@ function TeamContent() {
           View
         </a>
       ),
-      width: "10%",
+      width: "5%",
     },
   ];
 
@@ -202,12 +263,8 @@ function TeamContent() {
 
 export default function TeamPage() {
   return (
-    <Providers>
-      <Shell>
-        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
-          <TeamContent />
-        </Suspense>
-      </Shell>
-    </Providers>
+    <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+      <TeamContent />
+    </Suspense>
   );
 }

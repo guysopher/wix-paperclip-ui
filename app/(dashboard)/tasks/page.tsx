@@ -21,8 +21,7 @@ import {
   Search,
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../providers";
-import { Shell } from "../shell";
+import { useCompany } from "../../providers";
 import {
   getIssues,
   getAgents,
@@ -120,8 +119,9 @@ function TasksContent() {
     await createIssue(companyId, {
       title: newTitle,
       description: newDesc,
+      status: "todo",
       priority: newPriority,
-      assigneeId: newAssignee,
+      assigneeAgentId: newAssignee || null,
     });
     setShowCreate(false);
     setNewTitle("");
@@ -326,12 +326,8 @@ function TasksContent() {
 
 export default function TasksPage() {
   return (
-    <Providers>
-      <Shell>
-        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
-          <TasksContent />
-        </Suspense>
-      </Shell>
-    </Providers>
+    <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+      <TasksContent />
+    </Suspense>
   );
 }

@@ -18,8 +18,7 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../providers";
-import { Shell } from "../shell";
+import { useCompany } from "../../providers";
 import {
   getAgents,
   getHeartbeatRuns,
@@ -277,12 +276,8 @@ function RunsContent() {
 
 export default function RunsPage() {
   return (
-    <Providers>
-      <Shell>
-        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
-          <RunsContent />
-        </Suspense>
-      </Shell>
-    </Providers>
+    <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+      <RunsContent />
+    </Suspense>
   );
 }

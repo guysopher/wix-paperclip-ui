@@ -20,17 +20,18 @@ import {
   CustomModalLayout,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../../providers";
-import { Shell } from "../../shell";
-import { Breadcrumbs } from "../../components/breadcrumbs";
+import { useCompany } from "../../../providers";
+import { Breadcrumbs } from "../../../components/breadcrumbs";
 import {
   getAgent,
   getAgents,
+  getCompany,
   invokeHeartbeat,
   pauseAgent,
   resumeAgent,
   updateAgent,
   type Agent,
+  type Company,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -50,14 +51,26 @@ const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" 
 };
 
 const MODEL_OPTIONS = [
-  { id: "claude-opus-4-6", value: "Senior (Opus)" },
-  { id: "claude-sonnet-4-6", value: "Standard (Sonnet)" },
+  { id: "claude-opus-4-6", value: "Expert (Opus)" },
+  { id: "claude-sonnet-4-6", value: "Senior (Sonnet)" },
+  { id: "claude-haiku-4-5-20251001", value: "Junior (Haiku)" },
 ];
 
 const MODEL_LABELS: Record<string, string> = {
-  "claude-opus-4-6": "Senior",
-  "claude-sonnet-4-6": "Standard",
+  "claude-opus-4-6": "Expert",
+  "claude-sonnet-4-6": "Senior",
+  "claude-haiku-4-5-20251001": "Junior",
 };
+
+const TIMEOUT_OPTIONS = [
+  { id: "60", value: "1 min" },
+  { id: "120", value: "2 min" },
+  { id: "300", value: "5 min" },
+  { id: "600", value: "10 min" },
+  { id: "900", value: "15 min" },
+  { id: "1800", value: "30 min" },
+  { id: "3600", value: "1 hour" },
+];
 
 const SCHEDULE_OPTIONS = [
   { id: "300", value: "Every 5 min" },
@@ -66,6 +79,11 @@ const SCHEDULE_OPTIONS = [
   { id: "1200", value: "Every 20 min" },
   { id: "1800", value: "Every 30 min" },
   { id: "3600", value: "Every hour" },
+  { id: "7200", value: "Every 2 hours" },
+  { id: "14400", value: "Every 4 hours" },
+  { id: "28800", value: "Every 8 hours" },
+  { id: "43200", value: "Every 12 hours" },
+  { id: "86400", value: "Every 24 hours" },
 ];
 
 function AgentDetailContent({ agentId }: { agentId: string }) {
@@ -74,6 +92,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -84,6 +103,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [editTitle, setEditTitle] = useState("");
   const [editModel, setEditModel] = useState("");
   const [editSchedule, setEditSchedule] = useState("");
+  const [editTimeout, setEditTimeout] = useState("");
   const [editManager, setEditManager] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
 
@@ -92,12 +112,14 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
       setLoading(false);
       return;
     }
-    const [agentData, allAgents] = await Promise.all([
+    const [agentData, allAgents, companyData] = await Promise.all([
       getAgent(agentId),
       getAgents(companyId),
+      getCompany(companyId),
     ]);
     setAgent(agentData);
     setAgents(allAgents);
+    setCompany(companyData);
     populateForm(agentData);
     setLoading(false);
   };
@@ -107,6 +129,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setEditTitle(a.title);
     setEditModel((a.adapterConfig?.model as string) || "claude-sonnet-4-6");
     setEditSchedule(String((a.adapterConfig?.heartbeatIntervalSec as number) || 600));
+    setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
     setEditManager(a.reportsTo);
     setEditPrompt((a.adapterConfig?.promptTemplate as string) || "");
   };
@@ -136,6 +159,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
         ...agent.adapterConfig,
         model: editModel,
         heartbeatIntervalSec: parseInt(editSchedule),
+        timeoutSec: parseInt(editTimeout),
         promptTemplate: editPrompt,
       },
     });
@@ -222,7 +246,11 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           actionsBar={
             <Box direction="horizontal" gap="8px">
               <Tooltip
-                content="Immediately trigger a check-in. The agent will review their tasks, process new messages, and take action."
+                content={
+                  company?.disableOnDemandWakeup
+                    ? "Immediate wake-ups are disabled for this company. Agents will only wake on their scheduled heartbeat."
+                    : "Immediately trigger a check-in. The agent will review their tasks, process new messages, and take action."
+                }
                 placement="bottom"
               >
                 <Button
@@ -230,7 +258,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   priority="secondary"
                   prefixIcon={<Refresh />}
                   onClick={handleHeartbeat}
-                  disabled={acting}
+                  disabled={acting || !!company?.disableOnDemandWakeup}
                 >
                   Wake up
                 </Button>
@@ -363,6 +391,17 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                     options={SCHEDULE_OPTIONS}
                   />
                 </FormField>
+                <FormField
+                  label="Run timeout"
+                  infoContent="Maximum time a single work session can run before it is forcefully stopped. Prevents runaway or stuck agents."
+                >
+                  <Dropdown
+                    size="small"
+                    selectedId={editTimeout}
+                    onSelect={(o) => setEditTimeout(String(o.id))}
+                    options={TIMEOUT_OPTIONS}
+                  />
+                </FormField>
                 <FormField label="Joined" infoContent="The date this team member was created.">
                   <Text size="small">
                     {new Date(agent.createdAt).toLocaleDateString()}
@@ -472,16 +511,12 @@ export default function AgentDetailPage({ params }: { params: Promise<{ agentId:
   const { agentId } = use(params);
 
   return (
-    <Providers>
-      <Shell>
-        <Suspense
-          fallback={
-            <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>
-          }
-        >
-          <AgentDetailContent agentId={agentId} />
-        </Suspense>
-      </Shell>
-    </Providers>
+    <Suspense
+      fallback={
+        <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>
+      }
+    >
+      <AgentDetailContent agentId={agentId} />
+    </Suspense>
   );
 }

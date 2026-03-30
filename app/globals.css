@@ -111,6 +111,11 @@ html, body {
   margin: 10px 0;
 }
 
+/* CEO interview full-screen input placeholder */
+.ceo-interview-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
 @keyframes pulse {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1); }

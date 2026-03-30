@@ -67,6 +67,8 @@ export const archiveIssueFromInbox = (issueId: string) =>
   request<unknown>(`/issues/${issueId}/inbox-archive`, { method: "POST", body: "{}" }).catch(() => null);
 export const getMyIssues = (companyId: string) =>
   request<Issue[]>(`/companies/${companyId}/issues?touchedByUserId=me&status=backlog,todo,in_progress,in_review,blocked,done`);
+export const getIssuesAssignedToMe = (companyId: string) =>
+  request<Issue[]>(`/companies/${companyId}/issues?assigneeUserId=local-board`);
 
 // Comments
 export const getComments = (issueId: string) =>
@@ -86,8 +88,13 @@ export const getApprovals = (companyId: string) =>
   request<Approval[]>(`/companies/${companyId}/approvals`);
 
 // Approvals — actions
-export const updateApproval = (approvalId: string, data: { status: string; notes?: string }) =>
-  request<Approval>(`/approvals/${approvalId}`, { method: "PATCH", body: JSON.stringify(data) });
+export const updateApproval = (approvalId: string, data: { status: string; notes?: string }) => {
+  const action = data.status === "approved" ? "approve" : "reject";
+  return request<Approval>(`/approvals/${approvalId}/${action}`, {
+    method: "POST",
+    body: JSON.stringify(data.notes ? { notes: data.notes } : {}),
+  });
+};
 
 // Runs
 export const getHeartbeatRuns = (companyId: string) =>
@@ -161,6 +168,8 @@ export interface Company {
   issueCounter: number;
   budgetMonthlyCents: number;
   spentMonthlyCents: number;
+  maxTokensPerHour?: number;
+  disableOnDemandWakeup?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,6 +208,7 @@ export interface Issue {
   priority: string;
   assigneeId: string | null;
   assigneeAgentId: string | null;
+  assigneeUserId: string | null;
   projectId: string | null;
   parentId: string | null;
   number: number;

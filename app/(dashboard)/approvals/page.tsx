@@ -20,12 +20,12 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { Providers, useCompany } from "../providers";
-import { Shell } from "../shell";
+import { useCompany } from "../../providers";
 import {
   getAgents,
   getApprovals,
   updateApproval,
+  createAgent,
   type Agent,
   type Approval,
 } from "@/lib/api";
@@ -74,6 +74,118 @@ function summarizePayload(payload: Record<string, unknown>): string {
   return entries.join(", ");
 }
 
+function renderPayloadValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined) return <span style={{ color: "#999" }}>—</span>;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    // Multi-line strings get a preformatted block
+    if (value.includes("\n")) {
+      return <div style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", lineHeight: 1.6 }}>{value}</div>;
+    }
+    return value;
+  }
+  if (typeof value === "number") return String(value);
+  if (Array.isArray(value)) {
+    return (
+      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        {value.map((item, i) => (
+          <li key={i} style={{ marginBottom: 2 }}>{typeof item === "object" ? renderPayloadValue(item) : String(item)}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value === "object") {
+    // Render nested object as labeled fields
+    return (
+      <div style={{ paddingLeft: 12, borderLeft: "2px solid #e0e0e0", marginTop: 4 }}>
+        {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+          <div key={k} style={{ marginBottom: 4 }}>
+            <span style={{ color: "#888", fontSize: 12 }}>{k.replace(/_/g, " ").replace(/([A-Z])/g, " $1").trim()}: </span>
+            {renderPayloadValue(v)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return String(value);
+}
+
+/** Dedicated renderer for hire_agent approvals */
+function HireAgentDetails({ payload }: { payload: Record<string, unknown> }) {
+  const [instructions, setInstructions] = useState<string | null>(null);
+  const [loadingInstructions, setLoadingInstructions] = useState(false);
+
+  const adapterConfig = payload.adapterConfig as Record<string, unknown> | undefined;
+  const filePath = adapterConfig?.instructionsFilePath as string | undefined;
+  const promptTemplate = adapterConfig?.promptTemplate as string | undefined;
+
+  // Fetch instructions from file if available
+  useEffect(() => {
+    if (promptTemplate) {
+      setInstructions(promptTemplate);
+      return;
+    }
+    if (!filePath) return;
+    setLoadingInstructions(true);
+    fetch(`/api/agent-instructions?path=${encodeURIComponent(filePath)}`)
+      .then((r) => r.json())
+      .then((d) => setInstructions(d.content || null))
+      .catch(() => {})
+      .finally(() => setLoadingInstructions(false));
+  }, [filePath, promptTemplate]);
+
+  const name = String(payload.name || "?");
+  const title = String(payload.title || "");
+  const capabilities = String(payload.capabilities || "");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "#f0f5ff", borderRadius: 8, border: "1px solid #d0e0ff" }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: "50%",
+          background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          color: "white", fontSize: 16, fontWeight: 700,
+        }}>
+          {name[0].toUpperCase()}
+        </div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>{name}</div>
+          <div style={{ fontSize: 13, color: "#666" }}>{title}</div>
+        </div>
+      </div>
+
+      {capabilities && (
+        <div>
+          <div style={{ fontSize: 11, color: "#888", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>Capabilities</div>
+          <div style={{ fontSize: 13, color: "#333", lineHeight: 1.5 }}>{capabilities}</div>
+        </div>
+      )}
+
+      {/* Role description / instructions */}
+      <div>
+        <div style={{ fontSize: 11, color: "#888", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>Role Description</div>
+        {loadingInstructions ? (
+          <div style={{ padding: 12, textAlign: "center" }}><Loader size="tiny" /></div>
+        ) : instructions ? (
+          <div style={{
+            padding: "12px 16px", background: "#f7f8fa", borderRadius: 8,
+            fontSize: 13, lineHeight: 1.7, color: "#333",
+            maxHeight: 300, overflowY: "auto",
+            whiteSpace: "pre-wrap",
+          }}>
+            {instructions}
+          </div>
+        ) : (
+          <div style={{ padding: "12px 16px", background: "#f7f8fa", borderRadius: 8, fontSize: 13, color: "#999" }}>
+            No role description provided.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ApprovalsContent() {
   const { companyId } = useCompany();
   const searchParams = useSearchParams();
@@ -116,6 +228,49 @@ function ApprovalsContent() {
       setNotes("");
       await load();
     } catch { /* silent */ }
+    setActing(null);
+  };
+
+  /** For rejected hire_agent approvals: create the agent directly from the payload */
+  const handleForceHire = async (approval: Approval) => {
+    if (!companyId) return;
+    setActing(approval.id);
+    try {
+      const p = approval.payload;
+      const oldConfig = (p.adapterConfig || {}) as Record<string, unknown>;
+
+      // If the original agent had file-based instructions, fetch them
+      let promptTemplate = oldConfig.promptTemplate as string | undefined;
+      if (!promptTemplate && oldConfig.instructionsFilePath) {
+        try {
+          const res = await fetch(`/api/agent-instructions?path=${encodeURIComponent(String(oldConfig.instructionsFilePath))}`);
+          const data = await res.json();
+          if (data.content) promptTemplate = data.content;
+        } catch { /* use without prompt */ }
+      }
+
+      const newAgent = await createAgent(companyId, {
+        name: p.name,
+        role: p.role,
+        title: p.title,
+        capabilities: p.capabilities,
+        reportsTo: p.reportsTo || undefined,
+        adapterType: "claude_local",
+        adapterConfig: {
+          model: oldConfig.model || "claude-sonnet-4-6",
+          heartbeatIntervalSec: oldConfig.heartbeatIntervalSec || 600,
+          timeoutSec: oldConfig.timeoutSec || 600,
+          maxTurnsPerRun: oldConfig.maxTurnsPerRun || 50,
+          dangerouslySkipPermissions: true,
+          ...(promptTemplate ? { promptTemplate } : {}),
+        },
+      });
+      setSelected(null);
+      router.push(`/team/${newAgent.id}`);
+    } catch (e) {
+      console.error("Force hire failed:", e);
+      alert(e instanceof Error ? e.message : "Failed to hire agent");
+    }
     setActing(null);
   };
 
@@ -251,42 +406,66 @@ function ApprovalsContent() {
               </Box>
             }
             onCloseButtonClick={() => setSelected(null)}
-            primaryButtonText={selected.status === "pending" ? "Approve" : undefined}
-            primaryButtonProps={selected.status === "pending" ? {
-              disabled: acting === selected.id,
-              onClick: () => handleAction(selected, "approved"),
-            } : undefined}
+            primaryButtonText={selected.status === "pending" ? (acting === selected.id ? "Approving..." : "Approve") : undefined}
+            primaryButtonOnClick={selected.status === "pending" ? () => handleAction(selected, "approved") : undefined}
+            primaryButtonProps={selected.status === "pending" ? { disabled: acting === selected.id } : undefined}
             secondaryButtonText={selected.status === "pending" ? "Reject" : undefined}
+            secondaryButtonOnClick={selected.status === "pending" ? () => handleAction(selected, "rejected") : undefined}
             secondaryButtonProps={selected.status === "pending" ? {
               disabled: acting === selected.id,
               skin: "destructive" as const,
-              onClick: () => handleAction(selected, "rejected"),
             } : undefined}
+            footnote={selected.status === "rejected" && selected.type === "hire_agent" ? (
+              <Box align="right" gap="8px" direction="horizontal" verticalAlign="middle">
+                <Text size="small" secondary>Changed your mind?</Text>
+                <Button
+                  size="small"
+                  onClick={() => handleForceHire(selected)}
+                  disabled={acting === selected.id}
+                >
+                  {acting === selected.id ? "Hiring..." : "Re-hire"}
+                </Button>
+              </Box>
+            ) : undefined}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {selected.status === "pending" && (
                 <div style={{ padding: "10px 14px", background: "#fff8e1", borderRadius: 6, fontSize: 13, color: "#7a6200", lineHeight: 1.5 }}>
-                  An agent is requesting permission to proceed. Review the details below and approve or reject.
+                  {selected.type === "hire_agent"
+                    ? "An agent wants to hire a new team member. Review their proposed role below."
+                    : "An agent is requesting permission to proceed. Review the details below and approve or reject."}
                 </div>
               )}
-              {/* Payload details */}
-              <div>
-                <Text size="small" weight="bold" secondary>REQUEST DETAILS</Text>
-                <div style={{ marginTop: 8, padding: "12px 16px", background: "#f7f8fa", borderRadius: 8, fontSize: 13, lineHeight: 1.7 }}>
-                  {Object.entries(selected.payload).length > 0 ? (
-                    Object.entries(selected.payload).map(([key, value]) => (
-                      <div key={key} style={{ marginBottom: 6 }}>
-                        <span style={{ color: "#999", fontSize: 12 }}>{key.replace(/_/g, " ")}:</span>{" "}
-                        <span style={{ color: "#333" }}>
-                          {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <Text size="small" secondary>No details provided.</Text>
-                  )}
+
+              {/* Hire agent: dedicated layout */}
+              {selected.type === "hire_agent" ? (
+                <HireAgentDetails payload={selected.payload} />
+              ) : (
+                /* Generic payload details — filter out internal/technical fields */
+                <div>
+                  <Text size="small" weight="bold" secondary>REQUEST DETAILS</Text>
+                  <div style={{ marginTop: 8, padding: "12px 16px", background: "#f7f8fa", borderRadius: 8, fontSize: 13, lineHeight: 1.7 }}>
+                    {(() => {
+                      const HIDDEN = new Set(["agentId", "adapterType", "adapterConfig", "runtimeConfig", "metadata", "requestedByAgentId", "requestedConfigurationSnapshot", "budgetMonthlyCents", "desiredSkills", "icon"]);
+                      const entries = Object.entries(selected.payload).filter(([k]) => !HIDDEN.has(k));
+                      return entries.length > 0 ? (
+                        entries.map(([key, value]) => (
+                          <div key={key} style={{ marginBottom: 8 }}>
+                            <div style={{ color: "#888", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+                              {key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").trim()}
+                            </div>
+                            <div style={{ color: "#333" }}>
+                              {renderPayloadValue(value)}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <Text size="small" secondary>No details provided.</Text>
+                      );
+                    })()}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Notes */}
               {selected.status === "pending" ? (
@@ -319,12 +498,8 @@ function ApprovalsContent() {
 
 export default function ApprovalsPage() {
   return (
-    <Providers>
-      <Shell>
-        <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
-          <ApprovalsContent />
-        </Suspense>
-      </Shell>
-    </Providers>
+    <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>Loading...</div>}>
+      <ApprovalsContent />
+    </Suspense>
   );
 }

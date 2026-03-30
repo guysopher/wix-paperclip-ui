@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { WixDesignSystemProvider } from "@wix/design-system";
-import { getCompanies, getMyIssues, getIssues, getRuns, getApprovals, cancelHeartbeatRun, type Company } from "@/lib/api";
+import { getCompanies, getMyIssues, getIssuesAssignedToMe, getIssues, getRuns, getApprovals, getAgents, cancelHeartbeatRun, type Company } from "@/lib/api";
 
 export interface BadgeCounts {
   inbox: number;      // unread needs-reply
@@ -10,9 +10,10 @@ export interface BadgeCounts {
   tasks: number;      // in-progress
   approvals: number;  // pending approvals
   chat: number;       // unread chat messages
+  team: number;       // number of agents
 }
 
-const BadgeCountsContext = createContext<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0 });
+const BadgeCountsContext = createContext<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
 
 export const useBadgeCounts = () => useContext(BadgeCountsContext);
 
@@ -34,7 +35,7 @@ const CompanyContext = createContext<CompanyContextValue>({
 export const useCompany = () => useContext(CompanyContext);
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0 });
+  const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
 
@@ -73,19 +74,31 @@ export function Providers({ children }: { children: React.ReactNode }) {
     try {
       if (!selectedCompanyId) return;
       const companyId = selectedCompanyId;
-      const [myIssues, allIssues, runs, approvalList] = await Promise.all([
+      const [myIssues, assignedToMe, allIssues, runs, approvalList, agentList] = await Promise.all([
         getMyIssues(companyId),
+        getIssuesAssignedToMe(companyId),
         getIssues(companyId),
         getRuns(companyId),
         getApprovals(companyId).catch(() => []),
+        getAgents(companyId).catch(() => []),
       ]);
-      const inboxCount = myIssues.filter(
-        (i) => i.isUnreadForMe && !["done", "cancelled"].includes(i.status) && i.title !== "Board Inbox"
-      ).length;
+      // Inbox count: assigned to me + unread + blocked (deduplicated, skip Board Inbox)
+      const inboxIds = new Set<string>();
+      for (const i of assignedToMe) {
+        if (i.title !== "Board Inbox" && !["done", "cancelled"].includes(i.status)) inboxIds.add(i.id);
+      }
+      for (const i of myIssues) {
+        if (i.title !== "Board Inbox" && i.isUnreadForMe && !["done", "cancelled"].includes(i.status)) inboxIds.add(i.id);
+      }
+      for (const i of allIssues) {
+        if (i.status === "blocked") inboxIds.add(i.id);
+      }
+      const inboxCount = inboxIds.size;
       const runningCount = runs.filter((r) => r.status === "running").length;
       const inProgressCount = allIssues.filter((i) => i.status === "in_progress").length;
       const pendingApprovals = approvalList.filter((a) => a.status === "pending").length;
-      setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, approvals: pendingApprovals, chat: 0 });
+      const teamSize = agentList.length;
+      setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, approvals: pendingApprovals, chat: 0, team: teamSize });
     } catch { /* silent */ }
   }, [selectedCompanyId]);
 

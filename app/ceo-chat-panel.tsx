@@ -1,135 +1,89 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Box, Loader, Tooltip } from "@wix/design-system";
+import { Loader } from "@wix/design-system";
 import { Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {
-  getAgents,
-  getIssues,
-  getComments,
-  postComment,
-  createIssue,
-  invokeHeartbeat,
-  type Agent,
-  type Issue,
-  type Comment,
-} from "@/lib/api";
 import { useCompany } from "./providers";
+
+interface ChatMessage {
+  role: "ceo" | "user";
+  text: string;
+  actions?: Array<{ type: string; title: string; identifier?: string }>;
+}
 
 export function CeoChatPanel({ onClose }: { onClose: () => void }) {
   const { companyId } = useCompany();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [ceo, setCeo] = useState<Agent | null>(null);
-  const [inboxIssue, setInboxIssue] = useState<Issue | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [waiting, setWaiting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // Get CEO's opening message on mount
   useEffect(() => {
+    if (!companyId) { setLoading(false); return; }
     (async () => {
-      if (!companyId) { setLoading(false); return; }
-      const cId = companyId;
-      const agentData = await getAgents(cId);
-      setAgents(agentData);
-      const ceoAgent = agentData.find((a) => a.role === "ceo");
-      if (ceoAgent) setCeo(ceoAgent);
-
-      const issues = await getIssues(cId);
-      let inbox = issues.find((i) => i.title === "Board Inbox");
-      if (!inbox) {
-        inbox = await createIssue(cId, {
-          title: "Board Inbox",
-          description: "Direct communication channel between the board operator and the CEO.",
-          priority: "high",
-          assigneeId: ceoAgent?.id,
+      try {
+        const res = await fetch("/api/ceo-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId, messages: [] }),
         });
+        const data = await res.json();
+        if (data.text) {
+          setMessages([{ role: "ceo", text: data.text }]);
+        }
+      } catch {
+        setMessages([{ role: "ceo", text: "Hey! What's on your mind?" }]);
       }
-      setInboxIssue(inbox);
-      const commentData = await getComments(inbox.id);
-      setComments(commentData);
       setLoading(false);
     })();
   }, [companyId]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
-    // Scroll only within the chat messages container, not the whole page
     const el = messagesEndRef.current;
     if (el?.parentElement) {
       el.parentElement.scrollTop = el.parentElement.scrollHeight;
     }
-  }, [comments]);
+  }, [messages, sending]);
 
+  // Focus input when ready
   useEffect(() => {
-    if (waiting && inboxIssue) {
-      const lastCount = comments.length;
-      pollRef.current = setInterval(async () => {
-        const c = await getComments(inboxIssue.id);
-        if (c.length > lastCount) {
-          setComments(c);
-          setWaiting(false);
-          // Flash document title to notify user
-          const originalTitle = document.title;
-          document.title = "\uD83D\uDCAC CEO replied \u2014 Agents Bay";
-          setTimeout(() => { document.title = originalTitle; }, 3000);
-          // Trigger Telegram outbound relay
-          fetch("/api/telegram/poll").catch(() => {});
-        }
-      }, 5000);
-      return () => { if (pollRef.current) clearInterval(pollRef.current); };
-    }
-  }, [waiting, inboxIssue, comments.length]);
+    if (!sending && !loading) inputRef.current?.focus();
+  }, [sending, loading]);
 
   const handleSend = async () => {
-    if (!message.trim()) return;
-    if (!inboxIssue || !ceo) {
-      console.error("Chat: cannot send", { inboxIssue: !!inboxIssue, ceo: !!ceo, companyId });
-      // Try to reload if state is stale
-      if (companyId) {
-        setLoading(true);
-        const agentData = await getAgents(companyId);
-        setAgents(agentData);
-        const ceoAgent = agentData.find((a) => a.role === "ceo");
-        if (ceoAgent) setCeo(ceoAgent);
-        const issues = await getIssues(companyId);
-        let inbox = issues.find((i) => i.title === "Board Inbox");
-        if (!inbox) {
-          inbox = await createIssue(companyId, {
-            title: "Board Inbox",
-            description: "Direct communication channel between the board operator and the CEO.",
-            priority: "high",
-            assigneeId: ceoAgent?.id,
-          });
-        }
-        setInboxIssue(inbox);
-        const commentData = await getComments(inbox.id);
-        setComments(commentData);
-        setLoading(false);
-      }
-      return;
-    }
+    if (!message.trim() || sending || !companyId) return;
+    const userText = message.trim();
+    setMessage("");
+
+    const userMsg: ChatMessage = { role: "user", text: userText };
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
+
     setSending(true);
     try {
-      await postComment(inboxIssue.id, message);
-      setMessage("");
-      const updated = await getComments(inboxIssue.id);
-      setComments(updated);
-      setWaiting(true);
-      try { await invokeHeartbeat(ceo.id); } catch {}
-    } catch (err) {
-      console.error("Chat: send failed", err);
+      const res = await fetch("/api/ceo-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, messages: updatedMessages }),
+      });
+      const data = await res.json();
+      if (data.text) {
+        setMessages((prev) => [...prev, {
+          role: "ceo",
+          text: data.text,
+          actions: data.actions,
+        }]);
+      }
+    } catch {
+      setMessages((prev) => [...prev, { role: "ceo", text: "Sorry, I couldn't process that. Try again?" }]);
     }
     setSending(false);
-  };
-
-  const agentName = (id: string | null) => {
-    if (!id) return "You";
-    return agents.find((a) => a.id === id)?.name || "Agent";
   };
 
   if (loading) {
@@ -144,12 +98,12 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa" }}>
       {/* Header */}
       <div style={{ padding: "12px 16px", background: "white", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#3899ec", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>C</div>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #3899ec, #1a4a6e)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>C</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>CEO</div>
           <div style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: waiting ? "#ffc107" : "#00d68f" }} />
-            {waiting ? "Thinking..." : "Online"}
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: sending ? "#ffc107" : "#00d68f" }} />
+            {sending ? "Thinking..." : "Online"}
           </div>
         </div>
         <button
@@ -162,58 +116,59 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px" }}>
-        {comments.length === 0 && (
-          <div style={{ textAlign: "center", color: "#999", marginTop: 40 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
-            <div style={{ fontWeight: 600, fontSize: 14, color: "#333", marginBottom: 4 }}>Talk to your CEO</div>
-            <div style={{ fontSize: 12 }}>Give instructions, ask questions, manage your company.</div>
-          </div>
-        )}
-
-        {[...comments].reverse().map((c) => {
-          const isAgent = !!c.authorAgentId;
-          const author = agentName(c.authorAgentId);
+        {messages.map((m, i) => {
+          const isAgent = m.role === "ceo";
           return (
-            <div key={c.id} style={{ display: "flex", marginBottom: 10, justifyContent: isAgent ? "flex-start" : "flex-end" }}>
-              <div style={{ maxWidth: "85%" }}>
-                <div style={{ fontSize: 10, color: "#999", marginBottom: 2, textAlign: isAgent ? "left" : "right" }}>
-                  {author} · {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </div>
-                <div
-                  style={{
-                    background: isAgent ? "white" : "#3899ec",
-                    color: isAgent ? "#333" : "white",
-                    padding: "8px 12px",
-                    borderRadius: isAgent ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {isAgent ? (
-                    <div className="timeline-markdown">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          a: ({ href, children, ...props }) => {
-                            const issueMatch = href?.match(/\/AGE\/issues\/(AGE-\d+)/);
-                            if (issueMatch) return <a {...props} href={`/tasks/${issueMatch[1]}`} style={{ color: "#3899ec" }}>{children}</a>;
-                            if (href && href.startsWith("/")) return <span style={{ color: "#3899ec", fontWeight: 500 }}>{children}</span>;
-                            return <a {...props} href={href} target="_blank" rel="noopener noreferrer" style={{ color: "#3899ec" }}>{children}</a>;
-                          },
-                        }}
-                      >{c.body}</ReactMarkdown>
-                    </div>
-                  ) : (
-                    <span style={{ whiteSpace: "pre-wrap" }}>{c.body}</span>
-                  )}
+            <div key={i}>
+              <div style={{ display: "flex", marginBottom: 10, justifyContent: isAgent ? "flex-start" : "flex-end" }}>
+                <div style={{ maxWidth: "85%" }}>
+                  <div
+                    style={{
+                      background: isAgent ? "white" : "#3899ec",
+                      color: isAgent ? "#333" : "white",
+                      padding: "8px 12px",
+                      borderRadius: isAgent ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {isAgent ? (
+                      <div className="timeline-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
+                    )}
+                  </div>
                 </div>
               </div>
+              {/* Action cards (created tasks) */}
+              {m.actions && m.actions.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 10, paddingLeft: 4 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {m.actions.map((action, j) => (
+                      <a
+                        key={j}
+                        href={action.identifier ? `/tasks/${action.identifier}` : "/tasks"}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "6px 12px", background: "#f0f5ff", border: "1px solid #d0e0ff",
+                          borderRadius: 8, textDecoration: "none", fontSize: 12, color: "#333",
+                        }}
+                      >
+                        <span style={{ color: "#3899ec", fontWeight: 600 }}>{action.identifier || "Task"}</span>
+                        <span>{action.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
 
-        {waiting && (
+        {sending && (
           <div style={{ display: "flex", marginBottom: 10 }}>
             <div style={{ background: "white", padding: "10px 16px", borderRadius: "4px 14px 14px 14px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", display: "flex", gap: 4 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite" }} />
@@ -229,23 +184,22 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
       {/* Input */}
       <div style={{ padding: "8px 12px 10px", background: "white", borderTop: "1px solid #eee", display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
         <input
+          ref={inputRef}
           type="text"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
-          placeholder="Message CEO..."
+          placeholder="Ask the CEO anything..."
           disabled={sending}
           style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "8px 14px", fontSize: 13, outline: "none", background: "#f7f8fa" }}
         />
-        <Tooltip content="Send your message. The CEO will be woken up to read and respond." placement="top">
-          <button
-            onClick={handleSend}
-            disabled={!message.trim() || sending}
-            style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
-          >
-            <Send size="16px" />
-          </button>
-        </Tooltip>
+        <button
+          onClick={handleSend}
+          disabled={!message.trim() || sending}
+          style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
+        >
+          <Send size="16px" />
+        </button>
       </div>
     </div>
   );
