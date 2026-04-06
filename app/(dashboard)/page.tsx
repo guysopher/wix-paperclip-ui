@@ -29,14 +29,12 @@ import {
   Promote,
   Statistics,
   Confirm,
-  Activity,
   PauseFilled,
   PlayFilled,
 } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../providers";
 import {
   getDashboard,
-  getActivity,
   getAgents,
   getGoals,
   getIssues,
@@ -49,102 +47,47 @@ import {
   getCompany,
   type Company,
   type Dashboard,
-  type ActivityEntry,
   type Agent,
   type Goal,
   type Issue,
   type HeartbeatRun,
 } from "@/lib/api";
 
-interface Story { icon: string; text: string; detail?: string; link?: string; actorLink?: string; }
-
-function buildStory(entry: ActivityEntry, agents: Agent[]): Story | null {
-  const isUser = entry.actorType === "user";
-  const actorAgent = entry.agentId ? agents.find((a) => a.id === entry.agentId) : null;
-  // For agent.updated, the entity IS the agent being updated
-  const entityAgent = entry.entityType === "agent" ? agents.find((a) => a.id === entry.entityId) : null;
-
-  const actor = isUser ? "You" : (actorAgent?.name || "An agent");
-  const actorLink = !isUser && actorAgent ? `/team/${actorAgent.id}` : undefined;
-  const entityLink = entityAgent ? `/team/${entityAgent.id}` : undefined;
-  const runLink = entry.entityType === "run" ? `/runs/${entry.entityId}` : undefined;
-  const d = entry.details || {};
-  const identifier = (d.identifier as string) || "";
-  const issueTitle = (d.issueTitle as string) || "";
-  const snippet = (d.bodySnippet as string) || "";
-  const status = (d.status as string) || "";
-  const prev = (d._previous as Record<string, string>) || {};
-
-  switch (entry.action) {
-    case "issue.comment_added": {
-      const preview = snippet.replace(/[#*`\[\]]/g, "").replace(/\n/g, " ").trim().slice(0, 120);
-      return {
-        icon: isUser ? "💬" : "📨",
-        text: `${actor} ${isUser ? "commented on" : "posted an update on"} ${identifier || "a task"}${issueTitle && !identifier ? ` — ${issueTitle}` : ""}`,
-        detail: preview ? `"${preview}${snippet.length > 120 ? "..." : ""}"` : undefined,
-        link: identifier ? `/tasks/${identifier}` : undefined,
-        actorLink,
-      };
-    }
-    case "issue.updated": {
-      const taskLink = identifier ? `/tasks/${identifier}` : undefined;
-      if (status === "done") {
-        return { icon: "✅", text: `${actor} completed ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
-      }
-      if (status === "in_progress") {
-        return { icon: "🔨", text: `${actor} started working on ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
-      }
-      if (status === "in_review") {
-        return { icon: "👀", text: `${actor} moved ${identifier} to review${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
-      }
-      if (status === "blocked") {
-        return { icon: "🚫", text: `${identifier} is blocked${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
-      }
-      return { icon: "📝", text: `${actor} updated ${identifier || "a task"}${issueTitle ? ` — ${issueTitle}` : ""}`, link: taskLink, actorLink };
-    }
-    case "issue.created":
-      return { icon: "➕", text: `${actor} created ${identifier ? identifier + " " : ""}${issueTitle || "a new task"}`, link: identifier ? `/tasks/${identifier}` : undefined, actorLink };
-    case "issue.checked_out":
-      return { icon: "🔨", text: `${actor} picked up ${identifier}${issueTitle ? ` — ${issueTitle}` : ""} and started working`, link: identifier ? `/tasks/${identifier}` : undefined, actorLink };
-    case "issue.released":
-      return { icon: "📤", text: `${actor} released ${identifier}${issueTitle ? ` — ${issueTitle}` : ""}`, link: identifier ? `/tasks/${identifier}` : undefined, actorLink };
-    case "issue.read_marked":
-      return null; // Boring, skip
-    case "agent.created": {
-      const who = entityAgent?.name || "A new team member";
-      return { icon: "👋", text: `${who} joined the team as ${entityAgent?.title || "a new role"}`, actorLink: entityLink };
-    }
-    case "agent.updated": {
-      const who = entityAgent?.name || "A team member";
-      const keys = (d.changedTopLevelKeys as string[]) || [];
-      const configKeys = (d.changedAdapterConfigKeys as string[]) || [];
-      if (keys.includes("name")) return { icon: "✏️", text: `${who} was renamed`, actorLink: entityLink };
-      if (configKeys.includes("promptTemplate") && configKeys.length <= 3) {
-        return { icon: "📋", text: `${who}'s role description was updated`, actorLink: entityLink };
-      }
-      if (configKeys.includes("model")) {
-        return { icon: "⚙️", text: `${who}'s seniority level was changed`, actorLink: entityLink };
-      }
-      if (configKeys.length > 3) {
-        return { icon: "⚙️", text: `${who}'s profile was reconfigured`, actorLink: entityLink };
-      }
-      if (keys.includes("reportsTo")) return { icon: "🔀", text: `${who}'s reporting line was changed`, actorLink: entityLink };
-      return null; // Skip other generic updates
-    }
-    case "heartbeat.invoked": {
-      const wokeAgent = actorAgent || entityAgent;
-      const whoWoke = wokeAgent?.name || "An agent";
-      const wokeLink = wokeAgent ? `/team/${wokeAgent.id}` : undefined;
-      return { icon: "⏰", text: isUser ? `You woke up ${whoWoke} for a check-in` : `${whoWoke} started a scheduled check-in`, actorLink: wokeLink };
-    }
-    case "run.completed":
-      return { icon: "✔️", text: `${actor} finished a work session`, link: runLink, actorLink };
-    case "run.failed":
-      return { icon: "⚠️", text: `${actor}'s work session failed`, detail: (d.error as string) || undefined, link: runLink, actorLink };
-    default:
-      return null; // Skip unknown actions instead of showing raw text
-  }
+const FEED_AVATAR_COLORS = ["#3899ec", "#e01f5a", "#2ca55a", "#ff6b35", "#7c4dff", "#00bcd4", "#f59e0b"];
+function feedAvatarColor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+  return FEED_AVATAR_COLORS[Math.abs(h) % FEED_AVATAR_COLORS.length];
 }
+function feedParseUsage(usageJson: string | null) {
+  if (!usageJson) return null;
+  try {
+    const u = JSON.parse(usageJson);
+    const cost = u.total_cost_usd ? `$${u.total_cost_usd.toFixed(4)}` : null;
+    const out = u.usage?.output_tokens || u.output_tokens || 0;
+    const inp = u.usage?.input_tokens || u.input_tokens || 0;
+    const cac = u.usage?.cache_read_input_tokens || u.cache_read_input_tokens || 0;
+    const tokens = out + inp + cac > 0 ? `${((out + inp + cac) / 1000).toFixed(1)}k tokens` : null;
+    return { cost: cost || "—", tokens: tokens || "—" };
+  } catch { return null; }
+}
+function feedDuration(start: string | null, end: string | null) {
+  if (!start) return "—";
+  const sec = Math.round((((end ? new Date(end) : new Date()).getTime()) - new Date(start).getTime()) / 1000);
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+  return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
+}
+const FEED_STATUS_SKINS: Record<string, "success" | "warning" | "neutral" | "danger" | "general"> = {
+  succeeded: "success", running: "warning", queued: "neutral", failed: "danger", timed_out: "danger", cancelled: "neutral",
+};
+const FEED_STATUS_LABELS: Record<string, string> = {
+  succeeded: "Completed", running: "Running", queued: "Queued", failed: "Failed", timed_out: "Timed out", cancelled: "Cancelled",
+};
+const FEED_SOURCE_LABELS: Record<string, string> = {
+  on_demand: "Manual", scheduled: "Scheduled", mention: "Mentioned", assignment: "Assigned",
+};
+
 
 function timeAgo(date: string) {
   const diff = Math.round((Date.now() - new Date(date).getTime()) / 60000);
@@ -185,7 +128,7 @@ function DashboardContent() {
   const { companyId } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
   const [agents, setAgents] = useState<Agent[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -204,21 +147,42 @@ function DashboardContent() {
     if (!companyId) { setLoading(false); return; }
     const c = await getCompany(companyId);
     setCompany(c);
-    const [dash, act, agentList, goalList, issueList, runList] = await Promise.all([
+    const [dash, agentList, goalList, issueList, runList] = await Promise.all([
       getDashboard(companyId),
-      getActivity(companyId).catch(() => []),
       getAgents(companyId),
       getGoals(companyId).catch(() => []),
       getIssues(companyId).catch(() => []),
       getRuns(companyId),
     ]);
     setDashboard(dash);
-    setActivity((act || []).slice(0, 15));
     setAgents(agentList);
     setGoals(goalList);
     setIssues(issueList);
     setRuns(runList);
     setLoading(false);
+
+    // Fetch narratives for the 5 most recent runs
+    const agentMap = new Map(agentList.map((a: Agent) => [a.id, a]));
+    const latest = [...runList]
+      .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 3);
+    setFeedNarratives(Object.fromEntries(latest.map((r: HeartbeatRun) => [r.id, r.status === "running" || r.status === "queued" ? "" : null])));
+    latest.filter((r: HeartbeatRun) => r.status !== "running" && r.status !== "queued").forEach((run: HeartbeatRun) => {
+      const agent = agentMap.get(run.agentId);
+      const params = new URLSearchParams({
+        agentName: agent?.name || "Unknown",
+        agentRole: agent?.role || "",
+        status: run.status,
+        source: run.invocationSource,
+      });
+      if (run.error) params.set("error", run.error);
+      if (run.triggerDetail) params.set("triggerDetail", run.triggerDetail);
+      fetch(`/api/run-narrative/${run.id}?${params}`)
+        .then((r) => r.json())
+        .then((data: { title?: string; description?: string }) =>
+          setFeedNarratives((prev) => ({ ...prev, [run.id]: { title: data.title || "", description: data.description || "" } })))
+        .catch(() => setFeedNarratives((prev) => ({ ...prev, [run.id]: { title: "", description: "" } })));
+    });
   };
 
   useEffect(() => { load(); }, [companyId]);
@@ -530,6 +494,74 @@ function DashboardContent() {
             </div>
           </div>
 
+          {/* Run feed */}
+          {runs.length > 0 && (() => {
+            const latest = [...runs]
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              .slice(0, 3);
+            return (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text size="medium" weight="bold">Recent Runs</Text>
+                  <a href="/activity" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>See all →</a>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {latest.map((run) => {
+                    const agent = agents.find((a) => a.id === run.agentId);
+                    const agentName = agent?.name || "Unknown";
+                    const narrative = feedNarratives[run.id];
+                    const usage = feedParseUsage(run.usageJson);
+                    const dur = feedDuration(run.startedAt, run.finishedAt);
+                    return (
+                      <div key={run.id} style={{ background: "white", borderRadius: 10, border: "1px solid #e8ecf0", padding: "16px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                          <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: "50%", background: feedAvatarColor(run.agentId), color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>
+                              {agentName.charAt(0).toUpperCase()}
+                            </div>
+                          </a>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                              <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", color: "inherit", fontWeight: 600, fontSize: 14 }}>{agentName}</a>
+                              {agent?.title && <span style={{ fontSize: 12, color: "#999" }}>{agent.title}</span>}
+                              <Badge size="tiny" skin={FEED_STATUS_SKINS[run.status] || "general"}>{FEED_STATUS_LABELS[run.status] || run.status}</Badge>
+                            </div>
+                            <div style={{ fontSize: 12, color: "#bbb", marginTop: 1 }}>{FEED_SOURCE_LABELS[run.invocationSource] || run.invocationSource} · {timeAgo(run.createdAt)}</div>
+                          </div>
+                        </div>
+                        <div style={{ minHeight: 36, marginBottom: 10 }}>
+                          {run.status === "running" || run.status === "queued" ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#3899ec" }}>
+                              <Loader size="tiny" />
+                              <span style={{ fontSize: 13 }}>{run.status === "queued" ? "Waiting to start…" : "Running now…"}</span>
+                            </div>
+                          ) : narrative === null ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              {[80, 65].map((w, i) => <div key={i} className="skeleton-bar" style={{ height: 12, width: `${w}%` }} />)}
+                            </div>
+                          ) : narrative?.title ? (
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 13, color: "#162d3d", marginBottom: 3 }}>{narrative.title}</div>
+                              {narrative.description && <div style={{ fontSize: 12, color: "#666", lineHeight: 1.55 }}>{narrative.description}</div>}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 12, color: "#ccc", fontStyle: "italic" }}>No summary available.</span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid #f0f2f5", paddingTop: 10, fontSize: 12, color: "#999" }}>
+                          <span>{dur}</span>
+                          {usage?.cost && usage.cost !== "—" && <><span style={{ color: "#ddd" }}>·</span><span>{usage.cost}</span></>}
+                          <div style={{ flex: 1 }} />
+                          <a href={`/runs/${run.id}`} style={{ color: "#3899ec", textDecoration: "none", fontWeight: 500 }}>View →</a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Team + Open work row */}
           <div className="dashboard-panels" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {/* Team status */}
@@ -759,63 +791,6 @@ function DashboardContent() {
             );
           })()}
 
-          {/* Activity feed */}
-          <div>
-            <Card>
-              <Card.Header title="Recent Activity" />
-              <Card.Content>
-                {activity.length === 0 ? (
-                  <div style={{ padding: "20px 0", textAlign: "center" }}>
-                    <Activity color="#b0b0b0" size="48px" />
-                    <div style={{ marginTop: 8 }}>
-                      <Text secondary>No activity yet. Wake up an agent to get started.</Text>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ position: "relative", paddingLeft: 24 }}>
-                    {/* Timeline line */}
-                    <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 2, background: "#e5e5e5" }} />
-                    {activity.map((entry, i) => {
-                      const story = buildStory(entry, agents);
-                      if (!story) return null;
-
-                      return (
-                        <div key={entry.id || i} style={{ display: "flex", gap: 12, marginBottom: 18, position: "relative" }}>
-                          {/* Timeline icon */}
-                          <div style={{
-                            position: "absolute", left: -22, top: 0,
-                            width: 18, height: 18,
-                            background: "white",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 12,
-                          }}>
-                            {story.icon}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 14, color: "#333", lineHeight: 1.5 }}>
-                              {story.link ? (
-                                <a href={story.link} style={{ color: "inherit", textDecoration: "none" }}>
-                                  {story.text}
-                                </a>
-                              ) : story.text}
-                            </div>
-                            {story.detail && (
-                              <div style={{ fontSize: 13, color: "#888", marginTop: 3, fontStyle: "italic", lineHeight: 1.4 }}>
-                                {story.detail}
-                              </div>
-                            )}
-                            <div style={{ fontSize: 11, color: "#bbb", marginTop: 3 }}>
-                              <span title={new Date(entry.createdAt).toLocaleString()}>{timeAgo(entry.createdAt)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card.Content>
-            </Card>
-          </div>
           {/* Token Usage Analytics */}
           {tokenStats.totalRuns > 0 && (
             <div>

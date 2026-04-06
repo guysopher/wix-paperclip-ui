@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import React, { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Box,
@@ -49,6 +49,39 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const TAB_KEYS = ["all", "needs-reply", "sent", "active", "done", "archived"];
+
+function DescriptionBlock({ description }: { description: string }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const isLong = description.length > 300;
+  const preview = isLong && !expanded ? description.slice(0, 300) + "…" : description;
+
+  return (
+    <div style={{
+      marginBottom: 20,
+      background: "#f7f8fa",
+      border: "1px solid #e8e8e8",
+      borderRadius: 8,
+      overflow: "hidden",
+    }}>
+      <div style={{ padding: "10px 16px 6px", display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #eeeeee" }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 0.5 }}>Brief</span>
+      </div>
+      <div style={{ padding: "12px 16px" }}>
+        <div className="timeline-markdown" style={{ fontSize: 13, color: "#444", lineHeight: 1.65 }}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview}</ReactMarkdown>
+        </div>
+        {isLong && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{ marginTop: 6, background: "none", border: "none", color: "#3899ec", fontSize: 12, cursor: "pointer", padding: 0 }}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function InboxContent() {
   const { companyId } = useCompany();
@@ -260,109 +293,90 @@ function InboxContent() {
       {/* Split view */}
       <div className="inbox-split" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Thread list */}
-        <div className={`inbox-list${selected ? " has-selection" : ""}`} style={{ width: selected ? 380 : "100%", flexShrink: 0, overflowY: "auto", borderRight: selected ? "1px solid #eee" : "none", background: "white" }}>
+        <div className={`inbox-list${selected ? " has-selection" : ""}`} style={{ width: selected ? 380 : "100%", flexShrink: 0, overflowY: "auto", borderRight: selected ? "1px solid #e8e8e8" : "none", background: "#f4f5f7" }}>
           {sorted.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 20px", color: "#999" }}>
               <InboxIcon color="#b0b0b0" size="48px" />
               <div style={{ fontWeight: 600, color: "#333", marginTop: 8 }}>
-                {activeTab === 0 ? "Nothing here yet" : activeTab === 1 ? "All caught up" : activeTab === 2 ? "No active tasks" : activeTab === 3 ? "No completed tasks" : "No archived items"}
+                {activeTab === 0 ? "Nothing here yet" : activeTab === 1 ? "All caught up" : activeTab === 2 ? "No sent items" : activeTab === 3 ? "No active tasks" : activeTab === 4 ? "No completed tasks" : "No archived items"}
               </div>
               <div style={{ fontSize: 13, marginTop: 4 }}>
                 {activeTab === 0 ? "Messages from your agents will appear here." : activeTab === 1 ? "No conversations need your reply right now." : ""}
               </div>
             </div>
           ) : (
-            sorted.map((issue) => {
+            <div style={{ padding: "10px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+            {sorted.map((issue) => {
               const isSelected = selected?.id === issue.id;
               const assignee = agentName(issue.assigneeAgentId || issue.assigneeId);
               const activityTime = issue.lastExternalCommentAt || issue.updatedAt;
               const isAssignedToMe = issue.assigneeUserId === "local-board";
               const isBlocked = issue.status === "blocked";
               const isDone = issue.status === "done" || issue.status === "cancelled";
-              const statusColor = STATUS_COLORS[issue.status] || "#b0b0b0";
+
+              const avatarBg = isBlocked ? "#fde8e8" : isDone ? "#f0f0f0" : isAssignedToMe ? "#fff4e6" : "#ddeeff";
+              const avatarColor = isBlocked ? "#d63031" : isDone ? "#aaa" : isAssignedToMe ? "#e67e22" : "#3899ec";
 
               return (
                 <div
                   key={issue.id}
                   onClick={() => selectIssue(issue)}
                   style={{
-                    padding: "14px 18px",
-                    borderBottom: "1px solid #f0f0f0",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: 8,
                     cursor: "pointer",
-                    background: isSelected ? "#edf5ff" : "white",
-                    transition: "background 0.1s",
+                    background: isSelected ? "#ddeeff" : "white",
+                    border: `1px solid ${isSelected ? "#3899ec55" : isBlocked ? "#ee595133" : "#e8e8e8"}`,
+                    boxShadow: isSelected ? "0 1px 4px rgba(56,153,236,0.12)" : "0 1px 2px rgba(0,0,0,0.04)",
+                    transition: "background 0.12s, border-color 0.12s",
+                    flexShrink: 0,
                   }}
-                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8f9fa"; }}
-                  onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "white"; }}
+                  onMouseEnter={(e) => { if (!isSelected) { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#d0d0d0"; } }}
+                  onMouseLeave={(e) => { if (!isSelected) { e.currentTarget.style.background = "white"; e.currentTarget.style.borderColor = isBlocked ? "#ee595133" : "#e8e8e8"; } }}
                 >
-                  <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                    {/* Avatar */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                      background: isAssignedToMe ? "#fff3e0" : isBlocked ? "#fee2e2" : isDone ? "#e8f5e9" : "#e8f0fe",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      color: isAssignedToMe ? "#e65100" : statusColor, fontSize: 14, fontWeight: 700,
-                    }}>
-                      {assignee.charAt(0)}
-                    </div>
+                  {/* Avatar */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                    background: avatarBg, color: avatarColor,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 15, fontWeight: 700,
+                  }}>
+                    {assignee.charAt(0).toUpperCase()}
+                  </div>
 
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {/* Title row */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0 }}>
-                          {issue.isUnreadForMe && (
-                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3899ec", flexShrink: 0 }} />
-                          )}
-                          <span style={{
-                            fontWeight: issue.isUnreadForMe ? 700 : 500, fontSize: 14,
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            color: isDone ? "#999" : "#222",
-                          }}>
-                            {issue.title}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }} title={new Date(activityTime).toLocaleString()}>
-                          {timeAgo(activityTime)}
-                        </span>
-                      </div>
-
-                      {/* Meta row */}
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
-                        {/* Status badge */}
-                        <span style={{
-                            fontSize: 10, fontWeight: 600, textTransform: "uppercase",
-                            padding: "1px 6px", borderRadius: 3, letterSpacing: 0.3,
-                            background: isBlocked ? "#fee2e2" : isDone ? "#e8f5e9" : "#f0f0f0",
-                            color: statusColor,
-                          }}>
-                            {issue.status.replace(/_/g, " ")}
-                          </span>
-
-                        <span style={{ fontSize: 12, color: "#ccc" }}>{issue.identifier}</span>
-                        <span style={{ fontSize: 12, color: "#ccc" }}>&middot;</span>
-                        <span style={{ fontSize: 12, color: "#999" }}>{assignee}</span>
-                        {isAssignedToMe && (
-                          <span style={{ fontSize: 10, fontWeight: 600, color: "#e65100", background: "#fff3e0", padding: "1px 6px", borderRadius: 3 }}>
-                            Assigned to you
-                          </span>
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                        {issue.isUnreadForMe && (
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#3899ec", flexShrink: 0 }} />
                         )}
-                      </div>
-
-                      {/* Description preview */}
-                      {issue.description && (
-                        <div style={{
-                          fontSize: 12, color: "#888", marginTop: 4,
+                        <span style={{
+                          fontSize: 14, fontWeight: issue.isUnreadForMe ? 700 : 500,
+                          color: isDone ? "#aaa" : "#1a1a1a",
                           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
-                          {issue.description.slice(0, 120)}
-                        </div>
-                      )}
+                          {issue.title}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }}>
+                        {timeAgo(activityTime)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                      <Text size="tiny" secondary>{assignee}</Text>
+                      {isBlocked && <Badge size="tiny" skin="danger">Blocked</Badge>}
+                      {isAssignedToMe && !isBlocked && <Badge size="tiny" skin="warning">Needs reply</Badge>}
                     </div>
                   </div>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </div>
 
@@ -405,11 +419,6 @@ function InboxContent() {
                       </span>
                     ) : null}
                   </div>
-                  {selected.description && selected.title !== "Board Inbox" && (
-                    <div style={{ fontSize: 13, color: "#666", marginTop: 8, lineHeight: 1.5 }}>
-                      {selected.description}
-                    </div>
-                  )}
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 16 }}>
                   {activeTab !== 5 ? (
@@ -430,6 +439,10 @@ function InboxContent() {
 
             {/* Messages */}
             <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+              {/* Description block — shown inline in the thread, not in the header */}
+              {selected.description && selected.title !== "Board Inbox" && (
+                <DescriptionBlock description={selected.description} />
+              )}
               {loadingComments ? (
                 <Box align="center" padding="24px"><Loader size="small" /></Box>
               ) : comments.length === 0 ? (

@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Settings,
   Code,
+  Feed,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
@@ -30,6 +31,7 @@ type CountKey = keyof BadgeCounts;
 
 const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; countKey?: CountKey }> = [
   { key: "/", label: "Home", Icon: Dashboard },
+  { key: "/activity", label: "Activity", Icon: Feed },
   { key: "/inbox", label: "Inbox", Icon: Inbox, countKey: "inbox" },
   { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
