@@ -1,80 +1,29 @@
 import React from "react";
-import {
-  Dashboard,
-  Users,
-  Checklist,
-  Chat,
-  Inbox,
-  Refresh,
-  Confirm,
-  Globe,
-  Settings,
-  Code,
-  Feed,
-  Add,
-  Delete,
-  ExternalLink,
-  Send,
-  Star,
-  StarFilled,
-  Search,
-  Edit,
-  More,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Duplicate,
-  Download,
-  Upload,
-  Share,
-  Filter,
-  Sort,
-  PlayFilled,
-  PauseFilled,
-  StopFilled,
-  Help,
-} from "@wix/wix-ui-icons-common";
+import * as WixIcons from "@wix/wix-ui-icons-common";
 
-// Map icon names to their components
-export const AVAILABLE_ICONS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
-  Dashboard,
-  Users,
-  Checklist,
-  Chat,
-  Inbox,
-  Refresh,
-  Confirm,
-  Globe,
-  Settings,
-  Code,
-  Feed,
-  Add,
-  Delete,
-  ExternalLink,
-  Send,
-  Star,
-  StarFilled,
-  Search,
-  Edit,
-  More,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Duplicate,
-  Download,
-  Upload,
-  Share,
-  Filter,
-  Sort,
-  PlayFilled,
-  PauseFilled,
-  StopFilled,
-  Help,
+// Filter out TypeScript types and small/filled variants, keep only base icons
+const getAvailableIcons = () => {
+  const icons: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {};
+
+  Object.keys(WixIcons).forEach((key) => {
+    // Skip non-component exports (like __esModule, default, etc.)
+    if (key.startsWith('_') || key === 'default') return;
+
+    // Skip Small and Filled variants to avoid duplicates
+    if (key.includes('Small') || key.includes('Filled')) return;
+
+    const component = (WixIcons as Record<string, unknown>)[key];
+
+    // Only include actual React components
+    if (typeof component === 'function' || (component && typeof component === 'object')) {
+      icons[key] = component as React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+    }
+  });
+
+  return icons;
 };
+
+export const AVAILABLE_ICONS = getAvailableIcons();
 
 interface AgentAvatarProps {
   agentName: string;
