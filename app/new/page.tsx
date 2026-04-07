@@ -202,7 +202,7 @@ export default function NewCompanyPage() {
         name: "CEO",
         role: "ceo",
         title: "Chief Executive Officer",
-        icon: "User",
+        icon: "Users",
         capabilities: "Strategic planning, delegation, company oversight, stakeholder communication, goal setting",
         adapterType: "claude_local",
         adapterConfig: {

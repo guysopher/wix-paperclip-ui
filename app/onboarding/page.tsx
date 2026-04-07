@@ -264,7 +264,7 @@ function OnboardingFlow() {
   const [waiting, setWaiting] = useState(false);
   const [showHireButton, setShowHireButton] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [selectedIcon, setSelectedIcon] = useState<string | undefined>("User");
+  const [selectedIcon, setSelectedIcon] = useState<string | undefined>("Users");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
