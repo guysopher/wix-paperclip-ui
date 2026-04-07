@@ -335,14 +335,14 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   gap: "14px 18px",
                 }}
               >
-                <FormField label="Name" infoContent="The display name for this team member.">
+                <FormField label="Name" infoContent="The primary identifier for this team member (e.g., 'Sarah', 'Mike', 'CEO'). Shown in bold across the dashboard.">
                   <Input
                     size="small"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                   />
                 </FormField>
-                <FormField label="Title" infoContent="The job title or role label shown in the team list.">
+                <FormField label="Title" infoContent="The job description shown below the name (e.g., 'Chief Executive Officer', 'Senior Engineer', 'Marketing Manager').">
                   <Input
                     size="small"
                     value={editTitle}
@@ -358,6 +358,8 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   selectedIcon={editIcon}
                   onSelect={setEditIcon}
                   avatarColor={avatarColor}
+                  agentName={editName}
+                  agentRole={agent.role}
                 />
               </FormField>
 

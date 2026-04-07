@@ -263,7 +263,6 @@ function OnboardingFlow() {
   const [sending, setSending] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [showHireButton, setShowHireButton] = useState(false);
-  const [showIconPicker, setShowIconPicker] = useState(false);
   const [selectedIcon, setSelectedIcon] = useState<string | undefined>("Users");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -749,17 +748,29 @@ function OnboardingFlow() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Hire button */}
+        {/* Hire section with icon picker */}
         {showHireButton && !hiring && (
           <div style={{
-            padding: "12px 24px",
+            padding: "16px 24px",
             background: "linear-gradient(0deg, white 60%, transparent 100%)",
             display: "flex",
-            justifyContent: "center",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "16px",
             flexShrink: 0,
           }}>
+            <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+              Choose an icon for your CEO:
+            </div>
+            <IconPicker
+              selectedIcon={selectedIcon}
+              onSelect={setSelectedIcon}
+              avatarColor="#3899ec"
+              agentName="CEO"
+              agentRole="ceo"
+            />
             <button
-              onClick={() => setShowIconPicker(true)}
+              onClick={handleHire}
               style={{
                 padding: "14px 40px",
                 borderRadius: 40,
@@ -848,34 +859,6 @@ function OnboardingFlow() {
           </div>
         )}
       </div>
-
-      {/* Icon picker modal */}
-      <Modal
-        isOpen={showIconPicker}
-        onRequestClose={() => setShowIconPicker(false)}
-        shouldCloseOnOverlayClick
-      >
-        <CustomModalLayout
-          title="Choose an icon for your CEO"
-          subtitle="Select an icon to represent your CEO in the dashboard"
-          primaryButtonText="Hire CEO"
-          primaryButtonOnClick={() => {
-            setShowIconPicker(false);
-            handleHire();
-          }}
-          secondaryButtonText="Cancel"
-          secondaryButtonOnClick={() => setShowIconPicker(false)}
-          onCloseButtonClick={() => setShowIconPicker(false)}
-        >
-          <div style={{ padding: "12px 0" }}>
-            <IconPicker
-              selectedIcon={selectedIcon}
-              onSelect={setSelectedIcon}
-              avatarColor="#3899ec"
-            />
-          </div>
-        </CustomModalLayout>
-      </Modal>
 
       <style>{`
         @keyframes pulse {
