@@ -21,6 +21,8 @@ import {
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
+import { IconPicker } from "../../components/icon-picker";
+import { AgentAvatar } from "../../components/agent-avatar";
 import {
   getAgents,
   getApprovals,
@@ -137,18 +139,19 @@ function HireAgentDetails({ payload }: { payload: Record<string, unknown> }) {
   const name = String(payload.name || "?");
   const title = String(payload.title || "");
   const capabilities = String(payload.capabilities || "");
+  const icon = payload.icon as string | undefined;
+  const role = payload.role as string | undefined;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "#f0f5ff", borderRadius: 8, border: "1px solid #d0e0ff" }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: "50%",
-          background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          color: "white", fontSize: 16, fontWeight: 700,
-        }}>
-          {name[0].toUpperCase()}
-        </div>
+        <AgentAvatar
+          agentName={name}
+          agentRole={role}
+          icon={icon}
+          size={44}
+          fontSize={16}
+        />
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>{name}</div>
           <div style={{ fontSize: 13, color: "#666" }}>{title}</div>
@@ -253,6 +256,7 @@ function ApprovalsContent() {
         name: p.name,
         role: p.role,
         title: p.title,
+        icon: p.icon as string | undefined,
         capabilities: p.capabilities,
         reportsTo: p.reportsTo || undefined,
         adapterType: "claude_local",
@@ -446,7 +450,7 @@ function ApprovalsContent() {
                   <Text size="small" weight="bold" secondary>REQUEST DETAILS</Text>
                   <div style={{ marginTop: 8, padding: "12px 16px", background: "#f7f8fa", borderRadius: 8, fontSize: 13, lineHeight: 1.7 }}>
                     {(() => {
-                      const HIDDEN = new Set(["agentId", "adapterType", "adapterConfig", "runtimeConfig", "metadata", "requestedByAgentId", "requestedConfigurationSnapshot", "budgetMonthlyCents", "desiredSkills", "icon"]);
+                      const HIDDEN = new Set(["agentId", "adapterType", "adapterConfig", "runtimeConfig", "metadata", "requestedByAgentId", "requestedConfigurationSnapshot", "budgetMonthlyCents", "desiredSkills"]);
                       const entries = Object.entries(selected.payload).filter(([k]) => !HIDDEN.has(k));
                       return entries.length > 0 ? (
                         entries.map(([key, value]) => (
