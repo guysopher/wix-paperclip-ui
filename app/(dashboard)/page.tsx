@@ -129,6 +129,7 @@ function DashboardContent() {
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
+  const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
   const [agents, setAgents] = useState<Agent[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -161,7 +162,7 @@ function DashboardContent() {
     setRuns(runList);
     setLoading(false);
 
-    // Fetch narratives for the 5 most recent runs
+    // Fetch narratives for the 3 most recent runs
     const agentMap = new Map(agentList.map((a: Agent) => [a.id, a]));
     const latest = [...runList]
       .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -179,10 +180,42 @@ function DashboardContent() {
       if (run.triggerDetail) params.set("triggerDetail", run.triggerDetail);
       fetch(`/api/run-narrative/${run.id}?${params}`)
         .then((r) => r.json())
-        .then((data: { title?: string; description?: string }) =>
-          setFeedNarratives((prev) => ({ ...prev, [run.id]: { title: data.title || "", description: data.description || "" } })))
+        .then((data: { title?: string; description?: string; goalProgress?: Array<{ goalId: string; progress: number; comment: string }> }) => {
+          setFeedNarratives((prev) => ({ ...prev, [run.id]: { title: data.title || "", description: data.description || "" } }));
+          // Update goal progress if present
+          if (data.goalProgress && data.goalProgress.length > 0) {
+            const progressMap: Record<string, { progress: number; comment: string; updatedAt: string }> = {};
+            data.goalProgress.forEach((gp) => {
+              progressMap[gp.goalId] = { progress: gp.progress, comment: gp.comment, updatedAt: run.createdAt };
+            });
+            setGoalProgress((prev) => ({ ...prev, ...progressMap }));
+          }
+        })
         .catch(() => setFeedNarratives((prev) => ({ ...prev, [run.id]: { title: "", description: "" } })));
     });
+
+    // Fetch goal progress from the most recent CEO run
+    const ceo = agentList.find((a: Agent) => a.role === "ceo");
+    if (ceo) {
+      const ceoRuns = runList
+        .filter((r: HeartbeatRun) => r.agentId === ceo.id && r.status === "succeeded")
+        .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      if (ceoRuns.length > 0) {
+        const latestCeoRun = ceoRuns[0];
+        fetch(`/api/run-narrative/${latestCeoRun.id}`)
+          .then((r) => r.json())
+          .then((data: { goalProgress?: Array<{ goalId: string; progress: number; comment: string }> }) => {
+            if (data.goalProgress && data.goalProgress.length > 0) {
+              const progressMap: Record<string, { progress: number; comment: string; updatedAt: string }> = {};
+              data.goalProgress.forEach((gp) => {
+                progressMap[gp.goalId] = { progress: gp.progress, comment: gp.comment, updatedAt: latestCeoRun.createdAt };
+              });
+              setGoalProgress(progressMap);
+            }
+          })
+          .catch(() => {});
+      }
+    }
   };
 
   useEffect(() => { load(); }, [companyId]);
@@ -407,23 +440,40 @@ function DashboardContent() {
         {goals.length > 0 && (
           <div style={{ background: "linear-gradient(135deg, #162d3d 0%, #1a4a6e 100%)", borderRadius: 12, padding: "20px 28px", marginBottom: 20, color: "white" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, opacity: 0.6, marginBottom: 10 }}>Company Goals</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {goals.map((goal, i) => (
-                <div key={goal.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <div style={{ fontSize: 16, marginTop: 1 }}>
-                    {goal.status === "completed" ? "✅" : goal.status === "archived" ? "📦" : "🎯"}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.5 }}>{goal.title}</div>
-                    {goal.description && (
-                      <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2, lineHeight: 1.4 }}>{goal.description}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {goals.map((goal, i) => {
+                const progress = goalProgress[goal.id];
+                return (
+                  <div key={goal.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ fontSize: 16, marginTop: 1 }}>
+                      {goal.status === "completed" ? "✅" : goal.status === "archived" ? "📦" : "🎯"}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.5 }}>{goal.title}</div>
+                      {goal.description && (
+                        <div style={{ fontSize: 13, opacity: 0.7, marginTop: 2, lineHeight: 1.4 }}>{goal.description}</div>
+                      )}
+                      {progress && (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{progress.progress}%</div>
+                            <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,0.2)", borderRadius: 3, overflow: "hidden" }}>
+                              <div style={{ width: `${progress.progress}%`, height: "100%", background: "rgba(0,214,143,0.9)", borderRadius: 3, transition: "width 0.3s" }} />
+                            </div>
+                            <div style={{ fontSize: 11, opacity: 0.5 }}>{timeAgo(progress.updatedAt)}</div>
+                          </div>
+                          {progress.comment && (
+                            <div style={{ fontSize: 12, opacity: 0.75, fontStyle: "italic", marginTop: 4 }}>"{progress.comment}"</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {goal.level && goal.level !== "company" && (
+                      <span style={{ fontSize: 11, opacity: 0.5, textTransform: "capitalize", marginTop: 3 }}>{goal.level}</span>
                     )}
                   </div>
-                  {goal.level && goal.level !== "company" && (
-                    <span style={{ fontSize: 11, opacity: 0.5, textTransform: "capitalize", marginTop: 3 }}>{goal.level}</span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -39,6 +39,7 @@ export async function GET(
           return NextResponse.json({
             title: (parsed.title as string)?.trim() ?? "",
             description: (parsed.description as string)?.trim() ?? "",
+            goalProgress: Array.isArray(parsed.goalProgress) ? parsed.goalProgress : [],
           });
         } catch {
           // Malformed JSON — fall through to empty
@@ -47,7 +48,7 @@ export async function GET(
     }
 
     // No marker found (run predates this feature) — return empty
-    return NextResponse.json({ title: "", description: "" });
+    return NextResponse.json({ title: "", description: "", goalProgress: [] });
   } catch (e) {
     console.error("Narrative fetch failed:", e);
     return NextResponse.json({ title: "", description: "" });

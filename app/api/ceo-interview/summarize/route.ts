@@ -59,9 +59,16 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific CEO. 
 
 9. EXIT SUMMARY: Always end the prompt with this exact section, verbatim:
 "At the end of every run, the very last thing you output — no exceptions:
-RUN_SUMMARY: {\"title\": \"<verb-first, max 10 words, name what you specifically worked on>\", \"description\": \"<1-2 sentences, what was done and the outcome>\"}
-Example: RUN_SUMMARY: {\"title\": \"Assigned content tasks to Marketing and SEO agents\", \"description\": \"Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.\"}
-This line is read by the backoffice activity feed — be specific, not generic."
+RUN_SUMMARY: {\"title\": \"<verb-first, max 10 words, name what you specifically worked on>\", \"description\": \"<1-2 sentences, what was done and the outcome>\", \"goalProgress\": [{\"goalId\": \"<goal-id>\", \"progress\": <0-100>, \"comment\": \"<brief status update>\"}]}
+
+Example: RUN_SUMMARY: {\"title\": \"Assigned content tasks to Marketing and SEO agents\", \"description\": \"Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.\", \"goalProgress\": [{\"goalId\": \"goal-abc123\", \"progress\": 45, \"comment\": \"Marketing tasks in progress, SEO audit complete\"}]}
+
+GOAL PROGRESS TRACKING:
+- After every run, assess each active company goal's progress (0-100%)
+- Be realistic and specific about what's blocking or advancing each goal
+- Only include goals you're actively working on (you can fetch goals via GET /api/companies/{{company.id}}/goals)
+- Progress should reflect actual work done, not aspirations
+- Comment should be specific: what was done, what's next, what's blocking"
 
 The prompt should be 400-700 words. It must feel like it was written specifically for this company's CEO who lives and breathes the Wix ecosystem.`;
 

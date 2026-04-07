@@ -1,14 +1,16 @@
 /**
- * Migration script to add RUN_SUMMARY instruction to all agents
- * across ALL companies.
+ * Migration script to add goalProgress to RUN_SUMMARY for all agents
+ * that have the old format without goalProgress.
  *
- * Usage: node scripts/add-run-summary-to-all-companies.js
+ * Usage: node scripts/add-goal-progress-to-agents.js
  */
 
 const PAPERCLIP_API = process.env.PAPERCLIP_API_URL || "http://localhost:3100/api";
 
-const RUN_SUMMARY_INSTRUCTION = `\n\nAt the end of every run, the very last thing you output — no exceptions:
-RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>", "goalProgress": [{"goalId": "<goal-id>", "progress": <0-100>, "comment": "<brief status update>"}]}
+const OLD_PATTERN = /RUN_SUMMARY: \{[^}]*"description"[^}]*\}/;
+const GOAL_PROGRESS_PATTERN = /"goalProgress":/;
+
+const GOAL_PROGRESS_ADDITION = `, "goalProgress": [{"goalId": "<goal-id>", "progress": <0-100>, "comment": "<brief status update>"}]}
 Example: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO agents", "description": "Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.", "goalProgress": [{"goalId": "goal-abc123", "progress": 45, "comment": "Marketing tasks in progress, SEO audit complete"}]}
 GOAL PROGRESS: After every run, assess each active company goal's progress (0-100%). Be realistic and specific about what's blocking or advancing each goal. Only include goals you're actively working on.`;
 
@@ -46,15 +48,25 @@ async function updateAllCompanies() {
     for (const agent of agents) {
       const promptTemplate = agent.adapterConfig?.promptTemplate || "";
 
-      // Check if agent already has RUN_SUMMARY instruction
-      if (promptTemplate.includes("RUN_SUMMARY:")) {
-        console.log(`     ✓ ${agent.name} already has RUN_SUMMARY`);
+      // Check if agent already has goalProgress in RUN_SUMMARY
+      if (GOAL_PROGRESS_PATTERN.test(promptTemplate)) {
+        console.log(`     ✓ ${agent.name} already has goalProgress`);
         totalSkipped++;
         continue;
       }
 
-      // Add RUN_SUMMARY instruction to the prompt
-      const updatedPrompt = promptTemplate + RUN_SUMMARY_INSTRUCTION;
+      // Check if agent has RUN_SUMMARY at all
+      if (!OLD_PATTERN.test(promptTemplate)) {
+        console.log(`     ⊘ ${agent.name} has no RUN_SUMMARY, skipping`);
+        totalSkipped++;
+        continue;
+      }
+
+      // Replace the old RUN_SUMMARY format with new format including goalProgress
+      const updatedPrompt = promptTemplate.replace(
+        /RUN_SUMMARY: \{[^}]*"description"[^}]*\}/,
+        `RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>"${GOAL_PROGRESS_ADDITION}`
+      );
 
       console.log(`     → Updating ${agent.name}...`);
 

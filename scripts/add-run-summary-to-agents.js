@@ -8,9 +8,9 @@
 const PAPERCLIP_API = process.env.PAPERCLIP_API_URL || "http://localhost:3100/api";
 
 const RUN_SUMMARY_INSTRUCTION = `\n\nAt the end of every run, the very last thing you output — no exceptions:
-RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>"}
-Example: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO agents", "description": "Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board."}
-This line is read by the backoffice activity feed — be specific, not generic.`;
+RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>", "goalProgress": [{"goalId": "<goal-id>", "progress": <0-100>, "comment": "<brief status update>"}]}
+Example: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO agents", "description": "Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.", "goalProgress": [{"goalId": "goal-abc123", "progress": 45, "comment": "Marketing tasks in progress, SEO audit complete"}]}
+GOAL PROGRESS: After every run, assess each active company goal's progress (0-100%). Be realistic and specific about what's blocking or advancing each goal. Only include goals you're actively working on.`;
 
 async function updateAgents(companyId) {
   console.log(`Fetching agents for company ${companyId}...`);
