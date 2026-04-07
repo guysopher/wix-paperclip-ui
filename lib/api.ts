@@ -97,8 +97,8 @@ export const updateApproval = (approvalId: string, data: { status: string; notes
 };
 
 // Runs
-export const getHeartbeatRuns = (companyId: string) =>
-  request<HeartbeatRun[]>(`/companies/${companyId}/heartbeat-runs`);
+export const getHeartbeatRuns = (companyId: string, params?: string) =>
+  request<HeartbeatRun[]>(`/companies/${companyId}/heartbeat-runs${params ? `?${params}` : ""}`);
 export const getHeartbeatRun = (runId: string) =>
   request<HeartbeatRun>(`/heartbeat-runs/${runId}`);
 export const getHeartbeatRunLog = (runId: string) =>

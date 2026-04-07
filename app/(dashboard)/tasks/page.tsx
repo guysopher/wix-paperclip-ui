@@ -19,6 +19,7 @@ import {
   Table,
   TableToolbar,
   Search,
+  Pagination,
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
@@ -66,6 +67,8 @@ function TasksContent() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   // Create modal
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -114,8 +117,14 @@ function TasksContent() {
       !searchTerm || i.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+  const totalPages = Math.max(1, Math.ceil(filteredIssues.length / PAGE_SIZE));
+  const pageIssues = filteredIssues.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [filterStatus, searchTerm]);
+
   const handleCreate = async () => {
-    if (!newTitle.trim() || !companyId) return;
+    if (!newTitle.trim() || !companyId || !newAssignee) return;
     await createIssue(companyId, {
       title: newTitle,
       description: newDesc,
@@ -131,10 +140,7 @@ function TasksContent() {
     load();
   };
 
-  const agentDropdownOptions = [
-    { id: "", value: "Unassigned" },
-    ...agents.map((a) => ({ id: a.id, value: a.name })),
-  ];
+  const agentDropdownOptions = agents.map((a) => ({ id: a.id, value: a.name }));
 
   const statusDropdownOptions = Object.entries(STATUS_LABELS).map(([id, value]) => ({
     id,
@@ -222,7 +228,7 @@ function TasksContent() {
           <Card hideOverflow>
             <Table
               skin="standard"
-              data={filteredIssues}
+              data={pageIssues}
               columns={columns}
               rowVerticalPadding="medium"
             >
@@ -283,6 +289,15 @@ function TasksContent() {
                 </div>
               )}
             </Table>
+            {totalPages > 1 && (
+              <Box align="center" padding="20px">
+                <Pagination
+                  totalPages={totalPages}
+                  currentPage={page}
+                  onChange={({ page: p }) => setPage(p)}
+                />
+              </Box>
+            )}
           </Card>
         </Page.Content>
       </Page>
@@ -294,6 +309,7 @@ function TasksContent() {
           title="Create Task"
           primaryButtonText="Create"
           primaryButtonOnClick={handleCreate}
+          primaryButtonDisabled={!newTitle.trim() || !newAssignee}
           secondaryButtonText="Cancel"
           secondaryButtonOnClick={() => setShowCreate(false)}
           onCloseButtonClick={() => setShowCreate(false)}
@@ -308,10 +324,10 @@ function TasksContent() {
                 resizable
               />
             </FormField>
-            <FormField label="Assign to" infoContent="The agent who will work on this task. They'll pick it up during their next scheduled check-in, or you can wake them up manually.">
+            <FormField label="Assign to" required infoContent="The agent who will work on this task. They'll pick it up during their next scheduled check-in, or you can wake them up manually.">
               <Dropdown
                 selectedId={newAssignee || ""}
-                onSelect={(option) => setNewAssignee(option.id ? String(option.id) : undefined)}
+                onSelect={(option) => setNewAssignee(String(option.id))}
                 options={agentDropdownOptions}
                 placeholder="Select agent..."
               />

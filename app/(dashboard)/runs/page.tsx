@@ -16,6 +16,7 @@ import {
   Dropdown,
   Divider,
   Tooltip,
+  Pagination,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
@@ -25,6 +26,8 @@ import {
   type Agent,
   type HeartbeatRun,
 } from "@/lib/api";
+
+const PAGE_SIZE = 25;
 
 const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
   succeeded: "success",
@@ -91,45 +94,49 @@ function RunsContent() {
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "running");
   const [filterAgent, setFilterAgent] = useState(searchParams.get("agent") || "all");
 
-  // Redirect ?run={id} to detail page
   const runParam = searchParams.get("run");
   useEffect(() => {
-    if (runParam) {
-      router.replace(`/runs/${runParam}`);
-    }
+    if (runParam) router.replace(`/runs/${runParam}`);
   }, [runParam, router]);
 
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === "all" || value === "running" && key === "status") params.delete(key);
+    if (value === "all" || (value === "running" && key === "status")) params.delete(key);
     else params.set(key, value);
     router.replace(`/runs${params.toString() ? `?${params}` : ""}`, { scroll: false });
   };
 
   const load = useCallback(async () => {
     if (!companyId) { setLoading(false); return; }
+    setLoading(true);
     const [agentList, runList] = await Promise.all([
       getAgents(companyId),
       getHeartbeatRuns(companyId),
     ]);
     setAgents(agentList);
-    // Sort by most recent
     setRuns(runList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     setLoading(false);
   }, [companyId]);
 
   useEffect(() => { load(); }, [load]);
 
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [filterStatus, filterAgent, searchTerm]);
+
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name || "Unknown";
 
   const filtered = runs
-    .filter((r) => filterStatus === "all" || r.status === filterStatus)
-    .filter((r) => filterAgent === "all" || r.agentId === filterAgent)
-    .filter((r) => !searchTerm || agentName(r.agentId).toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter(r => filterStatus === "all" || r.status === filterStatus)
+    .filter(r => filterAgent === "all" || r.agentId === filterAgent)
+    .filter(r => !searchTerm || agentName(r.agentId).toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   if (loading) {
     return <Box align="center" verticalAlign="middle" height="400px"><Loader size="medium" /></Box>;
@@ -216,61 +223,70 @@ function RunsContent() {
   ];
 
   return (
-      <Page>
-        <Page.Header
-          title="Runs"
-          subtitle={`${runs.length} total runs`}
-          actionsBar={
-            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
-          }
-        />
-        <Page.Content>
-          <Card hideOverflow>
-            <Table skin="standard" data={filtered} columns={columns} rowVerticalPadding="medium">
-              <TableToolbar>
-                <TableToolbar.ItemGroup position="start">
-                  <TableToolbar.Item>
-                    <TableToolbar.Title>{`Runs (${filtered.length})`}</TableToolbar.Title>
-                  </TableToolbar.Item>
-                  <TableToolbar.Item>
-                    <Box height="18px"><Divider direction="vertical" /></Box>
-                  </TableToolbar.Item>
-                  <TableToolbar.Item>
-                    <Dropdown size="small" selectedId={filterAgent} onSelect={(o) => { setFilterAgent(String(o.id)); updateFilter("agent", String(o.id)); }} options={agentOptions} border="round" />
-                  </TableToolbar.Item>
-                  <TableToolbar.Item>
-                    <Dropdown size="small" selectedId={filterStatus} onSelect={(o) => { setFilterStatus(String(o.id)); updateFilter("status", String(o.id)); }} options={statusOptions} border="round" />
-                  </TableToolbar.Item>
-                </TableToolbar.ItemGroup>
-                <TableToolbar.ItemGroup position="end">
-                  <TableToolbar.Item>
-                    <Search size="small" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onClear={() => setSearchTerm("")} placeholder="Search..." />
-                  </TableToolbar.Item>
-                </TableToolbar.ItemGroup>
-              </TableToolbar>
-              <Table.Content />
-              {filtered.length === 0 && (
-                <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                  <Text secondary>
-                    {filterStatus === "running"
-                      ? "No runs are active right now."
-                      : filterStatus === "all"
-                        ? "No runs yet."
-                        : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} runs.`}
-                  </Text>
-                  {filterStatus !== "all" && runs.length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilter("status", "all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
-                        View all runs
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
-            </Table>
-          </Card>
-        </Page.Content>
-      </Page>
+    <Page>
+      <Page.Header
+        title="Runs"
+        subtitle={`${filtered.length} runs`}
+        actionsBar={
+          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
+        }
+      />
+      <Page.Content>
+        <Card hideOverflow>
+          <Table skin="standard" data={pageData} columns={columns} rowVerticalPadding="medium">
+            <TableToolbar>
+              <TableToolbar.ItemGroup position="start">
+                <TableToolbar.Item>
+                  <TableToolbar.Title>{`Runs (${filtered.length})`}</TableToolbar.Title>
+                </TableToolbar.Item>
+                <TableToolbar.Item>
+                  <Box height="18px"><Divider direction="vertical" /></Box>
+                </TableToolbar.Item>
+                <TableToolbar.Item>
+                  <Dropdown size="small" selectedId={filterAgent} onSelect={(o) => { setFilterAgent(String(o.id)); updateFilter("agent", String(o.id)); }} options={agentOptions} border="round" />
+                </TableToolbar.Item>
+                <TableToolbar.Item>
+                  <Dropdown size="small" selectedId={filterStatus} onSelect={(o) => { setFilterStatus(String(o.id)); updateFilter("status", String(o.id)); }} options={statusOptions} border="round" />
+                </TableToolbar.Item>
+              </TableToolbar.ItemGroup>
+              <TableToolbar.ItemGroup position="end">
+                <TableToolbar.Item>
+                  <Search size="small" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onClear={() => setSearchTerm("")} placeholder="Search agents..." />
+                </TableToolbar.Item>
+              </TableToolbar.ItemGroup>
+            </TableToolbar>
+            <Table.Content />
+            {filtered.length === 0 && (
+              <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                <Text secondary>
+                  {filterStatus === "running"
+                    ? "No runs are active right now."
+                    : filterStatus === "all"
+                      ? "No runs yet."
+                      : `No ${STATUS_LABELS[filterStatus]?.toLowerCase() || filterStatus} runs.`}
+                </Text>
+                {filterStatus !== "all" && runs.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilter("status", "all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                      View all runs
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </Table>
+          {totalPages > 1 && (
+            <Box align="center" padding="20px">
+              <Pagination
+                totalPages={totalPages}
+                currentPage={page}
+                onChange={({ page: p }) => setPage(p)}
+              />
+            </Box>
+          )}
+        </Card>
+      </Page.Content>
+    </Page>
   );
 }
 

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Page, Box, Text, Badge, Loader, Button } from "@wix/design-system";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Page, Box, Text, Badge, Loader, Button, Pagination } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { getAgents, getHeartbeatRuns, type Agent, type HeartbeatRun } from "@/lib/api";
 import { parseUsage, duration, timeAgo } from "@/lib/run-utils";
+
+const PAGE_SIZE = 10;
 
 const STATUS_SKINS: Record<string, "success" | "warning" | "neutral" | "danger" | "general"> = {
   succeeded: "success",
@@ -49,8 +51,7 @@ interface Narrative { title: string; description: string; }
 interface FeedPost {
   run: HeartbeatRun;
   agent: Agent | undefined;
-  narrative: Narrative | null; // null = loading, undefined = skip (active run)
-  skip?: boolean; // running/queued — no narrative needed
+  narrative: Narrative | null; // null = not yet fetched
 }
 
 function NarrativeSkeleton() {
@@ -82,7 +83,6 @@ function PostCard({ post }: { post: FeedPost }) {
         gap: 12,
       }}
     >
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
         <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
           <div
@@ -103,22 +103,23 @@ function PostCard({ post }: { post: FeedPost }) {
           </div>
         </a>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", color: "inherit" }}>
               <Text size="medium" weight="bold">{agentName}</Text>
             </a>
-            {agent?.title && <Text size="small" secondary>{agent.title}</Text>}
-            <Badge size="tiny" skin={STATUS_SKINS[run.status] || "general"}>
-              {STATUS_LABELS[run.status] || run.status}
-            </Badge>
+            {agent?.title && agent.title !== agentName && (
+              <Text size="small" secondary>{agent.title}</Text>
+            )}
           </div>
           <Text size="tiny" secondary>
             {SOURCE_LABELS[run.invocationSource] || run.invocationSource} · {timeAgo(run.createdAt)}
           </Text>
         </div>
+        <Badge size="tiny" skin={STATUS_SKINS[run.status] || "general"}>
+          {STATUS_LABELS[run.status] || run.status}
+        </Badge>
       </div>
 
-      {/* Body */}
       <div style={{ minHeight: 22 }}>
         {active ? (
           <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#3899ec" }}>
@@ -129,7 +130,7 @@ function PostCard({ post }: { post: FeedPost }) {
           </div>
         ) : narrative === null ? (
           <NarrativeSkeleton />
-        ) : narrative?.title ? (
+        ) : narrative.title ? (
           <div>
             <div style={{ fontWeight: 600, fontSize: 14, color: "#162d3d", marginBottom: 5 }}>
               {narrative.title}
@@ -145,7 +146,6 @@ function PostCard({ post }: { post: FeedPost }) {
         )}
       </div>
 
-      {/* Footer */}
       <div
         style={{
           display: "flex",
@@ -155,7 +155,7 @@ function PostCard({ post }: { post: FeedPost }) {
           paddingTop: 10,
         }}
       >
-        <Text size="tiny" secondary>{dur}</Text>
+        <Text size="tiny" secondary>Duration: {dur}</Text>
         {usage?.cost && usage.cost !== "—" && (
           <>
             <span style={{ color: "#ddd" }}>·</span>
@@ -175,11 +175,14 @@ export default function ActivityPage() {
   const { companyId } = useCompany();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  // Track which run IDs have had narrative fetches started (to avoid re-fetching on re-render)
+  const fetchedRunIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     if (!companyId) { setLoading(false); return; }
     setLoading(true);
-    setPosts([]);
+    fetchedRunIds.current = new Set();
 
     const [agents, runs] = await Promise.all([
       getAgents(companyId),
@@ -187,25 +190,33 @@ export default function ActivityPage() {
     ]);
 
     const agentMap = new Map(agents.map((a) => [a.id, a]));
-    const sorted = runs.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const sorted = runs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // Running runs get no narrative; completed runs start as null (loading)
-    const initialPosts: FeedPost[] = sorted.map((run) => ({
+    setPosts(sorted.map((run) => ({
       run,
       agent: agentMap.get(run.agentId),
-      narrative: null,
-      skip: isActive(run.status),
-    }));
-
-    setPosts(initialPosts);
+      // Active runs get an empty narrative (no fetch needed), completed start as null
+      narrative: isActive(run.status) ? { title: "", description: "" } : null,
+    })));
+    setPage(1);
     setLoading(false);
+  }, [companyId]);
 
-    // Fetch narratives only for completed runs
-    const completedRuns = sorted.filter((r) => !isActive(r.status));
-    completedRuns.forEach((run, i) => {
-      const agent = agentMap.get(run.agentId);
+  useEffect(() => { load(); }, [load]);
+
+  // Lazily fetch narratives for the current page — only for runs not yet fetched
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const pageStart = (page - 1) * PAGE_SIZE;
+    const pagePosts = posts.slice(pageStart, pageStart + PAGE_SIZE);
+    const toFetch = pagePosts.filter(
+      (p) => !isActive(p.run.status) && p.narrative === null && !fetchedRunIds.current.has(p.run.id)
+    );
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach((post, i) => {
+      fetchedRunIds.current.add(post.run.id);
+      const { run, agent } = post;
       const params = new URLSearchParams({
         agentName: agent?.name || "Unknown",
         agentRole: agent?.role || "",
@@ -215,7 +226,6 @@ export default function ActivityPage() {
       if (run.error) params.set("error", run.error);
       if (run.triggerDetail) params.set("triggerDetail", run.triggerDetail);
 
-      // Stagger requests slightly to avoid thundering herd
       setTimeout(() => {
         fetch(`/api/run-narrative/${run.id}?${params}`)
           .then((r) => r.json())
@@ -237,11 +247,12 @@ export default function ActivityPage() {
               return next;
             });
           });
-      }, i * 50); // 50ms stagger per request
+      }, i * 50);
     });
-  }, [companyId]);
+  }, [page, posts.length]); // re-run on page change or after initial data load
 
-  useEffect(() => { load(); }, [load]);
+  const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+  const pagePosts = posts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <Page>
@@ -265,18 +276,21 @@ export default function ActivityPage() {
             <Text secondary>No runs yet. Agents will appear here once they start working.</Text>
           </div>
         ) : (
-          <div
-            style={{
-              maxWidth: 680,
-              margin: "0 auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
-            }}
-          >
-            {posts.map((post) => (
-              <PostCard key={post.run.id} post={post} />
-            ))}
+          <div style={{ maxWidth: 680, margin: "0 auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {pagePosts.map((post) => (
+                <PostCard key={post.run.id} post={post} />
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <Box align="center" padding="24px 0">
+                <Pagination
+                  totalPages={totalPages}
+                  currentPage={page}
+                  onChange={({ page: p }) => { setPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                />
+              </Box>
+            )}
           </div>
         )}
       </Page.Content>

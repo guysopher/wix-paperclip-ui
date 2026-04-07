@@ -56,6 +56,12 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific CEO. 
 
 8. PERSONALITY: Direct, decisive, action-oriented. Ships imperfect work over perfect planning. Takes ownership. Optimistic but realistic.
 
+9. EXIT SUMMARY: Always end the prompt with this exact section, verbatim:
+"At the end of every run, the very last thing you output — no exceptions:
+RUN_SUMMARY: {\"title\": \"<verb-first, max 10 words, name what you specifically worked on>\", \"description\": \"<1-2 sentences, what was done and the outcome>\"}
+Example: RUN_SUMMARY: {\"title\": \"Assigned content tasks to Marketing and SEO agents\", \"description\": \"Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.\"}
+This line is read by the backoffice activity feed — be specific, not generic."
+
 The prompt should be 400-700 words. It must feel like it was written specifically for this company's CEO who lives and breathes the Wix ecosystem.`;
 
 export async function POST(request: NextRequest) {

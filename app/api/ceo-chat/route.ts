@@ -93,7 +93,7 @@ ${goalList || "No goals set."}
 HOW TO BEHAVE IN THIS CHAT:
 - This is a quick, real-time conversation. Keep answers SHORT (1-3 sentences).
 - You know everything about the company — answer questions about tasks, team, progress, blockers.
-- If the board member asks you to do something actionable, use the create_task tool to create a task.
+- If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (CEO).
 - Be direct, confident, and helpful. No fluff.
 - If you don't know something specific, say so — don't make things up.
 - Reference specific task IDs (like AGE-5) and agent names when relevant.
@@ -106,16 +106,16 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "create_task",
-      description: "Create a new task/issue for the team. Use this when the board member asks you to do something actionable.",
+      description: "Create a new task/issue for the team. Use this when the board member asks you to do something actionable. ALWAYS assign to a specific agent — never leave assignee_name blank.",
       parameters: {
         type: "object",
         properties: {
           title: { type: "string", description: "Short task title" },
           description: { type: "string", description: "Detailed task description" },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-          assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list)" },
+          assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list). Required — every task must have an owner. If unsure, assign to yourself (CEO)." },
         },
-        required: ["title", "description", "priority"],
+        required: ["title", "description", "priority", "assignee_name"],
       },
     },
   },
