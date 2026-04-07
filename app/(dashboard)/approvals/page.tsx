@@ -21,8 +21,8 @@ import {
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
-import { IconPicker } from "../../components/icon-picker";
-import { AgentAvatar } from "../../components/agent-avatar";
+import { IconPicker } from "@/components/icon-picker";
+import { AgentAvatar } from "@/components/agent-avatar";
 import {
   getAgents,
   getApprovals,

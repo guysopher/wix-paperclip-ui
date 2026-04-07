@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Page, Box, Text, Badge, Loader, Button, Pagination } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
-import { AgentAvatar } from "../../components/agent-avatar";
+import { AgentAvatar } from "@/components/agent-avatar";
 import { getAgents, getHeartbeatRuns, type Agent, type HeartbeatRun } from "@/lib/api";
 import { parseUsage, duration, timeAgo } from "@/lib/run-utils";
 

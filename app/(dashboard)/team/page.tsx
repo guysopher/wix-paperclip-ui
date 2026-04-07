@@ -16,7 +16,7 @@ import {
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
-import { AgentAvatar } from "../../components/agent-avatar";
+import { AgentAvatar } from "@/components/agent-avatar";
 import {
   getAgents,
   getRuns,

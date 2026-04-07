@@ -30,8 +30,8 @@ import {
   type Company,
 } from "@/lib/api";
 import { useCompany, Providers } from "../providers";
-import { IconPicker } from "../components/icon-picker";
-import { AgentAvatar } from "../components/agent-avatar";
+import { IconPicker } from "@/components/icon-picker";
+import { AgentAvatar } from "@/components/agent-avatar";
 
 // --- Hardcoded Wix sites ---
 interface WixSite {
