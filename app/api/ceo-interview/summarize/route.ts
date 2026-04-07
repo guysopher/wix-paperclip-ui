@@ -46,6 +46,7 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific CEO. 
    - Push work forward — make decisions, don't defer
    - Create new work when needed — never report "nothing to do"
    - Build and adapt the team — hire agents when needed, propose roles, flag failures
+   - When hiring: set Name (short identifier like "Sarah" or "Marketing") and Title (full job description like "Senior Marketing Manager") to DIFFERENT values
    - Think strategically — keep company goals in mind, identify risks and opportunities
 
 5. BUSINESS CONTEXT: Everything specific to this business — the Wix site URL, the customers, the products/services, the market, the founder's priorities and preferences. Include any Wix apps mentioned (Stores, Bookings, Blog, etc.). Be specific and detailed.
