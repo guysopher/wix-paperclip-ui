@@ -22,6 +22,8 @@ import {
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../../providers";
 import { Breadcrumbs } from "../../../components/breadcrumbs";
+import { AgentAvatar } from "../../../components/agent-avatar";
+import { IconPicker } from "../../../components/icon-picker";
 import {
   getAgent,
   getAgents,
@@ -101,6 +103,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   // Editable fields
   const [editName, setEditName] = useState("");
   const [editTitle, setEditTitle] = useState("");
+  const [editIcon, setEditIcon] = useState<string | undefined>(undefined);
   const [editModel, setEditModel] = useState("");
   const [editSchedule, setEditSchedule] = useState("");
   const [editTimeout, setEditTimeout] = useState("");
@@ -127,6 +130,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const populateForm = (a: Agent) => {
     setEditName(a.name);
     setEditTitle(a.title);
+    setEditIcon(a.icon);
     setEditModel((a.adapterConfig?.model as string) || "claude-sonnet-4-6");
     setEditSchedule(String((a.adapterConfig?.heartbeatIntervalSec as number) || 600));
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
@@ -154,6 +158,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     await updateAgent(agent.id, {
       name: editName,
       title: editTitle,
+      icon: editIcon,
       reportsTo: editManager,
       adapterConfig: {
         ...agent.adapterConfig,
@@ -286,23 +291,13 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           <Card>
             <Card.Content>
               <Box direction="horizontal" gap="16px" verticalAlign="middle">
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: "50%",
-                    background: avatarColor,
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                    fontSize: 22,
-                    flexShrink: 0,
-                  }}
-                >
-                  {agent.name.charAt(0)}
-                </div>
+                <AgentAvatar
+                  agentName={agent.name}
+                  agentRole={agent.role}
+                  icon={agent.icon}
+                  size={56}
+                  fontSize={22}
+                />
                 <Box direction="vertical" gap="4px">
                   <Text weight="bold" size="medium">
                     {agent.name}
@@ -354,6 +349,27 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                     onChange={(e) => setEditTitle(e.target.value)}
                   />
                 </FormField>
+              </div>
+
+              <Box marginTop="18px" />
+
+              <FormField label="Icon" infoContent="Choose an icon to represent this team member. Icons appear in the activity feed, team list, and other places.">
+                <IconPicker
+                  selectedIcon={editIcon}
+                  onSelect={setEditIcon}
+                  avatarColor={avatarColor}
+                />
+              </FormField>
+
+              <Box marginTop="18px" />
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "14px 18px",
+                }}
+              >
                 <FormField
                   label="Manager"
                   infoContent="Who this team member reports to. Their manager can delegate tasks and review their work."

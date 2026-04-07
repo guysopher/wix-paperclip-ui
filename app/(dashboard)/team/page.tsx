@@ -16,6 +16,7 @@ import {
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
+import { AgentAvatar } from "../../components/agent-avatar";
 import {
   getAgents,
   getRuns,
@@ -151,9 +152,13 @@ function TeamContent() {
       title: "Name",
       render: (row: Agent) => (
         <Box direction="horizontal" gap="10px" verticalAlign="middle">
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: row.role === "ceo" ? "#3899ec" : row.role === "pm" ? "#7b61ff" : "#44b5b0", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-            {row.name.charAt(0)}
-          </div>
+          <AgentAvatar
+            agentName={row.name}
+            agentRole={row.role}
+            icon={row.icon}
+            size={34}
+            fontSize={14}
+          />
           <Box direction="vertical">
             <Text weight="bold" size="small">{row.name}</Text>
             <Text size="tiny" secondary>{row.title}</Text>

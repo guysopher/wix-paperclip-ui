@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Page, Box, Text, Badge, Loader, Button, Pagination } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
+import { AgentAvatar } from "../../components/agent-avatar";
 import { getAgents, getHeartbeatRuns, type Agent, type HeartbeatRun } from "@/lib/api";
 import { parseUsage, duration, timeAgo } from "@/lib/run-utils";
 
@@ -85,22 +86,13 @@ function PostCard({ post }: { post: FeedPost }) {
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
         <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: "50%",
-              background: avatarColor(run.agentId),
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 700,
-              fontSize: 16,
-            }}
-          >
-            {agentName.charAt(0).toUpperCase()}
-          </div>
+          <AgentAvatar
+            agentName={agentName}
+            agentRole={agent?.role}
+            icon={agent?.icon}
+            size={38}
+            fontSize={16}
+          />
         </a>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
