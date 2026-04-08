@@ -21,10 +21,27 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [initialized, setInitialized] = useState(false);
 
-  // Get CEO's opening message on mount
+  // Load messages from localStorage on mount
   useEffect(() => {
-    if (!companyId) { setLoading(false); return; }
+    if (!companyId || initialized) return;
+    const storageKey = `ceo-chat-${companyId}`;
+    const stored = localStorage.getItem(storageKey);
+
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setMessages(parsed);
+        setLoading(false);
+        setInitialized(true);
+        return;
+      } catch {
+        // Invalid storage, continue to fetch
+      }
+    }
+
+    // No stored messages, get CEO's opening message
     (async () => {
       try {
         const res = await fetch("/api/ceo-chat", {
@@ -34,14 +51,26 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
         });
         const data = await res.json();
         if (data.text) {
-          setMessages([{ role: "ceo", text: data.text }]);
+          const newMessages = [{ role: "ceo", text: data.text }];
+          setMessages(newMessages);
+          localStorage.setItem(storageKey, JSON.stringify(newMessages));
         }
       } catch {
-        setMessages([{ role: "ceo", text: "Hey! What's on your mind?" }]);
+        const fallbackMessages = [{ role: "ceo", text: "Hey Boss, I'm here for you. What's on your mind?" }];
+        setMessages(fallbackMessages);
+        localStorage.setItem(storageKey, JSON.stringify(fallbackMessages));
       }
       setLoading(false);
+      setInitialized(true);
     })();
-  }, [companyId]);
+  }, [companyId, initialized]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (!companyId || messages.length === 0) return;
+    const storageKey = `ceo-chat-${companyId}`;
+    localStorage.setItem(storageKey, JSON.stringify(messages));
+  }, [messages, companyId]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

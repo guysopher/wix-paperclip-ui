@@ -121,6 +121,11 @@ html, body {
   40% { opacity: 1; transform: scale(1); }
 }
 
+@keyframes active-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* Shimmer skeleton animation */
 @keyframes shimmer {
   0% { background-position: -400px 0; }

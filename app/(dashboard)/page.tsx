@@ -130,6 +130,7 @@ function DashboardContent() {
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
+  const [agentNarratives, setAgentNarratives] = useState<Record<string, { title: string; time: string } | null>>({});
   const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
   const [agents, setAgents] = useState<Agent[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -217,6 +218,35 @@ function DashboardContent() {
           .catch(() => {});
       }
     }
+
+    // Fetch latest narrative for each agent
+    agentList.forEach((agent: Agent) => {
+      const agentRuns = runList
+        .filter((r: HeartbeatRun) => r.agentId === agent.id && r.status === "succeeded")
+        .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      if (agentRuns.length > 0) {
+        const latestRun = agentRuns[0];
+        const params = new URLSearchParams({
+          agentName: agent.name,
+          agentRole: agent.role || "",
+          status: latestRun.status,
+          source: latestRun.invocationSource,
+        });
+
+        fetch(`/api/run-narrative/${latestRun.id}?${params}`)
+          .then((r) => r.json())
+          .then((data: { title?: string }) => {
+            setAgentNarratives((prev) => ({
+              ...prev,
+              [agent.id]: { title: data.title || "", time: latestRun.createdAt },
+            }));
+          })
+          .catch(() => {
+            setAgentNarratives((prev) => ({ ...prev, [agent.id]: { title: "", time: latestRun.createdAt } }));
+          });
+      }
+    });
   };
 
   useEffect(() => { load(); }, [companyId]);
@@ -531,9 +561,10 @@ function DashboardContent() {
         {/* Quick Actions */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 12, fontWeight: 600 }}>Quick Actions</div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Button
-            size="medium"
+            size="small"
+            priority="secondary"
             onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}
             prefixIcon={<Add />}
           >
@@ -541,7 +572,7 @@ function DashboardContent() {
           </Button>
           {ceoAgent && (
             <Button
-              size="medium"
+              size="small"
               priority="secondary"
               onClick={async () => {
                 try {
@@ -554,14 +585,14 @@ function DashboardContent() {
             </Button>
           )}
           <Button
-            size="medium"
+            size="small"
             priority="secondary"
             onClick={() => window.location.href = "/inbox"}
           >
             View Inbox {dashboard.tasks.open > 0 && `(${dashboard.tasks.open})`}
           </Button>
           <Button
-            size="medium"
+            size="small"
             priority="secondary"
             onClick={async () => {
               setHealthLoading(true);
@@ -648,166 +679,206 @@ function DashboardContent() {
           </div>
           </div>
 
-          {/* Team + Open work row */}
+          {/* Team status - Full width */}
           <div>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Team & Work</div>
-          <div className="dashboard-panels" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-          {/* Team status */}
-          <Card>
-              <Card.Header title="Team Status" />
-              <Card.Content>
-                {agents
-                  .sort((a, b) => {
-                    if (a.status === "running" && b.status !== "running") return -1;
-                    if (b.status === "running" && a.status !== "running") return 1;
-                    const aTime = a.lastHeartbeatAt ? new Date(a.lastHeartbeatAt).getTime() : 0;
-                    const bTime = b.lastHeartbeatAt ? new Date(b.lastHeartbeatAt).getTime() : 0;
-                    return bTime - aTime;
-                  })
-                  .map((agent, i) => {
-                    const statusText = agentStatusText(agent);
-                    const interval = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
-                    const lastHb = agent.lastHeartbeatAt;
-                    let nextRunText = "";
-                    if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
-                      const elapsed = Math.round((Date.now() - new Date(lastHb).getTime()) / 1000);
-                      const remaining = interval - (elapsed % interval);
-                      const min = Math.ceil(remaining / 60);
-                      if (min <= 1) nextRunText = "Next run in ~1 minute";
-                      else nextRunText = `Next run in ${min} minutes`;
-                    } else if (interval && agent.status !== "running" && agent.status !== "paused") {
-                      const schedMin = Math.round(interval / 60);
-                      nextRunText = `Every ${schedMin}m`;
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Your Team</div>
+          <div style={{
+            background: "white",
+            borderRadius: 12,
+            border: "1px solid #e8ecf0",
+            overflow: "hidden",
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid #f0f3f5",
+              background: "linear-gradient(to bottom, #fafbfc, #ffffff)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d", marginBottom: 4 }}>
+                    {agents.filter(a => a.status === "running").length > 0 ? "🚀 " : ""}
+                    Team Activity
+                  </div>
+                  <div style={{ fontSize: 13, color: "#7a92a5" }}>
+                    {agents.filter(a => a.status === "running").length > 0
+                      ? `${agents.filter(a => a.status === "running").length} team member${agents.filter(a => a.status === "running").length > 1 ? "s" : ""} working now`
+                      : `${agents.length} team member${agents.length > 1 ? "s" : ""} ready`
                     }
-                    return (
-                      <div key={agent.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < agents.length - 1 ? "1px solid #f0f0f0" : "none" }}>
-                        {/* Status dot */}
+                  </div>
+                </div>
+                <a href="/team" style={{
+                  color: "#3899ec",
+                  textDecoration: "none",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}>
+                  View team
+                  <span style={{ fontSize: 16 }}>→</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Team members */}
+            <div style={{ padding: "8px 0" }}>
+              {agents
+                .sort((a, b) => {
+                  // Sort by hierarchy (like team page)
+                  const ROLE_ORDER: Record<string, number> = { ceo: 0, pm: 1, cmo: 2, engineer: 3, qa: 4, designer: 5 };
+                  const aOrder = ROLE_ORDER[a.role] ?? 99;
+                  const bOrder = ROLE_ORDER[b.role] ?? 99;
+                  if (aOrder !== bOrder) return aOrder - bOrder;
+                  const aHasReports = agents.some((x) => x.reportsTo === a.id);
+                  const bHasReports = agents.some((x) => x.reportsTo === b.id);
+                  if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
+                  return a.name.localeCompare(b.name);
+                })
+                .map((agent, i) => {
+                  const statusText = agentStatusText(agent);
+                  const narrative = agentNarratives[agent.id];
+                  const interval = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
+                  const lastHb = agent.lastHeartbeatAt;
+                  let nextRunText = "";
+                  if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
+                    const elapsed = Math.round((Date.now() - new Date(lastHb).getTime()) / 1000);
+                    const remaining = interval - (elapsed % interval);
+                    const min = Math.ceil(remaining / 60);
+                    if (min <= 1) nextRunText = "Next run in ~1 minute";
+                    else nextRunText = `Next run in ${min} minutes`;
+                  } else if (interval && agent.status !== "running" && agent.status !== "paused") {
+                    const schedMin = Math.round(interval / 60);
+                    nextRunText = `Every ${schedMin}m`;
+                  }
+                  return (
+                    <div
+                      key={agent.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        padding: "16px 24px",
+                        borderBottom: i < agents.length - 1 ? "1px solid #f5f7f9" : "none",
+                        transition: "background 0.15s ease",
+                        cursor: "pointer",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#fafbfc"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      onClick={() => window.location.href = agent.status === "running" ? `/runs?agent=${agent.id}` : `/team/${agent.id}`}
+                    >
+                      {/* Status indicator */}
+                      <div style={{ position: "relative" }}>
+                        <AgentAvatar
+                          agentName={agent.name}
+                          agentRole={agent.role}
+                          icon={agent.icon}
+                          size={52}
+                          fontSize={20}
+                        />
                         <div style={{
-                          width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                          background: agent.status === "running" ? "#00d68f" : agent.status === "error" ? "#ff4d4f" : agent.status === "paused" ? "#ffc107" : "#b0b0b0",
-                          boxShadow: agent.status === "running" ? "0 0 6px #00d68f" : "none",
+                          position: "absolute",
+                          bottom: -2,
+                          right: -2,
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          background: agent.status === "running" ? "#00d68f" : agent.status === "error" ? "#ff4d4f" : agent.status === "paused" ? "#ffc107" : "#d1dbe3",
+                          border: "3px solid white",
+                          boxShadow: agent.status === "running" ? "0 0 8px rgba(0, 214, 143, 0.4)" : "none",
                         }} />
-                        {/* Name */}
-                        <a
-                          href={agent.status === "running"
-                            ? `/runs?agent=${agent.id}`
-                            : `/team/${agent.id}`}
-                          style={{ flex: 1, textDecoration: "none", color: "inherit" }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
-                          <div style={{ fontSize: 12, color: "#999" }}>{agent.title}</div>
-                        </a>
-                        {/* Status + wake */}
-                        <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 8 }}>
+                      </div>
+
+                      {/* Name and activity */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, fontSize: 15, color: "#162d3d" }}>{agent.name}</span>
+                          <span style={{ fontSize: 12, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                            {agent.title}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: "#5a6c7d", lineHeight: 1.5 }}>
                           {agent.status === "running" ? (
-                            <a href={`/runs?agent=${agent.id}&status=running`} style={{ textDecoration: "none" }}>
-                              <Badge size="tiny" skin="success">Working</Badge>
-                            </a>
-                          ) : agent.status === "paused" ? (
-                            <Badge size="tiny" skin="warning">On leave</Badge>
-                          ) : agent.status === "error" ? (
-                            <Badge size="tiny" skin="danger">Needs attention</Badge>
+                            <span style={{ color: "#00d68f", fontWeight: 500 }}>● Working now</span>
+                          ) : narrative?.title ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {narrative.title}
+                              </span>
+                              <span style={{ color: "#a3b5c7", flexShrink: 0 }}>· {timeAgo(narrative.time)}</span>
+                            </div>
                           ) : (
-                            <>
-                              <div style={{ textAlign: "right" }}>
-                                <div style={{ color: "#999", fontSize: 12 }}>{statusText}</div>
-                                {nextRunText && <div style={{ color: "#3899ec", fontSize: 11, fontWeight: 500, marginTop: 1 }}>{nextRunText}</div>}
-                              </div>
-                              <Tooltip content="Trigger an immediate check-in. The agent will review tasks and messages right now." placement="top">
-                                <button
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    const btn = e.currentTarget;
-                                    btn.disabled = true;
-                                    btn.textContent = "Waking...";
-                                    try {
-                                      await invokeHeartbeat(agent.id);
-                                      btn.textContent = "Woke!";
-                                      setTimeout(() => load(), 2000);
-                                    } catch {
-                                      btn.textContent = "Failed";
-                                    }
-                                  }}
-                                  style={{
-                                    background: "none",
-                                    border: "1px solid #ddd",
-                                    borderRadius: 4,
-                                    padding: "2px 8px",
-                                    fontSize: 11,
-                                    color: "#3899ec",
-                                    cursor: "pointer",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  Wake up
-                                </button>
-                              </Tooltip>
-                            </>
+                            <span style={{ color: "#a3b5c7" }}>{statusText}</span>
                           )}
                         </div>
                       </div>
-                    );
-                  })}
-              </Card.Content>
-            </Card>
 
-          {/* Open work */}
-            <Card>
-              <Card.Header
-                title="Open Work"
-                suffix={
-                  <Box direction="horizontal" gap="12px" verticalAlign="middle">
-                    <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>Create Task</Button>
-                    <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>
-                  </Box>
-                }
-              />
-              <Card.Content>
-                {recentIssues.length === 0 ? (
-                  <div style={{ padding: "24px 0", textAlign: "center" }}>
-                    <Checklist color="#b0b0b0" size="48px" />
-                    <div style={{ marginTop: 12 }}>
-                      <Text weight="bold">No open tasks</Text>
-                      <div style={{ marginTop: 6 }}>
-                        <Text size="small" secondary>The team is ready for new work. Create a task to get started.</Text>
+                      {/* Action */}
+                      <div style={{ flexShrink: 0 }}>
+                        {agent.status === "running" ? (
+                          <div style={{
+                            background: "#e6f9f2",
+                            color: "#00a862",
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}>
+                            <div style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: "#00d68f",
+                              animation: "active-pulse 2s ease-in-out infinite",
+                            }} />
+                            Active
+                          </div>
+                        ) : agent.status === "paused" ? (
+                          <Badge size="medium" skin="warning">On leave</Badge>
+                        ) : agent.status === "error" ? (
+                          <Badge size="medium" skin="danger">Needs attention</Badge>
+                        ) : (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const btn = e.currentTarget;
+                              btn.disabled = true;
+                              btn.textContent = "Waking...";
+                              try {
+                                await invokeHeartbeat(agent.id);
+                                btn.textContent = "Woke!";
+                                setTimeout(() => load(), 2000);
+                              } catch {
+                                btn.textContent = "Failed";
+                              }
+                            }}
+                            style={{
+                              background: "#3899ec",
+                              color: "white",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "8px 16px",
+                              fontSize: 13,
+                              fontWeight: 500,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              transition: "background 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "#2b7bc9"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "#3899ec"; }}
+                          >
+                            Wake up
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div style={{ marginTop: 16 }}>
-                      <Button size="small" onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
-                        Create First Task
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  recentIssues.map((issue, i) => {
-                    const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
-                    const statusSkin: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
-                      backlog: "neutral", todo: "general", in_progress: "warning", blocked: "danger",
-                    };
-                    const statusLabel: Record<string, string> = {
-                      backlog: "Backlog", todo: "To Do", in_progress: "In Progress", blocked: "Blocked",
-                    };
-                    return (
-                      <a
-                        key={issue.id}
-                        href={`/tasks/${issue.identifier}`}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
-                      >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 500, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
-                          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
-                            {issue.identifier} · {assignee ? assignee.name : "Unassigned"}
-                          </div>
-                        </div>
-                        <Badge size="tiny" skin={statusSkin[issue.status] || "general"}>
-                          {statusLabel[issue.status] || issue.status}
-                        </Badge>
-                      </a>
-                    );
-                  })
-                )}
-              </Card.Content>
-            </Card>
+                  );
+                })}
+            </div>
           </div>
           </div>
 
@@ -819,10 +890,11 @@ function DashboardContent() {
             if (doneIssues.length === 0) return null;
             return (
               <div>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Recent Achievements</div>
                 <Card>
                   <Card.Header
-                    title={`Achievements (${doneIssues.length})`}
-                    suffix={<span style={{ fontSize: 12, color: "#999" }}>Completed work</span>}
+                    title={`${doneIssues.length} Completed`}
+                    suffix={<a href="/tasks?status=done" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>}
                   />
                   <Card.Content>
                     {doneIssues.slice(0, 5).map((issue, i) => {
@@ -877,8 +949,8 @@ function DashboardContent() {
                     })}
                     {doneIssues.length > 5 && (
                       <div style={{ padding: "10px 0", textAlign: "center" }}>
-                        <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
-                          See all tasks →
+                        <a href="/tasks?status=done" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
+                          See all achievements →
                         </a>
                       </div>
                     )}
@@ -887,6 +959,66 @@ function DashboardContent() {
               </div>
             );
           })()}
+
+          {/* Open work - Full width */}
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Open Work</div>
+            <Card>
+              <Card.Header
+                suffix={
+                  <Box direction="horizontal" gap="12px" verticalAlign="middle">
+                    <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>Create Task</Button>
+                    <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>
+                  </Box>
+                }
+              />
+              <Card.Content>
+                {recentIssues.length === 0 ? (
+                  <div style={{ padding: "24px 0", textAlign: "center" }}>
+                    <Checklist color="#b0b0b0" size="48px" />
+                    <div style={{ marginTop: 12 }}>
+                      <Text weight="bold">No open tasks</Text>
+                      <div style={{ marginTop: 6 }}>
+                        <Text size="small" secondary>The team is ready for new work. Create a task to get started.</Text>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <Button size="small" onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
+                        Create First Task
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  recentIssues.map((issue, i) => {
+                    const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
+                    const statusSkin: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
+                      backlog: "neutral", todo: "general", in_progress: "warning", blocked: "danger",
+                    };
+                    const statusLabel: Record<string, string> = {
+                      backlog: "Backlog", todo: "To Do", in_progress: "In Progress", blocked: "Blocked",
+                    };
+                    return (
+                      <a
+                        key={issue.id}
+                        href={`/tasks/${issue.identifier}`}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 500, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
+                          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
+                            {issue.identifier} · {assignee ? assignee.name : "Unassigned"}
+                          </div>
+                        </div>
+                        <Badge size="tiny" skin={statusSkin[issue.status] || "general"}>
+                          {statusLabel[issue.status] || issue.status}
+                        </Badge>
+                      </a>
+                    );
+                  })
+                )}
+              </Card.Content>
+            </Card>
+          </div>
 
           {/* Token Usage Analytics */}
           {tokenStats.totalRuns > 0 && (

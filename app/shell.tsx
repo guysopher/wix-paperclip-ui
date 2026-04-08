@@ -8,6 +8,7 @@ import {
   Heading,
   Divider,
   Dropdown,
+  Tooltip,
 } from "@wix/design-system";
 import {
   Dashboard,
@@ -22,6 +23,7 @@ import {
   Settings,
   Code,
   Feed,
+  Phone,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
@@ -47,9 +49,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const counts = useBadgeCounts();
   const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(() => {
+    // Load chat open state from localStorage
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ceo-chat-open');
+      return stored !== null ? stored === 'true' : true;
+    }
+    return true;
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Persist chat open/closed state
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ceo-chat-open', String(chatOpen));
+    }
+  }, [chatOpen]);
 
   // Close menu on navigation
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -291,21 +307,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </Box>
 
-      {/* CEO Chat slide-in panel */}
-      {chatOpen && (
-        <div
-          className="ceo-chat-panel"
-          style={{
-            width: 380, flexShrink: 0,
-            borderLeft: "1px solid #e0e0e0",
-            height: "100vh",
-            display: "flex", flexDirection: "column",
-            background: "#f7f8fa",
-          }}
-        >
-          <CeoChatPanel onClose={() => setChatOpen(false)} />
-        </div>
-      )}
+      {/* CEO Chat slide-in panel - always mounted, slides in/out */}
+      <div
+        className="ceo-chat-panel"
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 380,
+          height: "100vh",
+          borderLeft: "1px solid #e0e0e0",
+          display: "flex",
+          flexDirection: "column",
+          background: "#f7f8fa",
+          transform: chatOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          zIndex: 100,
+          boxShadow: chatOpen ? "-4px 0 12px rgba(0, 0, 0, 0.1)" : "none",
+        }}
+      >
+        <CeoChatPanel onClose={() => setChatOpen(false)} />
+      </div>
 
       {/* Create Company Wizard */}
       <CreateCompanyWizard

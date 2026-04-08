@@ -96,7 +96,7 @@ function RunsContent() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "running");
+  const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "all");
   const [filterAgent, setFilterAgent] = useState(searchParams.get("agent") || "all");
 
   const runParam = searchParams.get("run");
@@ -106,7 +106,7 @@ function RunsContent() {
 
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === "all" || (value === "running" && key === "status")) params.delete(key);
+    if (value === "all") params.delete(key);
     else params.set(key, value);
     router.replace(`/runs${params.toString() ? `?${params}` : ""}`, { scroll: false });
   };

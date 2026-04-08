@@ -9,6 +9,7 @@ import {
   Badge,
   Loader,
   Divider,
+  Button,
 } from "@wix/design-system";
 import {
   getHeartbeatRun,
@@ -59,6 +60,8 @@ function RunDetailContent({ runId }: { runId: string }) {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLog, setLoadingLog] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [loadingDebug, setLoadingDebug] = useState(false);
 
   useEffect(() => {
     if (!companyId) return;
@@ -104,6 +107,18 @@ function RunDetailContent({ runId }: { runId: string }) {
     })();
   }, [companyId, runId]);
 
+  const fetchDebugInfo = async () => {
+    setLoadingDebug(true);
+    try {
+      const response = await fetch(`/api/debug-run/${runId}`);
+      const data = await response.json();
+      setDebugInfo(data);
+    } catch (error) {
+      setDebugInfo({ error: String(error) });
+    }
+    setLoadingDebug(false);
+  };
+
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name || "Unknown";
 
   if (loading) {
@@ -141,6 +156,16 @@ function RunDetailContent({ runId }: { runId: string }) {
               { label: `${agentName(run.agentId)} — Work Session` },
             ]}
           />
+        }
+        actionsBar={
+          <Button
+            size="tiny"
+            priority="secondary"
+            onClick={fetchDebugInfo}
+            disabled={loadingDebug}
+          >
+            {loadingDebug ? "Loading..." : "Debug"}
+          </Button>
         }
       />
       <Page.Content>
@@ -217,6 +242,90 @@ function RunDetailContent({ runId }: { runId: string }) {
               </div>
             </Card.Content>
           </Card>
+
+          {/* Debug Info Card - Only visible when debug button clicked */}
+          {debugInfo && (
+            <Card>
+              <Card.Header
+                title="RUN_SUMMARY Debug"
+                subtitle="Developer diagnostic information"
+              />
+              <Card.Divider />
+              <Card.Content>
+                <div style={{ fontFamily: "monospace", fontSize: 12 }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Summary:</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "8px", background: "#f7f9fc", padding: 12, borderRadius: 6 }}>
+                      <div>Log Length:</div>
+                      <div>{debugInfo.logLength ? `${debugInfo.logLength} chars` : "N/A"}</div>
+
+                      <div>Contains "RUN_SUMMARY":</div>
+                      <div style={{ color: debugInfo.containsRUNSUMMARY ? "#00a854" : "#ff4d4f", fontWeight: 600 }}>
+                        {debugInfo.containsRUNSUMMARY ? "✓ Yes" : "✗ No"}
+                      </div>
+
+                      <div>Contains "goalProgress":</div>
+                      <div style={{ color: debugInfo.containsGoalProgress ? "#00a854" : "#ff4d4f", fontWeight: 600 }}>
+                        {debugInfo.containsGoalProgress ? "✓ Yes" : "✗ No"}
+                      </div>
+
+                      <div>Valid RUN_SUMMARY found:</div>
+                      <div style={{ color: debugInfo.hasRUNSUMMARY ? "#00a854" : "#ff4d4f", fontWeight: 600 }}>
+                        {debugInfo.hasRUNSUMMARY ? "✓ Yes" : "✗ No"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(debugInfo.singleLineMatch || debugInfo.multilineMatch) && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Extracted RUN_SUMMARY JSON:</div>
+                      <pre style={{
+                        background: "#162d3d",
+                        color: "#00d68f",
+                        padding: 12,
+                        borderRadius: 6,
+                        overflow: "auto",
+                        fontSize: 11,
+                        lineHeight: 1.5,
+                      }}>
+                        {debugInfo.singleLineMatch || debugInfo.multilineMatch}
+                      </pre>
+                    </div>
+                  )}
+
+                  {debugInfo.last500chars && (
+                    <div>
+                      <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Last 500 characters of log:</div>
+                      <pre style={{
+                        background: "#f0f0f0",
+                        padding: 12,
+                        borderRadius: 6,
+                        overflow: "auto",
+                        fontSize: 11,
+                        lineHeight: 1.5,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                      }}>
+                        {debugInfo.last500chars}
+                      </pre>
+                    </div>
+                  )}
+
+                  {debugInfo.error && (
+                    <div style={{ color: "#ff4d4f", marginTop: 12 }}>
+                      Error: {debugInfo.error}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 16 }}>
+                    <Button size="tiny" priority="secondary" onClick={() => setDebugInfo(null)}>
+                      Hide
+                    </Button>
+                  </div>
+                </div>
+              </Card.Content>
+            </Card>
+          )}
 
           {/* Error card */}
           {run.error && (

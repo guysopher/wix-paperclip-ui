@@ -41,6 +41,7 @@ interface IssueData {
   status: string;
   priority: string;
   assigneeAgentId: string | null;
+  assigneeUserId: string | null;
 }
 interface GoalData {
   title: string;
@@ -63,12 +64,20 @@ async function buildSystemPrompt(companyId: string): Promise<string> {
     .slice(0, 30);
   const doneCount = issues.filter((i) => i.status === "done").length;
 
+  // Separate tasks that need board attention
+  const boardTasks = activeIssues.filter((i) => i.assigneeUserId && !i.assigneeAgentId);
+  const teamTasks = activeIssues.filter((i) => !i.assigneeUserId || i.assigneeAgentId);
+
   const teamList = agents
     .map((a) => `- ${a.name} (${a.title}, ${a.status})`)
     .join("\n");
 
-  const taskList = activeIssues
-    .map((i) => `- ${i.identifier}: "${i.title}" [${i.status}${i.priority === "high" || i.priority === "critical" ? ", " + i.priority : ""}]${i.assigneeAgentId ? " → " + (agentMap.get(i.assigneeAgentId) || "unassigned") : ""}`)
+  const boardTaskList = boardTasks
+    .map((i) => `- [${i.identifier}] "${i.title}" [${i.status}${i.priority === "high" || i.priority === "critical" ? ", " + i.priority : ""}]`)
+    .join("\n");
+
+  const taskList = teamTasks
+    .map((i) => `- [${i.identifier}] "${i.title}" [${i.status}${i.priority === "high" || i.priority === "critical" ? ", " + i.priority : ""}]${i.assigneeAgentId ? " → " + (agentMap.get(i.assigneeAgentId) || "unassigned") : ""}`)
     .join("\n");
 
   const goalList = goals
@@ -84,8 +93,11 @@ ${company.description || "No description set."}
 YOUR TEAM (${agents.length} agents):
 ${teamList || "No agents hired yet."}
 
-ACTIVE TASKS (${activeIssues.length} active, ${doneCount} done):
-${taskList || "No active tasks."}
+⚠️ TASKS REQUIRING BOARD ATTENTION (${boardTasks.length}):
+${boardTaskList || "None — all tasks are assigned to the team."}
+
+TEAM TASKS (${teamTasks.length} active, ${doneCount} done):
+${taskList || "No active team tasks."}
 
 COMPANY GOALS:
 ${goalList || "No goals set."}
@@ -93,10 +105,12 @@ ${goalList || "No goals set."}
 HOW TO BEHAVE IN THIS CHAT:
 - This is a quick, real-time conversation. Keep answers SHORT (1-3 sentences).
 - You know everything about the company — answer questions about tasks, team, progress, blockers.
+- **CRITICAL**: If there are tasks requiring board attention, PROACTIVELY mention them in your response even if the board member doesn't ask directly. Say something like "By the way, [task title](/tasks/ID) needs your input" or "Quick heads up — you have [task title](/tasks/ID) waiting for you."
 - If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (CEO).
 - Be direct, confident, and helpful. No fluff.
 - If you don't know something specific, say so — don't make things up.
-- Reference specific task IDs (like AGE-5) and agent names when relevant.
+- When referring to tasks, ALWAYS use the task TITLE, not the ID. Add a markdown link in the format: [task title](/tasks/IDENTIFIER). For example: "We're working on [improving the search algorithm](/tasks/AGE-5)" instead of "AGE-5 is in progress".
+- Reference agent names when relevant.
 - You can suggest next steps, flag risks, and give strategic advice.
 - Never use markdown headers or bullet points — just talk naturally like you're on a call.`;
 }
@@ -144,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     // If no messages yet, get an opening line
     if (openaiMessages.length === 1) {
-      openaiMessages.push({ role: "user", content: "[The board member just picked up the phone. Greet them briefly and ask what's on their mind. If there are blockers or urgent items, mention them proactively.]" });
+      openaiMessages.push({ role: "user", content: "[The board member just opened the chat. Greet them casually like \"Hey Boss, I'm here for you\" or similar. Keep it warm and friendly (1 sentence). If there are tasks requiring board attention, proactively mention them with links. If there are urgent blockers or high-priority team items, mention one briefly.]" });
     }
 
     // Call OpenAI with tool use
