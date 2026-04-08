@@ -32,6 +32,55 @@ export async function GET(
 
     // Look for the RUN_SUMMARY marker the agent writes at the end of every run
     if (logText) {
+      // Try parsing as JSONL (each line is a JSON object)
+      const lines = logText.trim().split("\n");
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        try {
+          const obj = JSON.parse(line);
+
+          // Format 1: Wrapped in {ts, stream, chunk} where chunk contains the actual JSON
+          if (obj?.chunk) {
+            try {
+              const innerObj = JSON.parse(obj.chunk);
+              if (innerObj?.item?.type === "agent_message" && innerObj?.item?.text) {
+                const text = innerObj.item.text;
+                const match = text.match(/RUN_SUMMARY:\s*(\{.*\})\s*$/);
+                if (match) {
+                  const parsed = JSON.parse(match[1]);
+                  return NextResponse.json({
+                    title: (parsed.title as string)?.trim() ?? "",
+                    description: (parsed.description as string)?.trim() ?? "",
+                    goalProgress: Array.isArray(parsed.goalProgress) ? parsed.goalProgress : [],
+                  });
+                }
+              }
+            } catch {
+              // Chunk wasn't JSON, continue
+            }
+          }
+
+          // Format 2: Direct {item: {type: "agent_message", text: "..."}} structure
+          if (obj?.item?.type === "agent_message" && obj?.item?.text) {
+            const text = obj.item.text;
+            const match = text.match(/RUN_SUMMARY:\s*(\{.*\})\s*$/);
+            if (match) {
+              const parsed = JSON.parse(match[1]);
+              return NextResponse.json({
+                title: (parsed.title as string)?.trim() ?? "",
+                description: (parsed.description as string)?.trim() ?? "",
+                goalProgress: Array.isArray(parsed.goalProgress) ? parsed.goalProgress : [],
+              });
+            }
+          }
+        } catch {
+          // Not JSON or malformed — continue to next line
+          continue;
+        }
+      }
+
+      // Fallback: try the old plain-text regex for backwards compatibility
       const match = logText.match(/^RUN_SUMMARY:\s*(\{.*\})\s*$/m);
       if (match) {
         try {

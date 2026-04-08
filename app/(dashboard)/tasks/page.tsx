@@ -77,11 +77,11 @@ function TasksContent() {
   const ceoAgent = agents.find((a) => a.role === "ceo");
 
   // Filters
-  const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("status") || "in_progress");
+  const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("status") || "all");
 
   const updateFilterUrl = (status: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (status === "in_progress") params.delete("status");
+    if (status === "all") params.delete("status");
     else params.set("status", status);
     router.replace(`/tasks${params.toString() ? `?${params}` : ""}`, { scroll: false });
   };
@@ -92,8 +92,21 @@ function TasksContent() {
       getIssues(companyId),
       getAgents(companyId),
     ]);
-    setIssues(issueData.filter((i: Issue) => i.title !== "Board Inbox"));
+    const filteredIssues = issueData.filter((i: Issue) => i.title !== "Board Inbox");
+    setIssues(filteredIssues);
     setAgents(agentData);
+
+    // Debug: log agent IDs
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Loaded agents:', agentData.map((a: Agent) => ({ id: a.id, name: a.name })));
+      console.log('Tasks with assignees:', filteredIssues.map((i: Issue) => ({
+        id: i.identifier,
+        title: i.title.substring(0, 50),
+        assigneeAgentId: i.assigneeAgentId,
+        assigneeId: i.assigneeId,
+      })));
+    }
+
     setLoading(false);
   }, [companyId]);
 
@@ -175,6 +188,17 @@ function TasksContent() {
       render: (row: Issue) => {
         const id = row.assigneeAgentId || row.assigneeId;
         const name = agentName(id);
+
+        // Debug: log unassigned tasks to console
+        if (!id && process.env.NODE_ENV === 'development') {
+          console.log(`Unassigned task ${row.identifier}:`, {
+            assigneeAgentId: row.assigneeAgentId,
+            assigneeId: row.assigneeId,
+            assigneeUserId: row.assigneeUserId,
+            title: row.title,
+          });
+        }
+
         return id ? <a href={`/team/${id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
       },
       width: "20%",

@@ -80,7 +80,7 @@ export async function POST(request: Request) {
           title: "Board Inbox",
           description: "Direct communication channel between the board operator and the CEO.",
           priority: "high",
-          assigneeId: ceo.id,
+          assigneeAgentId: ceo.id,
         }),
       });
     }

@@ -21,7 +21,12 @@ import {
   type Agent,
 } from "@/lib/api";
 
-const CEO_PROMPT = `You are the CEO of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input (use assigneeUserId "local-board").
+const CEO_PROMPT = `You are the CEO of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
+
+TASK ASSIGNMENT RULES:
+- When assigning to an agent (team member), use field: assigneeAgentId
+- When assigning to the board (human), use field: assigneeUserId with value "local-board"
+- NEVER create a task without an assignee — every task must have an owner
 
 YOUR MISSION: Make this company succeed. Be proactive, creative, and relentless. Something meaningful must happen on every single check-in.
 
@@ -315,7 +320,7 @@ export default function NewCompanyPage() {
           title: summary.goals?.[0] || "Get started",
           description: summary.firstTask,
           priority: "high",
-          assigneeId: ceoAgent.id,
+          assigneeAgentId: ceoAgent.id,
         });
       } catch { /* non-critical */ }
 

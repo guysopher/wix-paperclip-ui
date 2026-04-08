@@ -33,6 +33,7 @@ import {
   PlayFilled,
 } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../providers";
+import { AgentAvatar } from "@/components/agent-avatar";
 import {
   getDashboard,
   getAgents,
@@ -220,6 +221,17 @@ function DashboardContent() {
 
   useEffect(() => { load(); }, [companyId]);
 
+  // Auto-refresh when agents are running (every 10 seconds)
+  useEffect(() => {
+    const runningCount = agents.filter((a) => a.status === "running").length;
+    if (runningCount > 0) {
+      const interval = setInterval(() => {
+        load();
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [agents]);
+
   if (loading) {
     return (
       <Page>
@@ -341,7 +353,7 @@ function DashboardContent() {
     if (!newTaskTitle.trim() || !company) return;
     await createIssue(company.id, {
       title: newTaskTitle,
-      assigneeId: newTaskAssignee,
+      assigneeAgentId: newTaskAssignee,
     });
     setShowCreate(false);
     setNewTaskTitle("");
@@ -406,6 +418,44 @@ function DashboardContent() {
         }
       />
       <Page.Content>
+        {/* Company Status Banner */}
+        <div style={{
+          background: "linear-gradient(135deg, #f7f9fc 0%, #e8f0fe 100%)",
+          borderRadius: 10,
+          padding: "18px 26px",
+          marginBottom: 24,
+          border: "1px solid #d6e4f5",
+          display: "flex",
+          alignItems: "center",
+          gap: 28,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: runningAgents.length > 0 ? "#00d68f" : "#b0b0b0",
+              boxShadow: runningAgents.length > 0 ? "0 0 8px #00d68f" : "none",
+            }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#162d3d" }}>
+              {runningAgents.length > 0 ? `${runningAgents.length} agent${runningAgents.length > 1 ? 's' : ''} working` : "All agents idle"}
+            </span>
+          </div>
+          <div style={{ height: 20, width: 1, background: "#d0d0d0" }} />
+          <div style={{ fontSize: 13, color: "#666" }}>
+            <span style={{ fontWeight: 600 }}>{activeTasks}</span> active task{activeTasks !== 1 ? 's' : ''}
+          </div>
+          <div style={{ height: 20, width: 1, background: "#d0d0d0" }} />
+          <div style={{ fontSize: 13, color: "#666" }}>
+            <span style={{ fontWeight: 600 }}>{dashboard.tasks.blocked || 0}</span> blocked
+          </div>
+          <div style={{ height: 20, width: 1, background: "#d0d0d0" }} />
+          <div style={{ fontSize: 13, color: "#666" }}>
+            <span style={{ fontWeight: 600 }}>{runs.filter((r) => r.status === "succeeded").length}/{runs.length}</span> runs successful
+          </div>
+        </div>
+
         {/* Health check results */}
         {healthResult && (
           <div style={{
@@ -478,18 +528,71 @@ function DashboardContent() {
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Quick Actions */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 12, fontWeight: 600 }}>Quick Actions</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Button
+            size="medium"
+            onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}
+            prefixIcon={<Add />}
+          >
+            Create Task
+          </Button>
+          {ceoAgent && (
+            <Button
+              size="medium"
+              priority="secondary"
+              onClick={async () => {
+                try {
+                  await invokeHeartbeat(ceoAgent.id);
+                  setTimeout(() => load(), 2000);
+                } catch {}
+              }}
+            >
+              Wake CEO
+            </Button>
+          )}
+          <Button
+            size="medium"
+            priority="secondary"
+            onClick={() => window.location.href = "/inbox"}
+          >
+            View Inbox {dashboard.tasks.open > 0 && `(${dashboard.tasks.open})`}
+          </Button>
+          <Button
+            size="medium"
+            priority="secondary"
+            onClick={async () => {
+              setHealthLoading(true);
+              setHealthResult(null);
+              try {
+                const result = await runHealthCheck();
+                setHealthResult(result);
+              } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [] }); }
+              setHealthLoading(false);
+            }}
+            disabled={healthLoading}
+          >
+            {healthLoading ? "Checking..." : "Health Check"}
+          </Button>
+        </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {/* Key metrics row */}
-          <div className="dashboard-metrics" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Key Metrics</div>
+          <div className="dashboard-metrics" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 18 }}>
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                     <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Team</div>
                     <Users color="#b0b0b0" size="20px" />
                   </div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>{agents.length}</div>
-                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 8 }}>{agents.length}</div>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 6 }}>
                     {runningAgents.length > 0 ? `${runningAgents.length} working now` : "All available"}
                   </div>
                 </Card.Content>
@@ -498,12 +601,12 @@ function DashboardContent() {
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                     <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Tasks Done</div>
                     <Checklist color="#b0b0b0" size="20px" />
                   </div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>{doneTasks}<span style={{ fontSize: 16, color: "#999", fontWeight: 400 }}>/{totalTasks}</span></div>
-                  <div style={{ width: "100%", height: 4, background: "#eee", borderRadius: 2, marginTop: 8 }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 8 }}>{doneTasks}<span style={{ fontSize: 16, color: "#999", fontWeight: 400 }}>/{totalTasks}</span></div>
+                  <div style={{ width: "100%", height: 4, background: "#eee", borderRadius: 2, marginTop: 10 }}>
                     <div style={{ width: `${progressPct}%`, height: 4, background: "#00d68f", borderRadius: 2 }} />
                   </div>
                 </Card.Content>
@@ -512,12 +615,12 @@ function DashboardContent() {
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                     <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Active Work</div>
                     <Promote color="#b0b0b0" size="20px" />
                   </div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: activeTasks > 0 ? "#3899ec" : "#162d3d", marginTop: 4 }}>{activeTasks}</div>
-                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: activeTasks > 0 ? "#3899ec" : "#162d3d", marginTop: 8 }}>{activeTasks}</div>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 6 }}>
                     {dashboard.tasks.blocked ? `${dashboard.tasks.blocked} blocked` : "No blockers"}
                   </div>
                 </Card.Content>
@@ -526,15 +629,15 @@ function DashboardContent() {
             <div className="metric-card-hover" style={{ borderRadius: 8 }}>
               <Card>
                 <Card.Content>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                     <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Runs</div>
                     <Refresh color="#b0b0b0" size="20px" />
                   </div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#162d3d", marginTop: 8 }}>
                     {runs.filter((r) => r.status === "succeeded").length}
                     <span style={{ fontSize: 16, color: "#999", fontWeight: 400 }}>/{runs.length}</span>
                   </div>
-                  <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: "#666", marginTop: 6 }}>
                     {runs.filter((r) => r.status === "failed").length > 0
                       ? `${runs.filter((r) => r.status === "failed").length} failed`
                       : "All successful"}
@@ -543,77 +646,12 @@ function DashboardContent() {
               </Card>
             </div>
           </div>
-
-          {/* Run feed */}
-          {runs.length > 0 && (() => {
-            const latest = [...runs]
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .slice(0, 3);
-            return (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <Text size="medium" weight="bold">Recent Runs</Text>
-                  <a href="/activity" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>See all →</a>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {latest.map((run) => {
-                    const agent = agents.find((a) => a.id === run.agentId);
-                    const agentName = agent?.name || "Unknown";
-                    const narrative = feedNarratives[run.id];
-                    const usage = feedParseUsage(run.usageJson);
-                    const dur = feedDuration(run.startedAt, run.finishedAt);
-                    return (
-                      <div key={run.id} style={{ background: "white", borderRadius: 10, border: "1px solid #e8ecf0", padding: "16px 20px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                          <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
-                            <div style={{ width: 36, height: 36, borderRadius: "50%", background: feedAvatarColor(run.agentId), color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>
-                              {agentName.charAt(0).toUpperCase()}
-                            </div>
-                          </a>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
-                              <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", color: "inherit", fontWeight: 600, fontSize: 14 }}>{agentName}</a>
-                              {agent?.title && <span style={{ fontSize: 12, color: "#999" }}>{agent.title}</span>}
-                              <Badge size="tiny" skin={FEED_STATUS_SKINS[run.status] || "general"}>{FEED_STATUS_LABELS[run.status] || run.status}</Badge>
-                            </div>
-                            <div style={{ fontSize: 12, color: "#bbb", marginTop: 1 }}>{FEED_SOURCE_LABELS[run.invocationSource] || run.invocationSource} · {timeAgo(run.createdAt)}</div>
-                          </div>
-                        </div>
-                        <div style={{ minHeight: 36, marginBottom: 10 }}>
-                          {run.status === "running" || run.status === "queued" ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#3899ec" }}>
-                              <Loader size="tiny" />
-                              <span style={{ fontSize: 13 }}>{run.status === "queued" ? "Waiting to start…" : "Running now…"}</span>
-                            </div>
-                          ) : narrative === null ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                              {[80, 65].map((w, i) => <div key={i} className="skeleton-bar" style={{ height: 12, width: `${w}%` }} />)}
-                            </div>
-                          ) : narrative?.title ? (
-                            <div>
-                              <div style={{ fontWeight: 600, fontSize: 13, color: "#162d3d", marginBottom: 3 }}>{narrative.title}</div>
-                              {narrative.description && <div style={{ fontSize: 12, color: "#666", lineHeight: 1.55 }}>{narrative.description}</div>}
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: 12, color: "#ccc", fontStyle: "italic" }}>No summary available.</span>
-                          )}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid #f0f2f5", paddingTop: 10, fontSize: 12, color: "#999" }}>
-                          <span>{dur}</span>
-                          {usage?.cost && usage.cost !== "—" && <><span style={{ color: "#ddd" }}>·</span><span>{usage.cost}</span></>}
-                          <div style={{ flex: 1 }} />
-                          <a href={`/runs/${run.id}`} style={{ color: "#3899ec", textDecoration: "none", fontWeight: 500 }}>View →</a>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
+          </div>
 
           {/* Team + Open work row */}
-          <div className="dashboard-panels" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Team & Work</div>
+          <div className="dashboard-panels" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
           {/* Team status */}
           <Card>
               <Card.Header title="Team Status" />
@@ -726,10 +764,18 @@ function DashboardContent() {
               />
               <Card.Content>
                 {recentIssues.length === 0 ? (
-                  <div style={{ padding: "20px 0", textAlign: "center" }}>
+                  <div style={{ padding: "24px 0", textAlign: "center" }}>
                     <Checklist color="#b0b0b0" size="48px" />
-                    <div style={{ marginTop: 8 }}>
-                      <Text secondary>No open tasks. The team is ready for new work.</Text>
+                    <div style={{ marginTop: 12 }}>
+                      <Text weight="bold">No open tasks</Text>
+                      <div style={{ marginTop: 6 }}>
+                        <Text size="small" secondary>The team is ready for new work. Create a task to get started.</Text>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 16 }}>
+                      <Button size="small" onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
+                        Create First Task
+                      </Button>
                     </div>
                   </div>
                 ) : (
@@ -762,6 +808,7 @@ function DashboardContent() {
                 )}
               </Card.Content>
             </Card>
+          </div>
           </div>
 
           {/* Achievements */}
@@ -930,6 +977,74 @@ function DashboardContent() {
               </Card>
             </div>
           )}
+
+          {/* Recent Activity - Compact */}
+          {(() => {
+            // Show only the 3 most recent runs
+            const latestRuns = [...runs]
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              .slice(0, 3);
+
+            if (latestRuns.length === 0) return null;
+
+            return (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text size="medium" weight="bold">Recent Activity</Text>
+                  <a href="/activity" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>See all →</a>
+                </div>
+                <Card>
+                  <Card.Content>
+                    {latestRuns.map((run, idx) => {
+                      const agent = agents.find((a) => a.id === run.agentId);
+                      const agentName = agent?.name || "Unknown";
+                      const narrative = feedNarratives[run.id];
+
+                      return (
+                        <div key={run.id} style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          padding: "10px 0",
+                          borderBottom: idx < latestRuns.length - 1 ? "1px solid #f0f0f0" : "none"
+                        }}>
+                          <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
+                            <AgentAvatar
+                              agentName={agentName}
+                              agentRole={agent?.role}
+                              icon={agent?.icon}
+                              size={32}
+                              fontSize={12}
+                            />
+                          </a>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                              <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", color: "inherit", fontWeight: 600, fontSize: 13 }}>{agentName}</a>
+                              <Badge size="tiny" skin={FEED_STATUS_SKINS[run.status] || "general"}>{FEED_STATUS_LABELS[run.status] || run.status}</Badge>
+                              <span style={{ fontSize: 11, color: "#bbb" }}>· {timeAgo(run.createdAt)}</span>
+                            </div>
+                            {run.status === "running" || run.status === "queued" ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#3899ec", fontSize: 12 }}>
+                                <Loader size="tiny" />
+                                <span>{run.status === "queued" ? "Waiting to start…" : "Running now…"}</span>
+                              </div>
+                            ) : narrative?.title ? (
+                              <div style={{ fontSize: 12, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {narrative.title}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 11, color: "#ccc", fontStyle: "italic" }}>No summary</span>
+                            )}
+                          </div>
+                          <a href={`/runs/${run.id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 12, fontWeight: 500, flexShrink: 0 }}>View</a>
+                        </div>
+                      );
+                    })}
+                  </Card.Content>
+                </Card>
+              </div>
+            );
+          })()}
         </div>
       </Page.Content>
     </Page>
