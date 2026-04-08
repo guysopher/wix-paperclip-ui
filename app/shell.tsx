@@ -8,7 +8,6 @@ import {
   Heading,
   Divider,
   Dropdown,
-  Tooltip,
 } from "@wix/design-system";
 import {
   Dashboard,
@@ -23,7 +22,6 @@ import {
   Settings,
   Code,
   Feed,
-  Phone,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";

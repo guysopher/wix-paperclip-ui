@@ -16,7 +16,6 @@ import {
   FormField,
   Input,
   Dropdown,
-  Tooltip,
   PopoverMenu,
   IconButton,
 } from "@wix/design-system";
