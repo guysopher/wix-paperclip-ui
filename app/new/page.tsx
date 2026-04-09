@@ -116,6 +116,12 @@ GOAL PROGRESS: After every run, assess each active company goal's progress (0-10
 /* ─── Helpers ─── */
 
 const URL_RE = /https?:\/\/[^\s,)]+/g;
+const BM_RE = /manage\.wix\.com\/(?:dashboard\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+
+function extractMSID(text: string): string | null {
+  const m = text.match(BM_RE);
+  return m ? m[1] : null;
+}
 
 interface ChatMessage {
   role: "ceo" | "user";
@@ -124,7 +130,8 @@ interface ChatMessage {
 }
 
 async function fetchUrlContent(text: string): Promise<string | undefined> {
-  const urls = text.match(URL_RE);
+  // Skip manage.wix.com links — they require auth and return nothing useful
+  const urls = text.match(URL_RE)?.filter((u) => !BM_RE.test(u));
   if (!urls || urls.length === 0) return undefined;
   const results: string[] = [];
   for (const url of urls.slice(0, 2)) {
@@ -180,6 +187,7 @@ export default function NewCompanyPage() {
   const [inputValue, setInputValue] = useState("");
   const [ceoTyping, setCeoTyping] = useState(true); // start typing immediately
   const [companyCreated, setCompanyCreated] = useState(false);
+  const [metasiteId, setMetasiteId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const creationRef = useRef<Promise<{ companyId: string; ceoAgent: Agent } | null> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -243,8 +251,16 @@ export default function NewCompanyPage() {
     setInputValue("");
 
     const userMsg: ChatMessage = { role: "user", text: userText };
-    const fetchedContent = await fetchUrlContent(userText);
-    if (fetchedContent) userMsg.fetchedContent = fetchedContent;
+
+    // Detect Wix BM link — extract MSID and inject as context instead of fetching (requires auth)
+    const msid = extractMSID(userText);
+    if (msid && !metasiteId) {
+      setMetasiteId(msid);
+      userMsg.fetchedContent = `[Wix metasite connected — Site ID: ${msid}. Dashboard: https://manage.wix.com/dashboard/${msid}]`;
+    } else {
+      const fetchedContent = await fetchUrlContent(userText);
+      if (fetchedContent) userMsg.fetchedContent = fetchedContent;
+    }
 
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
@@ -296,11 +312,21 @@ export default function NewCompanyPage() {
         };
       }
 
-      // 3. Update company name and description
+      // 3. Update company name, description, and metasite
       await updateCompany(companyId, {
         name: summary.companyName,
         description: summary.description,
+        ...(metasiteId ? { metasiteId } : {}),
       });
+
+      // Save metasite config so agents can access it (works locally; gracefully fails on Vercel)
+      if (metasiteId) {
+        fetch("/api/wix-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId, siteId: metasiteId, siteName: summary.companyName }),
+        }).catch(() => {});
+      }
 
       // 4. Create goals from the interview
       for (const goal of summary.goals) {

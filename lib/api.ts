@@ -170,6 +170,7 @@ export interface Company {
   spentMonthlyCents: number;
   maxTokensPerHour?: number;
   disableOnDemandWakeup?: boolean;
+  metasiteId?: string;
   createdAt: string;
   updatedAt: string;
 }
