@@ -333,7 +333,6 @@ function TasksContent() {
           title="Create Task"
           primaryButtonText="Create"
           primaryButtonOnClick={handleCreate}
-          primaryButtonDisabled={!newTitle.trim() || !newAssignee}
           secondaryButtonText="Cancel"
           secondaryButtonOnClick={() => setShowCreate(false)}
           onCloseButtonClick={() => setShowCreate(false)}

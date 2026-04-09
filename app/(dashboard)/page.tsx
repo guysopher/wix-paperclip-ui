@@ -168,7 +168,7 @@ function DashboardContent() {
     const latest = [...runList]
       .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 3);
-    setFeedNarratives(Object.fromEntries(latest.map((r: HeartbeatRun) => [r.id, r.status === "running" || r.status === "queued" ? "" : null])));
+    setFeedNarratives(Object.fromEntries(latest.map((r: HeartbeatRun) => [r.id, r.status === "running" || r.status === "queued" ? { title: "", description: "" } : null])));
     latest.filter((r: HeartbeatRun) => r.status !== "running" && r.status !== "queued").forEach((run: HeartbeatRun) => {
       const agent = agentMap.get(run.agentId);
       const params = new URLSearchParams({

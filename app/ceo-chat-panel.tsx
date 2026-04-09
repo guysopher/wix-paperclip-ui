@@ -51,12 +51,12 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
         });
         const data = await res.json();
         if (data.text) {
-          const newMessages = [{ role: "ceo", text: data.text }];
+          const newMessages: ChatMessage[] = [{ role: "ceo", text: data.text }];
           setMessages(newMessages);
           localStorage.setItem(storageKey, JSON.stringify(newMessages));
         }
       } catch {
-        const fallbackMessages = [{ role: "ceo", text: "Hey Boss, I'm here for you. What's on your mind?" }];
+        const fallbackMessages: ChatMessage[] = [{ role: "ceo", text: "Hey Boss, I'm here for you. What's on your mind?" }];
         setMessages(fallbackMessages);
         localStorage.setItem(storageKey, JSON.stringify(fallbackMessages));
       }
