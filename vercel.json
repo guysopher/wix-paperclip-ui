@@ -1,8 +1,5 @@
 {
   "framework": "nextjs",
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "env": {
-    "PAPERCLIP_API_URL": "@paperclip_api_url"
-  }
+  "installCommand": "npm install"
 }
