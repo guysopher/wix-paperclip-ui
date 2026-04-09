@@ -5,27 +5,34 @@ const PAPERCLIP_API_URL =
   process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
   "http://localhost:3100/api";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const { path } = await params;
-  const apiPath = path.join("/");
-  const search = request.nextUrl.search;
-  const url = `${PAPERCLIP_API_URL}/${apiPath}${search}`;
+const PROXY_HEADERS = {
+  "Content-Type": "application/json",
+  "ngrok-skip-browser-warning": "1",
+};
 
-  const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "1",
-    },
-  });
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
 
+async function proxyResponse(res: Response) {
   const data = await res.text();
   return new NextResponse(data, {
     status: res.status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const { path } = await params;
+  const url = `${PAPERCLIP_API_URL}/${path.join("/")}${request.nextUrl.search}`;
+  try {
+    return proxyResponse(await fetch(url, { headers: PROXY_HEADERS }));
+  } catch (e) {
+    return jsonError(`Upstream unreachable: ${url}`, 502);
+  }
 }
 
 export async function POST(
@@ -33,24 +40,13 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  const apiPath = path.join("/");
-  const body = await request.text();
-  const url = `${PAPERCLIP_API_URL}/${apiPath}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "1",
-    },
-    body: body || undefined,
-  });
-
-  const data = await res.text();
-  return new NextResponse(data, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
-  });
+  const url = `${PAPERCLIP_API_URL}/${path.join("/")}`;
+  try {
+    const body = await request.text();
+    return proxyResponse(await fetch(url, { method: "POST", headers: PROXY_HEADERS, body: body || undefined }));
+  } catch (e) {
+    return jsonError(`Upstream unreachable: ${url}`, 502);
+  }
 }
 
 export async function PATCH(
@@ -58,24 +54,13 @@ export async function PATCH(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  const apiPath = path.join("/");
-  const body = await request.text();
-  const url = `${PAPERCLIP_API_URL}/${apiPath}`;
-
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "1",
-    },
-    body,
-  });
-
-  const data = await res.text();
-  return new NextResponse(data, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
-  });
+  const url = `${PAPERCLIP_API_URL}/${path.join("/")}`;
+  try {
+    const body = await request.text();
+    return proxyResponse(await fetch(url, { method: "PATCH", headers: PROXY_HEADERS, body }));
+  } catch (e) {
+    return jsonError(`Upstream unreachable: ${url}`, 502);
+  }
 }
 
 export async function DELETE(
@@ -83,20 +68,10 @@ export async function DELETE(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  const apiPath = path.join("/");
-  const url = `${PAPERCLIP_API_URL}/${apiPath}`;
-
-  const res = await fetch(url, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "1",
-    },
-  });
-
-  const data = await res.text();
-  return new NextResponse(data, {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
-  });
+  const url = `${PAPERCLIP_API_URL}/${path.join("/")}`;
+  try {
+    return proxyResponse(await fetch(url, { method: "DELETE", headers: PROXY_HEADERS }));
+  } catch (e) {
+    return jsonError(`Upstream unreachable: ${url}`, 502);
+  }
 }
