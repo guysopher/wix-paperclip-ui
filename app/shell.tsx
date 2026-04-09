@@ -7,7 +7,6 @@ import {
   Text,
   Heading,
   Divider,
-  Dropdown,
 } from "@wix/design-system";
 import {
   Dashboard,
@@ -46,7 +45,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const counts = useBadgeCounts();
-  const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
+  const { companyId, companies, setCompanyId, refreshCompanies, wizardOpen, openCreateWizard, closeCreateWizard } = useCompany();
   const [chatOpen, setChatOpen] = useState(() => {
     // Load chat open state from localStorage
     if (typeof window !== 'undefined') {
@@ -56,7 +55,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return true;
   });
   const [menuOpen, setMenuOpen] = useState(false);
-  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Persist chat open/closed state
   useEffect(() => {
@@ -121,23 +119,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const currentCompany = companies.find((c) => c.id === companyId);
 
-  const companyDropdownOptions = [
-    ...companies.map((c) => ({ id: c.id, value: c.name })),
-    { id: "__new__", value: "+ New Company" },
-  ];
-
-  const handleCompanySelect = (option: { id: string | number }) => {
-    if (option.id === "__new__") {
-      setWizardOpen(true);
-    } else {
-      setCompanyId(String(option.id));
-    }
-  };
-
   const handleCompanyCreated = async (newCompanyId: string) => {
     await refreshCompanies();
     setCompanyId(newCompanyId);
-    setWizardOpen(false);
+    closeCreateWizard();
   };
 
   return (
@@ -235,7 +220,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <select
                 value={companyId}
                 onChange={(e) => {
-                  if (e.target.value === "__new__") setWizardOpen(true);
+                  if (e.target.value === "__new__") openCreateWizard();
                   else setCompanyId(e.target.value);
                 }}
                 style={{
@@ -330,7 +315,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {/* Create Company Wizard */}
       <CreateCompanyWizard
         open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
+        onClose={closeCreateWizard}
         onCreated={handleCompanyCreated}
       />
     </Box>

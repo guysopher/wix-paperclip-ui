@@ -23,6 +23,9 @@ interface CompanyContextValue {
   companies: Company[];
   setCompanyId: (id: string) => void;
   refreshCompanies: () => Promise<void>;
+  wizardOpen: boolean;
+  openCreateWizard: () => void;
+  closeCreateWizard: () => void;
 }
 
 const CompanyContext = createContext<CompanyContextValue>({
@@ -30,6 +33,9 @@ const CompanyContext = createContext<CompanyContextValue>({
   companies: [],
   setCompanyId: () => {},
   refreshCompanies: async () => {},
+  wizardOpen: false,
+  openCreateWizard: () => {},
+  closeCreateWizard: () => {},
 });
 
 export const useCompany = () => useContext(CompanyContext);
@@ -38,6 +44,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const openCreateWizard = useCallback(() => setWizardOpen(true), []);
+  const closeCreateWizard = useCallback(() => setWizardOpen(false), []);
 
   const loadCompanies = useCallback(async () => {
     try {
@@ -109,7 +118,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   return (
-    <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, setCompanyId: handleSetCompanyId, refreshCompanies: loadCompanies }}>
+    <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, setCompanyId: handleSetCompanyId, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>
       <BadgeCountsContext.Provider value={counts}>
         <WixDesignSystemProvider>{children}</WixDesignSystemProvider>
       </BadgeCountsContext.Provider>

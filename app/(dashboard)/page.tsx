@@ -125,7 +125,7 @@ function agentStatusText(agent: Agent): string {
 }
 
 function DashboardContent() {
-  const { companyId } = useCompany();
+  const { companyId, companies, setCompanyId, openCreateWizard } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
@@ -309,8 +309,71 @@ function DashboardContent() {
     );
   }
 
+  if (!companyId) {
+    return (
+      <Page>
+        <Page.Content>
+          <Box align="center" verticalAlign="middle" height="80vh" direction="vertical" gap="32px">
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: "50%",
+                background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
+                margin: "0 auto 20px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <span style={{ color: "white", fontSize: 30, fontWeight: 700 }}>C</span>
+              </div>
+              <Heading size="medium">Welcome to Agents Bay</Heading>
+              <Text secondary style={{ marginTop: 8, display: "block" }}>
+                {companies.length > 0 ? "Select a company to get started, or create a new one." : "Create your first company to get started."}
+              </Text>
+            </div>
+
+            {companies.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center", maxWidth: 600 }}>
+                {companies.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCompanyId(c.id)}
+                    style={{
+                      padding: "14px 24px",
+                      border: "1.5px solid #e0e0e0",
+                      borderRadius: 10,
+                      background: "white",
+                      cursor: "pointer",
+                      minWidth: 160,
+                      textAlign: "left",
+                      transition: "border-color 0.15s, box-shadow 0.15s",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#3899ec"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 2px 8px rgba(56,153,236,0.15)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#e0e0e0"; (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: "50%",
+                      background: "linear-gradient(135deg, #3899ec 0%, #1a4a6e 100%)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "white", fontSize: 14, fontWeight: 700, marginBottom: 10,
+                    }}>
+                      {c.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#162d3d" }}>{c.name}</div>
+                    <div style={{ fontSize: 12, color: "#888", marginTop: 2, textTransform: "capitalize" }}>{c.status}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <Button prefixIcon={<Add />} onClick={openCreateWizard}>
+              New company
+            </Button>
+          </Box>
+        </Page.Content>
+      </Page>
+    );
+  }
+
   if (!company || !dashboard) {
-    return <Text>No company found.</Text>;
+    return null;
   }
 
   const totalTasks = Object.values(dashboard.tasks).reduce((a, b) => a + b, 0);
