@@ -216,32 +216,44 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Text size="tiny" light secondary>Your Wix AI Company</Text>
             </div>
             {/* Switcher icon */}
-            <div style={{ position: "relative" }}>
-              <select
-                value={companyId}
-                onChange={(e) => {
-                  if (e.target.value === "__new__") openCreateWizard();
-                  else setCompanyId(e.target.value);
-                }}
+            <div style={{ display: "flex", gap: 4 }}>
+              {companies.length > 1 && (
+                <div style={{ position: "relative" }}>
+                  <select
+                    value={companyId}
+                    onChange={(e) => setCompanyId(e.target.value)}
+                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: 28, height: 28 }}
+                  >
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 6,
+                    background: "rgba(255,255,255,0.1)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer",
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#b0b0b0">
+                      <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => router.push("/new")}
+                title="New company"
                 style={{
-                  position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: 28, height: 28,
+                  width: 28, height: 28, borderRadius: 6,
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-                <option value="__new__">+ New Company</option>
-              </select>
-              <div style={{
-                width: 28, height: 28, borderRadius: 6,
-                background: "rgba(255,255,255,0.1)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer",
-              }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#b0b0b0">
-                  <path d="M7 10l5 5 5-5z"/>
+                  <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
                 </svg>
-              </div>
+              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Page,
   Card,
@@ -125,7 +126,8 @@ function agentStatusText(agent: Agent): string {
 }
 
 function DashboardContent() {
-  const { companyId, companies, setCompanyId, openCreateWizard } = useCompany();
+  const router = useRouter();
+  const { companyId, companies, setCompanyId } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
@@ -363,7 +365,7 @@ function DashboardContent() {
               </div>
             )}
 
-            <Button prefixIcon={<Add />} onClick={openCreateWizard}>
+            <Button prefixIcon={<Add />} onClick={() => router.push("/new")}>
               New company
             </Button>
           </Box>
