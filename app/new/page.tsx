@@ -18,7 +18,6 @@ import {
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
-import { AGENT_TEMPLATES } from "@/lib/agent-templates";
 
 const AIBM_PROMPT = `You are the AI Business Manager of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
 
@@ -71,6 +70,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - Your first reply in a new activation thread should introduce yourself, briefly mention what you learned about the business, and ask what the founder wants help with first
    - Do not ask for the metasite ID again if it is already provided in the task or comments
    - If you cannot retrieve business knowledge, say so clearly and ask for the basics in a human way
+   - If it helps, mention one or two specialist agents you could bring in for this specific business, but only as part of the conversation
+   - Do not dump a catalog of roles or list every possible specialist unless the founder asks
 
 8. REPORT TO THE BOARD
    - After every check-in, leave a clear summary of what you did
@@ -177,7 +178,6 @@ function NewCompanyPageContent() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const featuredTemplates = AGENT_TEMPLATES;
   const messages = toUiMessages(comments);
   const ceoTyping = bootstrapState === "checking" || waiting;
 
@@ -541,79 +541,6 @@ function NewCompanyPageContent() {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              marginBottom: 18,
-              padding: "14px 16px",
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
-            }}
-          >
-            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: "white" }}>
-              Specialists I can activate for your Wix business
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 10,
-              }}
-            >
-              {featuredTemplates.map((template) => (
-                <div
-                  key={template.id}
-                  style={{
-                    borderRadius: 12,
-                    padding: "12px 12px 10px",
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "white", lineHeight: 1.35 }}>
-                      {template.title}
-                    </div>
-                    <div
-                      style={{
-                        flexShrink: 0,
-                        borderRadius: 999,
-                        padding: "3px 8px",
-                        fontSize: 10,
-                        fontWeight: 700,
-                        background: "rgba(96,181,255,0.18)",
-                        color: "#bfe0ff",
-                      }}
-                    >
-                      {template.category}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      color: "rgba(255,255,255,0.82)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    {template.summary}
-                  </div>
-                  <div style={{ fontSize: 11, lineHeight: 1.45, color: "rgba(255,255,255,0.66)" }}>
-                    {template.wixAreas.join(" · ")}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {messages.map((message) => (
             <div
               key={message.id}
