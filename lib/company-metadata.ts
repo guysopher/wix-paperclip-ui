@@ -190,13 +190,16 @@ export function mergeCompanyDescription(
 }
 
 export function findCompanyByMsid(companies: Company[], msid: string): Company | null {
+  const activeCompanies = companies.filter((company) => company.status !== "archived");
   const exactMetaMatch =
-    companies.find((company) => parseCompanyDescription(company.description).wixBinding?.metaSiteId === msid) ||
+    activeCompanies.find(
+      (company) => parseCompanyDescription(company.description).wixBinding?.metaSiteId === msid,
+    ) ||
     null;
 
   if (exactMetaMatch) {
     return exactMetaMatch;
   }
 
-  return companies.find((company) => company.id === msid) || null;
+  return activeCompanies.find((company) => company.id === msid) || null;
 }
