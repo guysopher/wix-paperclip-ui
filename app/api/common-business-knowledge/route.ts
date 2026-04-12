@@ -324,13 +324,14 @@ async function fetchLatestInsight(
     },
   });
 
-  const insight =
+  const insights =
     payload &&
     typeof payload === "object" &&
-    Array.isArray((payload as JsonRecord).insights) &&
-    (payload as JsonRecord).insights.length > 0
-      ? (((payload as JsonRecord).insights as Insight[])[0] as Insight)
-      : null;
+    Array.isArray((payload as JsonRecord).insights)
+      ? ((payload as JsonRecord).insights as Insight[])
+      : [];
+
+  const insight = insights.length > 0 ? insights[0] : null;
 
   if (!insight?.content?.trim()) {
     return null;
