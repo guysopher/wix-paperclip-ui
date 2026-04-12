@@ -23,7 +23,7 @@ import {
   getCompany,
   getGoals,
   updateCompany,
-  archiveCompany,
+  deleteCompany,
   createGoal,
   deleteGoal,
   type Company,
@@ -118,7 +118,7 @@ function CompanyContent() {
     if (!company) return;
     setDeleting(true);
     try {
-      await archiveCompany(company.id);
+      await deleteCompany(company.id);
       await refreshCompanies();
       // Switch to another company if available
       const remaining = companies.filter((c) => c.id !== company.id);
