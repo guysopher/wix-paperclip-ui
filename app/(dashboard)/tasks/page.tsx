@@ -59,7 +59,7 @@ const PRIORITY_SKINS: Record<string, "general" | "success" | "warning" | "danger
 };
 
 function TasksContent() {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -83,7 +83,7 @@ function TasksContent() {
     const params = new URLSearchParams(searchParams.toString());
     if (status === "all") params.delete("status");
     else params.set("status", status);
-    router.replace(`/tasks${params.toString() ? `?${params}` : ""}`, { scroll: false });
+    router.replace(companyPath(`/tasks${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
 
   const load = useCallback(async () => {
@@ -115,7 +115,7 @@ function TasksContent() {
   // Redirect ?issue=AGE-8 to detail page
   const issueParam = searchParams.get("issue");
   if (issueParam) {
-    router.replace(`/tasks/${issueParam}`);
+    router.replace(companyPath(`/tasks/${issueParam}`));
     return null;
   }
 
@@ -199,7 +199,7 @@ function TasksContent() {
           });
         }
 
-        return id ? <a href={`/team/${id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
+        return id ? <a href={companyPath(`/team/${id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
       },
       width: "20%",
     },
@@ -225,7 +225,7 @@ function TasksContent() {
     {
       title: "",
       render: (row: Issue) => (
-        <a href={`/tasks/${row.identifier}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>View</a>
+        <a href={companyPath(`/tasks/${row.identifier}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>View</a>
       ),
       width: "10%",
     },

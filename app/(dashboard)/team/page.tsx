@@ -54,7 +54,7 @@ const MODEL_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 function TeamContent() {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -66,7 +66,7 @@ function TeamContent() {
   // Redirect ?agent=xxx to /team/xxx
   const agentParam = searchParams.get("agent");
   if (agentParam) {
-    router.replace(`/team/${agentParam}`);
+    router.replace(companyPath(`/team/${agentParam}`));
     return null;
   }
 
@@ -185,7 +185,8 @@ function TeamContent() {
       render: (row: Agent) => {
         if (row.status === "running") {
           return (
-            <a href={`/runs?agent=${row.id}&status=running`} style={{ textDecoration: "none" }}>
+            <a href={companyPath(`/runs?agent=${row.id}&status=running`)} style={{ textDecoration: "none" }}>
+            <a href={companyPath(`/runs?agent=${row.id}&status=running`)} style={{ textDecoration: "none" }}>
               <Badge size="tiny" skin="success">Working</Badge>
             </a>
           );
@@ -206,7 +207,7 @@ function TeamContent() {
                 >
                   {retrying === row.id ? "..." : "Retry"}
                 </button>
-                <a href={`/runs?agent=${row.id}`} style={{ fontSize: 11, color: "#999", textDecoration: "none" }}>
+                <a href={companyPath(`/runs?agent=${row.id}`)} style={{ fontSize: 11, color: "#999", textDecoration: "none" }}>
                   Runs
                 </a>
               </div>
@@ -227,7 +228,7 @@ function TeamContent() {
     {
       title: "",
       render: (row: Agent) => (
-        <a href={`/team/${row.id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>
+        <a href={companyPath(`/team/${row.id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>
           View
         </a>
       ),

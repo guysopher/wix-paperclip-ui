@@ -127,7 +127,7 @@ function agentStatusText(agent: Agent): string {
 
 function DashboardContent() {
   const router = useRouter();
-  const { companyId, companies, setCompanyId } = useCompany();
+  const { companyId, companies, setCompanyId, companyPath } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
@@ -651,7 +651,7 @@ function DashboardContent() {
           <Button
             size="small"
             priority="secondary"
-            onClick={() => window.location.href = "/inbox"}
+            onClick={() => window.location.href = companyPath("/inbox")}
           >
             View Inbox {dashboard.tasks.open > 0 && `(${dashboard.tasks.open})`}
           </Button>
@@ -771,7 +771,7 @@ function DashboardContent() {
                     }
                   </div>
                 </div>
-                <a href="/team" style={{
+                <a href={companyPath("/team")} style={{
                   color: "#3899ec",
                   textDecoration: "none",
                   fontSize: 13,
@@ -830,7 +830,7 @@ function DashboardContent() {
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = "#fafbfc"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                      onClick={() => window.location.href = agent.status === "running" ? `/runs?agent=${agent.id}` : `/team/${agent.id}`}
+                      onClick={() => window.location.href = companyPath(agent.status === "running" ? `/runs?agent=${agent.id}` : `/team/${agent.id}`)}
                     >
                       {/* Status indicator */}
                       <div style={{ position: "relative" }}>
@@ -958,7 +958,7 @@ function DashboardContent() {
                 <Card>
                   <Card.Header
                     title={`${doneIssues.length} Completed`}
-                    suffix={<a href="/tasks?status=done" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>}
+                    suffix={<a href={companyPath("/tasks?status=done")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>}
                   />
                   <Card.Content>
                     {doneIssues.slice(0, 5).map((issue, i) => {
@@ -972,7 +972,7 @@ function DashboardContent() {
                       return (
                         <a
                           key={issue.id}
-                          href={`/tasks/${issue.identifier}`}
+                          href={companyPath(`/tasks/${issue.identifier}`)}
                           style={{
                             display: "flex",
                             gap: 12,
@@ -1013,7 +1013,7 @@ function DashboardContent() {
                     })}
                     {doneIssues.length > 5 && (
                       <div style={{ padding: "10px 0", textAlign: "center" }}>
-                        <a href="/tasks?status=done" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
+                        <a href={companyPath("/tasks?status=done")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
                           See all achievements →
                         </a>
                       </div>
@@ -1032,7 +1032,7 @@ function DashboardContent() {
                 suffix={
                   <Box direction="horizontal" gap="12px" verticalAlign="middle">
                     <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>Create Task</Button>
-                    <a href="/tasks" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>
+                    <a href={companyPath("/tasks")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>
                   </Box>
                 }
               />
@@ -1064,7 +1064,7 @@ function DashboardContent() {
                     return (
                       <a
                         key={issue.id}
-                        href={`/tasks/${issue.identifier}`}
+                        href={companyPath(`/tasks/${issue.identifier}`)}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
                       >
                         <div style={{ flex: 1 }}>
@@ -1149,7 +1149,7 @@ function DashboardContent() {
                         return agentEntries.map((agent) => (
                           <div key={agent.id}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                              <a href={`/team/${agent.id}`} style={{ fontSize: 13, fontWeight: 500, color: "#162d3d", textDecoration: "none" }}>{agent.name}</a>
+                              <a href={companyPath(`/team/${agent.id}`)} style={{ fontSize: 13, fontWeight: 500, color: "#162d3d", textDecoration: "none" }}>{agent.name}</a>
                               <div style={{ fontSize: 12, color: "#666" }}>
                                 {(agent.total / 1000).toFixed(1)}k tokens · {agent.runs} runs
                               </div>
@@ -1187,7 +1187,7 @@ function DashboardContent() {
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <Text size="medium" weight="bold">Recent Activity</Text>
-                  <a href="/activity" style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>See all →</a>
+                  <a href={companyPath("/activity")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>See all →</a>
                 </div>
                 <Card>
                   <Card.Content>
@@ -1204,7 +1204,7 @@ function DashboardContent() {
                           padding: "10px 0",
                           borderBottom: idx < latestRuns.length - 1 ? "1px solid #f0f0f0" : "none"
                         }}>
-                          <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
+                          <a href={companyPath(`/team/${run.agentId}`)} style={{ textDecoration: "none", flexShrink: 0 }}>
                             <AgentAvatar
                               agentName={agentName}
                               agentRole={agent?.role}
@@ -1215,7 +1215,7 @@ function DashboardContent() {
                           </a>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                              <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", color: "inherit", fontWeight: 600, fontSize: 13 }}>{agentName}</a>
+                              <a href={companyPath(`/team/${run.agentId}`)} style={{ textDecoration: "none", color: "inherit", fontWeight: 600, fontSize: 13 }}>{agentName}</a>
                               <Badge size="tiny" skin={FEED_STATUS_SKINS[run.status] || "general"}>{FEED_STATUS_LABELS[run.status] || run.status}</Badge>
                               <span style={{ fontSize: 11, color: "#bbb" }}>· {timeAgo(run.createdAt)}</span>
                             </div>
@@ -1232,7 +1232,7 @@ function DashboardContent() {
                               <span style={{ fontSize: 11, color: "#ccc", fontStyle: "italic" }}>No summary</span>
                             )}
                           </div>
-                          <a href={`/runs/${run.id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 12, fontWeight: 500, flexShrink: 0 }}>View</a>
+                          <a href={companyPath(`/runs/${run.id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 12, fontWeight: 500, flexShrink: 0 }}>View</a>
                         </div>
                       );
                     })}

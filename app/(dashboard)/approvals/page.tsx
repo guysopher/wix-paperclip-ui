@@ -190,7 +190,7 @@ function HireAgentDetails({ payload }: { payload: Record<string, unknown> }) {
 }
 
 function ApprovalsContent() {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -202,7 +202,7 @@ function ApprovalsContent() {
     const params = new URLSearchParams(searchParams.toString());
     if (status === "pending") params.delete("status");
     else params.set("status", status);
-    router.replace(`/approvals${params.toString() ? `?${params}` : ""}`, { scroll: false });
+    router.replace(companyPath(`/approvals${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
   const [acting, setActing] = useState<string | null>(null);
 
@@ -270,7 +270,7 @@ function ApprovalsContent() {
         },
       });
       setSelected(null);
-      router.push(`/team/${newAgent.id}`);
+      router.push(companyPath(`/team/${newAgent.id}`));
     } catch (e) {
       console.error("Force hire failed:", e);
       alert(e instanceof Error ? e.message : "Failed to hire agent");

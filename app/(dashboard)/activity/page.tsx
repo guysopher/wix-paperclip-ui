@@ -65,7 +65,7 @@ function NarrativeSkeleton() {
   );
 }
 
-function PostCard({ post }: { post: FeedPost }) {
+function PostCard({ post, companyPath }: { post: FeedPost; companyPath: (path: string) => string }) {
   const { run, agent, narrative } = post;
   const agentName = agent?.name || "Unknown";
   const usage = parseUsage(run.usageJson);
@@ -85,7 +85,7 @@ function PostCard({ post }: { post: FeedPost }) {
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
-        <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", flexShrink: 0 }}>
+        <a href={companyPath(`/team/${run.agentId}`)} style={{ textDecoration: "none", flexShrink: 0 }}>
           <AgentAvatar
             agentName={agentName}
             agentRole={agent?.role}
@@ -96,7 +96,7 @@ function PostCard({ post }: { post: FeedPost }) {
         </a>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <a href={`/team/${run.agentId}`} style={{ textDecoration: "none", color: "inherit" }}>
+            <a href={companyPath(`/team/${run.agentId}`)} style={{ textDecoration: "none", color: "inherit" }}>
               <Text size="medium" weight="bold">{agentName}</Text>
             </a>
             {agent?.title && agent.title !== agentName && (
@@ -155,7 +155,7 @@ function PostCard({ post }: { post: FeedPost }) {
           </>
         )}
         <div style={{ flex: 1 }} />
-        <a href={`/runs/${run.id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13, fontWeight: 500 }}>
+        <a href={companyPath(`/runs/${run.id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13, fontWeight: 500 }}>
           View run →
         </a>
       </div>
@@ -164,7 +164,7 @@ function PostCard({ post }: { post: FeedPost }) {
 }
 
 export default function ActivityPage() {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -271,7 +271,7 @@ export default function ActivityPage() {
           <div style={{ maxWidth: 680, margin: "0 auto" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {pagePosts.map((post) => (
-                <PostCard key={post.run.id} post={post} />
+              <PostCard key={post.run.id} post={post} companyPath={companyPath} />
               ))}
             </div>
             {totalPages > 1 && (

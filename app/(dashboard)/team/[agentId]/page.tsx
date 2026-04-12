@@ -89,7 +89,7 @@ const SCHEDULE_OPTIONS = [
 ];
 
 function AgentDetailContent({ agentId }: { agentId: string }) {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const router = useRouter();
 
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -179,7 +179,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
       await invokeHeartbeat(agent.id);
     } finally {
       setActing(false);
-      router.push("/runs");
+      router.push(companyPath("/runs"));
     }
   };
 

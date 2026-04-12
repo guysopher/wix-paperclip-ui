@@ -88,7 +88,7 @@ function parseUsage(usageJson: string | null): { cost: string; tokens: string } 
 }
 
 function RunsContent() {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [runs, setRuns] = useState<HeartbeatRun[]>([]);
@@ -101,14 +101,14 @@ function RunsContent() {
 
   const runParam = searchParams.get("run");
   useEffect(() => {
-    if (runParam) router.replace(`/runs/${runParam}`);
-  }, [runParam, router]);
+    if (runParam) router.replace(companyPath(`/runs/${runParam}`));
+  }, [companyPath, runParam, router]);
 
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "all") params.delete(key);
     else params.set(key, value);
-    router.replace(`/runs${params.toString() ? `?${params}` : ""}`, { scroll: false });
+    router.replace(companyPath(`/runs${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
 
   const load = useCallback(async () => {
@@ -146,7 +146,7 @@ function RunsContent() {
     {
       title: "Agent",
       render: (row: HeartbeatRun) => (
-        <a href={`/team/${row.agentId}`} style={{ textDecoration: "none", color: "inherit" }}>
+        <a href={companyPath(`/team/${row.agentId}`)} style={{ textDecoration: "none", color: "inherit" }}>
           <Box direction="horizontal" gap="8px" verticalAlign="middle">
             <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#3899ec", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
               {agentName(row.agentId).charAt(0)}
@@ -204,7 +204,7 @@ function RunsContent() {
     {
       title: "",
       render: (row: HeartbeatRun) => (
-        <a href={`/runs/${row.id}`} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>
+        <a href={companyPath(`/runs/${row.id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>
           View
         </a>
       ),

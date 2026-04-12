@@ -63,7 +63,7 @@ const PRIORITY_SKINS: Record<
 };
 
 function TaskDetailContent({ identifier }: { identifier: string }) {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const [issue, setIssue] = useState<Issue | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -343,7 +343,7 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
                         >
                           {isAgent && c.authorAgentId ? (
                             <a
-                              href={`/team/${c.authorAgentId}`}
+                              href={companyPath(`/team/${c.authorAgentId}`)}
                               style={{
                                 fontSize: 14,
                                 fontWeight: 600,

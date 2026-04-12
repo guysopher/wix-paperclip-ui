@@ -32,6 +32,7 @@ import {
 import { useCompany, Providers } from "../providers";
 import { IconPicker } from "@/components/icon-picker";
 import { AgentAvatar } from "@/components/agent-avatar";
+import { useMsidPath } from "@/lib/msid-client";
 
 // --- Hardcoded Wix sites ---
 interface WixSite {
@@ -261,6 +262,7 @@ function SkeletonCard() {
 
 function OnboardingFlow() {
   const router = useRouter();
+  const msidPath = useMsidPath();
   const { setCompanyId, refreshCompanies } = useCompany();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -484,7 +486,7 @@ function OnboardingFlow() {
 
       // Brief delay for the transition feel
       setTimeout(() => {
-        router.push("/");
+        router.push(msidPath("/"));
       }, 1500);
     } catch {
       setHiring(false);

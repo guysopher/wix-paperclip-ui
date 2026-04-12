@@ -2,7 +2,9 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { WixDesignSystemProvider } from "@wix/design-system";
-import { getCompanies, getMyIssues, getIssuesAssignedToMe, getIssues, getRuns, getApprovals, getAgents, cancelHeartbeatRun, type Company } from "@/lib/api";
+import { getCompany, getMyIssues, getIssuesAssignedToMe, getIssues, getRuns, getApprovals, getAgents, type Company } from "@/lib/api";
+import { useMsid } from "@/lib/msid-client";
+import { normalizeMsid, withMsid } from "@/lib/msid";
 
 export interface BadgeCounts {
   inbox: number;      // unread needs-reply
@@ -17,11 +19,20 @@ const BadgeCountsContext = createContext<BadgeCounts>({ inbox: 0, runs: 0, tasks
 
 export const useBadgeCounts = () => useContext(BadgeCountsContext);
 
+export type CompanyLookupStatus =
+  | "loading"
+  | "ready"
+  | "missing-msid"
+  | "company-missing";
+
 // Company context
 interface CompanyContextValue {
   companyId: string;
   companies: Company[];
+  msid: string | null;
+  companyLookupStatus: CompanyLookupStatus;
   setCompanyId: (id: string) => void;
+  companyPath: (path: string) => string;
   refreshCompanies: () => Promise<void>;
   wizardOpen: boolean;
   openCreateWizard: () => void;
@@ -31,7 +42,10 @@ interface CompanyContextValue {
 const CompanyContext = createContext<CompanyContextValue>({
   companyId: "",
   companies: [],
+  msid: null,
+  companyLookupStatus: "loading",
   setCompanyId: () => {},
+  companyPath: (path) => path,
   refreshCompanies: async () => {},
   wizardOpen: false,
   openCreateWizard: () => {},
@@ -41,47 +55,52 @@ const CompanyContext = createContext<CompanyContextValue>({
 export const useCompany = () => useContext(CompanyContext);
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const msid = useMsid();
   const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [companyLookupStatus, setCompanyLookupStatus] = useState<CompanyLookupStatus>("loading");
   const [wizardOpen, setWizardOpen] = useState(false);
   const openCreateWizard = useCallback(() => setWizardOpen(true), []);
   const closeCreateWizard = useCallback(() => setWizardOpen(false), []);
 
   const loadCompanies = useCallback(async () => {
+    const normalizedMsid = normalizeMsid(msid);
+
+    if (!normalizedMsid) {
+      setCompanies([]);
+      setSelectedCompanyId("");
+      setCounts({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
+      setCompanyLookupStatus("missing-msid");
+      return;
+    }
+
+    setCompanyLookupStatus("loading");
     try {
-      const all = await getCompanies();
-      const list = all.filter((c) => c.status !== "archived");
-      setCompanies(list);
-      if (list.length > 0) {
-        const stored = typeof window !== "undefined" ? localStorage.getItem("selectedCompanyId") : null;
-        const match = stored && list.find((c) => c.id === stored);
-        if (!selectedCompanyId || !list.find((c) => c.id === selectedCompanyId)) {
-          setSelectedCompanyId(match ? match.id : list[0].id);
-        }
-      }
-    } catch { /* silent */ }
-  }, []);
+      const company = await getCompany(normalizedMsid);
+      setCompanies([company]);
+      setSelectedCompanyId(company.id);
+      setCompanyLookupStatus("ready");
+    } catch {
+      setCompanies([]);
+      setSelectedCompanyId("");
+      setCounts({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
+      setCompanyLookupStatus("company-missing");
+    }
+  }, [msid]);
 
   const handleSetCompanyId = useCallback((id: string) => {
     setSelectedCompanyId(id);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("selectedCompanyId", id);
-    }
   }, []);
+  const companyPath = useCallback((path: string) => withMsid(path, msid), [msid]);
 
   useEffect(() => {
-    // Load stored company id from localStorage on mount
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("selectedCompanyId");
-      if (stored) setSelectedCompanyId(stored);
-    }
     loadCompanies();
   }, [loadCompanies]);
 
   const refresh = useCallback(async () => {
     try {
-      if (!selectedCompanyId) return;
+      if (!selectedCompanyId || companyLookupStatus !== "ready") return;
       const companyId = selectedCompanyId;
       const [myIssues, assignedToMe, allIssues, runs, approvalList, agentList] = await Promise.all([
         getMyIssues(companyId),
@@ -109,16 +128,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const teamSize = agentList.length;
       setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, approvals: pendingApprovals, chat: 0, team: teamSize });
     } catch { /* silent */ }
-  }, [selectedCompanyId]);
+  }, [companyLookupStatus, selectedCompanyId]);
 
   useEffect(() => {
+    if (companyLookupStatus !== "ready") {
+      return;
+    }
     refresh();
     const id = setInterval(refresh, 30000);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [companyLookupStatus, refresh]);
 
   return (
-    <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, setCompanyId: handleSetCompanyId, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>
+    <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, msid, companyLookupStatus, setCompanyId: handleSetCompanyId, companyPath, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>
       <BadgeCountsContext.Provider value={counts}>
         <WixDesignSystemProvider>{children}</WixDesignSystemProvider>
       </BadgeCountsContext.Provider>

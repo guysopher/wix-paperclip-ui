@@ -14,7 +14,7 @@ interface ChatMessage {
 }
 
 export function CeoChatPanel({ onClose }: { onClose: () => void }) {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -179,7 +179,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
                     {m.actions.map((action, j) => (
                       <a
                         key={j}
-                        href={action.identifier ? `/tasks/${action.identifier}` : "/tasks"}
+                        href={companyPath(action.identifier ? `/tasks/${action.identifier}` : "/tasks")}
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "6px 12px", background: "#f0f5ff", border: "1px solid #d0e0ff",

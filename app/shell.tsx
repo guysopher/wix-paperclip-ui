@@ -45,7 +45,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const counts = useBadgeCounts();
-  const { companyId, companies, setCompanyId, refreshCompanies, wizardOpen, openCreateWizard, closeCreateWizard } = useCompany();
+  const { companyId, companies, setCompanyId, companyPath, refreshCompanies, wizardOpen, closeCreateWizard } = useCompany();
   const [chatOpen, setChatOpen] = useState(() => {
     // Load chat open state from localStorage
     if (typeof window !== 'undefined') {
@@ -72,7 +72,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return (
       <button
         key={item.key}
-        onClick={() => { router.push(item.key); setMenuOpen(false); }}
+        onClick={() => { router.push(companyPath(item.key)); setMenuOpen(false); }}
         style={{
           display: "flex",
           alignItems: "center",

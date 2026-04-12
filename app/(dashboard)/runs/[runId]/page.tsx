@@ -54,7 +54,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 function RunDetailContent({ runId }: { runId: string }) {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const [run, setRun] = useState<HeartbeatRun | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
@@ -191,7 +191,7 @@ function RunDetailContent({ runId }: { runId: string }) {
                 <div>
                   <div style={{ fontSize: 11, color: "#999", marginBottom: 4 }}>Agent</div>
                   <a
-                    href={`/team/${run.agentId}`}
+                    href={companyPath(`/team/${run.agentId}`)}
                     style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}
                   >
                     {agentName(run.agentId)}

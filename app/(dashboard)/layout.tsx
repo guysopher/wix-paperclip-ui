@@ -1,7 +1,7 @@
 "use client";
 
 import { Providers } from "../providers";
-import { Shell } from "../shell";
+import { DashboardGate } from "./dashboard-gate";
 
 export default function DashboardLayout({
   children,
@@ -10,7 +10,7 @@ export default function DashboardLayout({
 }) {
   return (
     <Providers>
-      <Shell>{children}</Shell>
+      <DashboardGate>{children}</DashboardGate>
     </Providers>
   );
 }

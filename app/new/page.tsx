@@ -16,10 +16,12 @@ import {
   updateCompany,
   createGoal,
   createIssue,
-  postComment,
   invokeHeartbeat,
   type Agent,
 } from "@/lib/api";
+import { MetasiteIdEntry } from "@/components/metasite-id-entry";
+import { useMsid } from "@/lib/msid-client";
+import { withMsid } from "@/lib/msid";
 
 const CEO_PROMPT = `You are the CEO of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
 
@@ -116,12 +118,6 @@ GOAL PROGRESS: After every run, assess each active company goal's progress (0-10
 /* ─── Helpers ─── */
 
 const URL_RE = /https?:\/\/[^\s,)]+/g;
-const BM_RE = /manage\.wix\.com\/(?:dashboard\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
-
-function extractMSID(text: string): string | null {
-  const m = text.match(BM_RE);
-  return m ? m[1] : null;
-}
 
 interface ChatMessage {
   role: "ceo" | "user";
@@ -130,8 +126,7 @@ interface ChatMessage {
 }
 
 async function fetchUrlContent(text: string): Promise<string | undefined> {
-  // Skip manage.wix.com links — they require auth and return nothing useful
-  const urls = text.match(URL_RE)?.filter((u) => !BM_RE.test(u));
+  const urls = text.match(URL_RE);
   if (!urls || urls.length === 0) return undefined;
   const results: string[] = [];
   for (const url of urls.slice(0, 2)) {
@@ -148,11 +143,11 @@ async function fetchUrlContent(text: string): Promise<string | undefined> {
   return results.length > 0 ? results.join("\n\n") : undefined;
 }
 
-async function getCeoResponse(messages: ChatMessage[]): Promise<string> {
+async function getCeoResponse(messages: ChatMessage[], msid: string): Promise<string> {
   const res = await fetch("/api/ceo-interview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, msid }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
@@ -182,29 +177,77 @@ async function summarizeInterview(messages: ChatMessage[]): Promise<InterviewSum
 
 export default function NewCompanyPage() {
   const router = useRouter();
+  const msid = useMsid();
   const [phase, setPhase] = useState<"interview" | "finalizing">("interview");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [ceoTyping, setCeoTyping] = useState(true); // start typing immediately
   const [companyCreated, setCompanyCreated] = useState(false);
-  const [metasiteId, setMetasiteId] = useState<string | null>(null);
+  const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
+  const [requestedCompanyExists, setRequestedCompanyExists] = useState(false);
   const [error, setError] = useState("");
   const creationRef = useRef<Promise<{ companyId: string; ceoAgent: Agent } | null> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Kick off the CEO's opening message on mount
   useEffect(() => {
+    let cancelled = false;
+
+    setPhase("interview");
+    setMessages([]);
+    setInputValue("");
+    setCompanyCreated(false);
+    setRequestedCompanyExists(false);
+    setError("");
+    creationRef.current = null;
+
+    if (!msid) {
+      setBootstrapState("missing-msid");
+      setCeoTyping(false);
+      return;
+    }
+
+    setBootstrapState("checking");
+    setCeoTyping(true);
+
     (async () => {
       try {
-        const text = await getCeoResponse([]);
+        const res = await fetch(`/api/paperclip/companies/${encodeURIComponent(msid)}`);
+        if (!cancelled && res.ok) {
+          setRequestedCompanyExists(true);
+          router.replace(withMsid("/", msid));
+          return;
+        }
+      } catch {
+        // Fall through to interview mode.
+      }
+
+      if (!cancelled) {
+        setBootstrapState("ready");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [msid, router]);
+
+  // Kick off the CEO's opening message once we know we're creating a new company.
+  useEffect(() => {
+    if (bootstrapState !== "ready" || !msid || messages.length > 0) {
+      return;
+    }
+
+    (async () => {
+      try {
+        const text = await getCeoResponse([], msid);
         setMessages([{ role: "ceo", text }]);
       } catch {
         setMessages([{ role: "ceo", text: "Hey! I'm your CEO candidate — ready to make things happen. What's the name of your business?" }]);
       }
       setCeoTyping(false);
     })();
-  }, []);
+  }, [bootstrapState, messages.length, msid]);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -246,21 +289,13 @@ export default function NewCompanyPage() {
 
   /* User sends a message */
   const handleSend = async () => {
-    if (!inputValue.trim() || ceoTyping) return;
+    if (!inputValue.trim() || ceoTyping || !msid) return;
     const userText = inputValue.trim();
     setInputValue("");
 
     const userMsg: ChatMessage = { role: "user", text: userText };
-
-    // Detect Wix BM link — extract MSID and inject as context instead of fetching (requires auth)
-    const msid = extractMSID(userText);
-    if (msid && !metasiteId) {
-      setMetasiteId(msid);
-      userMsg.fetchedContent = `[Wix metasite connected — Site ID: ${msid}. Dashboard: https://manage.wix.com/dashboard/${msid}]`;
-    } else {
-      const fetchedContent = await fetchUrlContent(userText);
-      if (fetchedContent) userMsg.fetchedContent = fetchedContent;
-    }
+    const fetchedContent = await fetchUrlContent(userText);
+    if (fetchedContent) userMsg.fetchedContent = fetchedContent;
 
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
@@ -274,7 +309,7 @@ export default function NewCompanyPage() {
 
     setCeoTyping(true);
     try {
-      const ceoText = await getCeoResponse(updatedMessages);
+      const ceoText = await getCeoResponse(updatedMessages, msid);
       setMessages((prev) => [...prev, { role: "ceo", text: ceoText }]);
     } catch {
       setError("Failed to get response. Please try again.");
@@ -284,6 +319,10 @@ export default function NewCompanyPage() {
 
   /* Finalize: extract info from interview, seed company, switch to dashboard */
   const handleHire = async () => {
+    if (!msid) {
+      return;
+    }
+
     setPhase("finalizing");
     try {
       // 1. Wait for background company creation (or create now)
@@ -312,21 +351,11 @@ export default function NewCompanyPage() {
         };
       }
 
-      // 3. Update company name, description, and metasite
+      // 3. Update company name and description
       await updateCompany(companyId, {
         name: summary.companyName,
         description: summary.description,
-        ...(metasiteId ? { metasiteId } : {}),
       });
-
-      // Save metasite config so agents can access it (works locally; gracefully fails on Vercel)
-      if (metasiteId) {
-        fetch("/api/wix-config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, siteId: metasiteId, siteName: summary.companyName }),
-        }).catch(() => {});
-      }
 
       // 4. Create goals from the interview
       for (const goal of summary.goals) {
@@ -366,8 +395,7 @@ export default function NewCompanyPage() {
       try { await invokeHeartbeat(ceoAgent.id); } catch {}
 
       // 8. Navigate to dashboard
-      localStorage.setItem("selectedCompanyId", companyId);
-      router.push("/");
+      router.push(withMsid("/", companyId));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
       setPhase("interview");
@@ -375,6 +403,26 @@ export default function NewCompanyPage() {
   };
 
   const hasMessages = messages.some((m) => m.role === "user");
+
+  if (bootstrapState === "missing-msid") {
+    return (
+      <MetasiteIdEntry
+        redirectPath="/new"
+        description="Enter the Paperclip company ID you want to open. If it does not exist yet, the CEO interview will create a new company and then redirect you to the company’s real ID."
+        title="Open or Create by msid"
+      />
+    );
+  }
+
+  if (bootstrapState === "checking" || requestedCompanyExists) {
+    return (
+      <WixDesignSystemProvider>
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)" }}>
+          <Loader size="large" />
+        </div>
+      </WixDesignSystemProvider>
+    );
+  }
 
   return (
     <WixDesignSystemProvider>

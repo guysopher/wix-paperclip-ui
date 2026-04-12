@@ -1,8 +1,5 @@
-// Use server-side proxy in production (avoids CORS), direct in local dev
-const API_BASE =
-  typeof window !== "undefined" && window.location.hostname !== "localhost"
-    ? "/api/paperclip"  // Vercel: proxy through Next.js API route
-    : (process.env.NEXT_PUBLIC_PAPERCLIP_API_URL || "/paperclip-api"); // Local: Next.js rewrite
+// Always use the Next.js proxy so browser traffic does not depend on upstream CORS.
+const API_BASE = "/api/paperclip";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -170,7 +167,6 @@ export interface Company {
   spentMonthlyCents: number;
   maxTokensPerHour?: number;
   disableOnDemandWakeup?: boolean;
-  metasiteId?: string;
   createdAt: string;
   updatedAt: string;
 }

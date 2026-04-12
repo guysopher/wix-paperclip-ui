@@ -84,7 +84,7 @@ function DescriptionBlock({ description }: { description: string }) {
 }
 
 function InboxContent() {
-  const { companyId } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -98,7 +98,7 @@ function InboxContent() {
     const params = new URLSearchParams(searchParams.toString());
     if (tabId === 0) params.delete("tab");
     else params.set("tab", TAB_KEYS[tabId]);
-    router.replace(`/inbox${params.toString() ? `?${params}` : ""}`, { scroll: false });
+    router.replace(companyPath(`/inbox${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
 
   const [selected, setSelected] = useState<Issue | null>(null);
@@ -407,7 +407,7 @@ function InboxContent() {
                     <span style={{ fontSize: 12, color: "#999" }}>{selected.identifier}</span>
                     <span style={{ fontSize: 12, color: "#ccc" }}>&middot;</span>
                     {(selected.assigneeAgentId || selected.assigneeId) ? (
-                      <a href={`/team/${selected.assigneeAgentId || selected.assigneeId}`} style={{ fontSize: 12, color: "#3899ec", textDecoration: "none" }}>
+                      <a href={companyPath(`/team/${selected.assigneeAgentId || selected.assigneeId}`)} style={{ fontSize: 12, color: "#3899ec", textDecoration: "none" }}>
                         {agentName(selected.assigneeAgentId || selected.assigneeId)}
                       </a>
                     ) : (
@@ -430,7 +430,7 @@ function InboxContent() {
                       Unarchive
                     </button>
                   )}
-                  <a href={`/tasks/${selected.identifier}`} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, textDecoration: "none", color: "#666", display: "inline-flex", alignItems: "center" }}>
+                  <a href={companyPath(`/tasks/${selected.identifier}`)} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, textDecoration: "none", color: "#666", display: "inline-flex", alignItems: "center" }}>
                     Open task
                   </a>
                 </div>
@@ -485,7 +485,7 @@ function InboxContent() {
                           {/* Author + time */}
                           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
                             {isAgent && c.authorAgentId ? (
-                              <a href={`/team/${c.authorAgentId}`} style={{ fontWeight: 600, fontSize: 13, color: "#3899ec", textDecoration: "none" }}>{author}</a>
+                              <a href={companyPath(`/team/${c.authorAgentId}`)} style={{ fontWeight: 600, fontSize: 13, color: "#3899ec", textDecoration: "none" }}>{author}</a>
                             ) : (
                               <span style={{ fontWeight: 600, fontSize: 13, color: "#333" }}>{author}</span>
                             )}

@@ -1,5 +1,11 @@
 import { redirect } from "next/navigation";
+import { withMsid } from "@/lib/msid";
 
-export default function ChatRedirect() {
-  redirect("/");
+export default async function ChatRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<{ msid?: string }>;
+}) {
+  const { msid } = await searchParams;
+  redirect(withMsid("/", msid));
 }
