@@ -166,7 +166,7 @@ interface BusinessKnowledgeResponse {
 }
 
 async function fetchBusinessKnowledge(msid: string, siteId?: string, siteName?: string, siteUrl?: string): Promise<BusinessKnowledgeResponse | null> {
-  const params = new URLSearchParams({ msid });
+  const params = new URLSearchParams({ msid, metaSiteId: msid });
   if (siteId) params.set("siteId", siteId);
   if (siteName) params.set("siteName", siteName);
   if (siteUrl) params.set("siteUrl", siteUrl);
@@ -447,8 +447,8 @@ function NewCompanyPageContent() {
     return (
       <MetasiteIdEntry
         redirectPath="/new"
-        description="Enter the Paperclip company ID you want to open. If it does not exist yet, the AI Business Manager activation flow will create a new company and then redirect you to the company’s real ID."
-        title="Open or Create by msid"
+        description="Enter the Wix metasite ID you want to activate. The AI Business Manager will use it to pull the site’s common business knowledge before the interview starts."
+        title="Enter the Wix metasite ID"
       />
     );
   }

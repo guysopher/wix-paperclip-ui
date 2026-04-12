@@ -13,7 +13,7 @@ interface Props {
 }
 
 export function MetasiteIdEntry({
-  description = "This UI needs an msid value. In this POC, the msid is the Paperclip company ID.",
+  description = "This UI needs an msid value to know which Wix business context to open.",
   initialValue,
   redirectPath,
   title = "Enter an msid",
@@ -57,7 +57,7 @@ export function MetasiteIdEntry({
 
             <div>
               <Text size="small" weight="bold" style={{ display: "block", marginBottom: 8 }}>
-                msid / Company ID
+                msid
               </Text>
               <Input
                 value={value}
@@ -68,7 +68,7 @@ export function MetasiteIdEntry({
                     handleSubmit();
                   }
                 }}
-                placeholder="Paste the Paperclip company ID"
+                placeholder="Paste the msid value"
                 status={showError ? "error" : undefined}
               />
               {showError && (
