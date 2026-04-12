@@ -20,6 +20,7 @@ import {
 import {
   buildCompanyDescription,
   findCompanyByMsid,
+  getCompanyWixBinding,
   mergeCompanyDescription,
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
@@ -255,6 +256,20 @@ function NewCompanyPageContent() {
     const startActivationSession = async () => {
       try {
         const companies = await getCompanies();
+        const legacyCompanyIdMatch = companies.find((company) => company.id === msid) || null;
+        const legacyMappedMsid = legacyCompanyIdMatch
+          ? getCompanyWixBinding(legacyCompanyIdMatch.description)?.metaSiteId || ""
+          : "";
+
+        if (
+          !cancelled &&
+          legacyMappedMsid &&
+          legacyMappedMsid !== msid
+        ) {
+          router.replace(withMsid("/new", legacyMappedMsid));
+          return;
+        }
+
         const existingCompany = findCompanyByMsid(companies, msid);
         if (!cancelled && existingCompany) {
           if (siteId || siteName || siteUrl) {
