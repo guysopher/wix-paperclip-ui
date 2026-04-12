@@ -13,12 +13,14 @@ import {
   getComments,
   invokeHeartbeat,
   postComment,
+  updateCompany,
   type Agent,
   type Comment,
 } from "@/lib/api";
 import {
   buildCompanyDescription,
   findCompanyByMsid,
+  mergeCompanyDescription,
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
@@ -233,6 +235,18 @@ function NewCompanyPageContent() {
         const companies = await getCompanies();
         const existingCompany = findCompanyByMsid(companies, msid);
         if (!cancelled && existingCompany) {
+          if (siteId || siteName || siteUrl) {
+            await updateCompany(existingCompany.id, {
+              description: mergeCompanyDescription(existingCompany.description, {
+                wixBinding: {
+                  metaSiteId: msid,
+                  siteId: siteId || undefined,
+                  siteName: siteName || undefined,
+                  siteUrl: siteUrl || undefined,
+                },
+              }),
+            }).catch(() => undefined);
+          }
           setRequestedCompanyExists(true);
           router.replace(withMsid("/", msid));
           return;
@@ -246,11 +260,13 @@ function NewCompanyPageContent() {
           name: getDraftCompanyName(siteName, msid),
           description: buildCompanyDescription({
             version: 1,
-            metaSiteId: msid,
             businessDescription: "",
-            siteId: siteId || undefined,
-            siteName: siteName || undefined,
-            siteUrl: siteUrl || undefined,
+            wixBinding: {
+              metaSiteId: msid,
+              siteId: siteId || undefined,
+              siteName: siteName || undefined,
+              siteUrl: siteUrl || undefined,
+            },
           }),
         });
 
@@ -278,6 +294,14 @@ function NewCompanyPageContent() {
           priority: "high",
           assigneeAgentId: ceoAgent.id,
         });
+
+        await updateCompany(company.id, {
+          description: mergeCompanyDescription(company.description, {
+            wixBinding: {
+              activationIssueId: inboxIssue.id,
+            },
+          }),
+        }).catch(() => undefined);
 
         await postComment(
           inboxIssue.id,

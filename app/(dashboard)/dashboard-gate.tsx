@@ -20,7 +20,7 @@ export function DashboardGate({ children }: { children: React.ReactNode }) {
 
   if (companyLookupStatus === "missing-msid") {
     return (
-      <MetasiteIdEntry description="Paste the Paperclip company ID you want this business manager to operate on." />
+      <MetasiteIdEntry description="Paste the Wix metasite ID you want this business manager to operate on." />
     );
   }
 
