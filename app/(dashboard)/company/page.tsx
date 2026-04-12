@@ -29,6 +29,11 @@ import {
   type Company,
   type Goal,
 } from "@/lib/api";
+import {
+  buildCompanyDescription,
+  getCompanyBusinessDescription,
+  parseCompanyDescription,
+} from "@/lib/company-metadata";
 
 function CompanyContent() {
   const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
@@ -60,7 +65,7 @@ function CompanyContent() {
     const c = await getCompany(companyId);
     setCompany(c);
     setEditName(c.name);
-    setEditDescription(c.description);
+    setEditDescription(getCompanyBusinessDescription(c.description));
     setEditPrefix(c.issuePrefix);
     setEditMaxTokensPerHour(String(c.maxTokensPerHour ?? 0));
     setEditDisableOnDemandWakeup(c.disableOnDemandWakeup ?? false);
@@ -77,7 +82,10 @@ function CompanyContent() {
     try {
       const updated = await updateCompany(company.id, {
         name: editName,
-        description: editDescription,
+        description: buildCompanyDescription({
+          ...parseCompanyDescription(company.description),
+          businessDescription: editDescription,
+        }),
         issuePrefix: editPrefix,
         maxTokensPerHour: parseInt(editMaxTokensPerHour) || 0,
         disableOnDemandWakeup: editDisableOnDemandWakeup,
@@ -135,7 +143,7 @@ function CompanyContent() {
 
   const hasChanges =
     editName !== company.name ||
-    editDescription !== company.description ||
+    editDescription !== getCompanyBusinessDescription(company.description) ||
     editPrefix !== company.issuePrefix ||
     parseInt(editMaxTokensPerHour) !== (company.maxTokensPerHour ?? 0) ||
     editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false);

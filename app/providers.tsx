@@ -2,7 +2,17 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { WixDesignSystemProvider } from "@wix/design-system";
-import { getCompany, getMyIssues, getIssuesAssignedToMe, getIssues, getRuns, getApprovals, getAgents, type Company } from "@/lib/api";
+import {
+  getCompanies,
+  getMyIssues,
+  getIssuesAssignedToMe,
+  getIssues,
+  getRuns,
+  getApprovals,
+  getAgents,
+  type Company,
+} from "@/lib/api";
+import { findCompanyByMsid } from "@/lib/company-metadata";
 import { useMsid } from "@/lib/msid-client";
 import { normalizeMsid, withMsid } from "@/lib/msid";
 
@@ -77,7 +87,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     setCompanyLookupStatus("loading");
     try {
-      const company = await getCompany(normalizedMsid);
+      const allCompanies = await getCompanies();
+      const company = findCompanyByMsid(allCompanies, normalizedMsid);
+
+      if (!company) {
+        throw new Error("Company not found for metasite");
+      }
+
       setCompanies([company]);
       setSelectedCompanyId(company.id);
       setCompanyLookupStatus("ready");

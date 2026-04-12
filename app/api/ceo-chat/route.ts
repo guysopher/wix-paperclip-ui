@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getCompanyBusinessDescription } from "@/lib/company-metadata";
 
 const client = new OpenAI();
 
@@ -88,7 +89,7 @@ async function buildSystemPrompt(companyId: string): Promise<string> {
   return `You are the AI Business Manager of ${company.name}. The board member (human) is calling you for a quick chat. This is like a phone call — be fast, direct, and helpful.
 
 ABOUT THE COMPANY:
-${company.description || "No description set."}
+${getCompanyBusinessDescription(company.description) || "No description set."}
 
 YOUR TEAM (${agents.length} agents):
 ${teamList || "No agents hired yet."}

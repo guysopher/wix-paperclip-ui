@@ -9,12 +9,17 @@ import {
   createAgent,
   createCompany,
   createIssue,
+  getCompanies,
   getComments,
   invokeHeartbeat,
   postComment,
   type Agent,
   type Comment,
 } from "@/lib/api";
+import {
+  buildCompanyDescription,
+  findCompanyByMsid,
+} from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
@@ -225,8 +230,9 @@ function NewCompanyPageContent() {
 
     const startActivationSession = async () => {
       try {
-        const existingCompanyResponse = await fetch(`/api/paperclip/companies/${encodeURIComponent(msid)}`);
-        if (!cancelled && existingCompanyResponse.ok) {
+        const companies = await getCompanies();
+        const existingCompany = findCompanyByMsid(companies, msid);
+        if (!cancelled && existingCompany) {
           setRequestedCompanyExists(true);
           router.replace(withMsid("/", msid));
           return;
@@ -238,7 +244,14 @@ function NewCompanyPageContent() {
       try {
         const company = await createCompany({
           name: getDraftCompanyName(siteName, msid),
-          description: `Draft Wix business workspace for metasite ${msid}.`,
+          description: buildCompanyDescription({
+            version: 1,
+            metaSiteId: msid,
+            businessDescription: "",
+            siteId: siteId || undefined,
+            siteName: siteName || undefined,
+            siteUrl: siteUrl || undefined,
+          }),
         });
 
         const ceoAgent = await createAgent(company.id, {
@@ -388,10 +401,10 @@ function NewCompanyPageContent() {
   };
 
   const handleOpenWorkspace = () => {
-    if (!activationSession) {
+    if (!activationSession || !msid) {
       return;
     }
-    router.push(withMsid("/", activationSession.companyId));
+    router.push(withMsid("/", msid));
   };
 
   const handleRetry = () => {
