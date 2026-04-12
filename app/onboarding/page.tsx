@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { WixDesignSystemProvider } from "@wix/design-system";
 import {
@@ -895,8 +895,10 @@ function OnboardingFlow() {
 
 export default function OnboardingPage() {
   return (
-    <Providers>
-      <OnboardingFlow />
-    </Providers>
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#fff" }} />}>
+      <Providers>
+        <OnboardingFlow />
+      </Providers>
+    </Suspense>
   );
 }

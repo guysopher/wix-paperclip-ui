@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Suspense, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -175,7 +175,7 @@ async function summarizeInterview(messages: ChatMessage[]): Promise<InterviewSum
 
 /* ─── Page component ─── */
 
-export default function NewCompanyPage() {
+function NewCompanyPageContent() {
   const router = useRouter();
   const msid = useMsid();
   const [phase, setPhase] = useState<"interview" | "finalizing">("interview");
@@ -575,5 +575,13 @@ export default function NewCompanyPage() {
         )}
       </div>
     </WixDesignSystemProvider>
+  );
+}
+
+export default function NewCompanyPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)" }} />}>
+      <NewCompanyPageContent />
+    </Suspense>
   );
 }
