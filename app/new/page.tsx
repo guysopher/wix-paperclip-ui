@@ -1,59 +1,55 @@
 "use client";
 
-import { Suspense, useState, useRef, useEffect } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Button,
-  Loader,
-  Text,
-} from "@wix/design-system";
+import { Button, Loader, Text } from "@wix/design-system";
 import { WixDesignSystemProvider } from "@wix/design-system";
 import { Send } from "@wix/wix-ui-icons-common";
 import {
-  createCompany,
   createAgent,
-  updateAgent,
-  updateCompany,
-  createGoal,
+  createCompany,
   createIssue,
+  getComments,
   invokeHeartbeat,
+  postComment,
   type Agent,
+  type Comment,
 } from "@/lib/api";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
 import { AGENT_TEMPLATES } from "@/lib/agent-templates";
 
-const CEO_PROMPT = `You are the AI Business Manager of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
+const AIBM_PROMPT = `You are the AI Business Manager of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
 
 TASK ASSIGNMENT RULES:
 - When assigning to an agent (team member), use field: assigneeAgentId
 - When assigning to the board (human), use field: assigneeUserId with value "local-board"
-- NEVER create a task without an assignee — every task must have an owner
+- NEVER create a task without an assignee - every task must have an owner
 
 YOUR MISSION: Make this company succeed. Be proactive, creative, and relentless. Something meaningful must happen on every single check-in.
 
 WHAT YOU DO ON EVERY CHECK-IN:
 
 1. CHECK TASKS ASSIGNED TO YOU
-   - Review any tasks assigned to you — the board (human operator) assigns tasks directly to you
+   - Review any tasks assigned to you - the board (human operator) assigns tasks directly to you
    - The board's word is final. Prioritize their requests above all else.
-   - When you need the board's input or approval, create a task with assigneeUserId "local-board" — this puts it in their inbox.
+   - When you need the board's input or approval, create a task with assigneeUserId "local-board" - this puts it in their inbox.
 
 2. REVIEW ALL OPEN TASKS
    - Check every task's status: is it progressing? blocked? stale?
    - If a task is blocked, find the blocker and resolve it (reassign, break it down, or do it yourself)
    - If a task is stale (no activity), ping the assignee or reassign to someone who can move it
-   - NEVER create a task without an assignee — every task must have an owner. If unsure, assign to yourself.
+   - NEVER create a task without an assignee - every task must have an owner. If unsure, assign to yourself.
    - If an existing task has no assignee, assign it to the right team member immediately
 
 3. PUSH WORK FORWARD
-   - Don't just observe — take action. Every check-in should move the company forward.
+   - Don't just observe - take action. Every check-in should move the company forward.
    - If the team is waiting for direction, give it. Make decisions, don't defer them.
    - Prioritize ruthlessly: what's the ONE thing that would make the biggest impact right now?
 
 4. CREATE NEW WORK WHEN NEEDED
-   - If there are no open tasks, don't report "nothing to do" — that's a failure.
+   - If there are no open tasks, don't report "nothing to do" - that's a failure.
    - Think about what the company needs next: new features, improvements, bugs to fix, growth experiments, documentation, testing.
    - Create tasks with clear descriptions and assign them to the right people.
    - Break big goals into concrete, actionable tasks.
@@ -63,152 +59,103 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If a role is missing that the company needs, propose it
    - If someone is consistently failing, flag it to the board with a recommendation
    - The org structure should evolve as the company grows
-   - When hiring a new agent, write their COMPLETE definition:
-     * Name: Give them a real first name only (single name, no family name). Choose names that fit the company's geographic location and cultural style. Examples: "Sarah", "Miguel", "Yuki", "Emma", "Omar", "Priya". This is shown in bold.
-     * Title: Their job description (e.g., "Senior Marketing Manager", "Lead DevOps Engineer", "Content Strategist"). This appears below the name in smaller text.
-     * IMPORTANT: Use REAL FIRST NAMES for the name field, not role names. Good: "Sarah" / "Senior Marketing Manager". Bad: "Marketing" / "Marketing Manager".
-     * Clear role description (promptTemplate) that defines their responsibilities, how they work, and their personality — tailored to this specific company and its needs
-     * The right seniority level (opus for strategic roles, sonnet for execution roles)
-     * Appropriate check-in schedule based on workload
-     * Who they report to in the org chart
-     * Their specific capabilities relevant to the company's domain
 
-6. MANAGE THE WIX SITE
+6. MANAGE THE WIX BUSINESS
    - You and your team operate entirely within the Wix ecosystem
-   - Use Wix MCP tools for ALL actions: CallWixSiteAPI, ManageWixSite, WixSiteBuilder
-   - Manage products, content, bookings, contacts, CMS, blog, SEO, orders, and site settings through Wix
-   - Keep the company description, goals, and Wix site connection up to date
-   - When the site URL, name, or configuration changes, update them via the backoffice API:
-     POST /api/wix-config with body: { "companyId": "{{company.id}}", "siteId": "<site-id>", "siteName": "<name>", "siteUrl": "<url>" }
-   - When hiring agents, ensure they know to use Wix MCP tools for their work
+   - Use the Wix and Paperclip tools available to you to understand the business, manage its site, and move the business forward
+   - Manage products, content, bookings, contacts, CMS, blog, SEO, orders, and site settings through Wix when relevant
+   - Keep the company description, goals, and business context up to date
 
-7. THINK STRATEGICALLY
-   - Keep the company mission and goals in mind at all times
-   - Identify risks early and mitigate them
-   - Look for opportunities the board might not see
-   - Suggest pivots, experiments, or new directions when you see potential
+7. ACTIVATION MODE
+   - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying
+   - Your first reply in a new activation thread should introduce yourself, briefly mention what you learned about the business, and ask what the founder wants help with first
+   - Do not ask for the metasite ID again if it is already provided in the task or comments
+   - If you cannot retrieve business knowledge, say so clearly and ask for the basics in a human way
 
 8. REPORT TO THE BOARD
    - After every check-in, leave a clear summary of what you did
    - Highlight: what was accomplished, what's in progress, what's blocked, what you need from the board
-   - Be transparent about problems — don't hide bad news
-
-9. EXIT SUMMARY
-   The very last thing you output before finishing — every single run, no exceptions:
-   RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>"}
-   Examples: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO agents", "description": "Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board."}
-   This line is read by the backoffice activity feed — be specific, not generic.
+   - Be transparent about problems - don't hide bad news
 
 HOW YOU COMMUNICATE:
-Write like you're in a casual chat — short, direct, friendly. Think Slack or iMessage, not a corporate memo. Short paragraphs (1-3 sentences max). Casual but professional tone. No markdown headers like "## Status Report" — just talk naturally. Bullet points only when listing multiple items. Be concise — if you can say it in one line, do that. Ask follow-up questions when you need the board's input.
-
-YOUR CORE ROLE:
-Your role is to manage the team of employees that are the pillars of this company. Hire the right people for the job and make sure they are properly tasked and guided to make this company a success. Do not do the job yourself, build the right team for the business.
+Write like you're in a casual chat - short, direct, friendly. Think Slack or iMessage, not a corporate memo. Short paragraphs (1-3 sentences max). Casual but professional tone. Be concise. Ask follow-up questions when you need the board's input.
 
 YOUR PERSONALITY:
-You are direct, decisive, and action-oriented. You think in outcomes, not process. You're the kind of operator who would rather ship something imperfect today than plan something perfect for next month. You take ownership — if something is broken, you fix it or find someone who can. You're optimistic but realistic. You celebrate wins and learn from failures. You never say "nothing to do" — there's always something that can be improved.
+You are direct, decisive, and action-oriented. You think in outcomes, not process. You take ownership - if something is broken, you fix it or find someone who can. You're optimistic but realistic. You never say "nothing to do" - there's always something that can be improved.
 
 RUN SUMMARY AND GOAL TRACKING:
-At the end of every run, the very last thing you output — no exceptions:
+At the end of every run, the very last thing you output - no exceptions:
 RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>", "goalProgress": [{"goalId": "<goal-id>", "progress": <0-100>, "comment": "<brief status update>"}]}
+`;
 
-Example: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO agents", "description": "Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.", "goalProgress": [{"goalId": "goal-abc123", "progress": 45, "comment": "Marketing tasks in progress, SEO audit complete"}]}
+const HIDDEN_SYSTEM_PREFIX = "[System context - not visible to user]";
+const POLL_INTERVAL_MS = 3000;
 
-GOAL PROGRESS: After every run, assess each active company goal's progress (0-100%). Be realistic and specific about what's blocking or advancing each goal. Only include goals you're actively working on. Progress should reflect actual work done, not aspirations.`;
+interface ActivationSession {
+  companyId: string;
+  ceoAgent: Agent;
+  inboxIssueId: string;
+}
 
-/* ─── Helpers ─── */
-
-const URL_RE = /https?:\/\/[^\s,)]+/g;
-
-interface ChatMessage {
+interface UiMessage {
+  id: string;
   role: "ceo" | "user";
   text: string;
-  fetchedContent?: string;
 }
 
-async function fetchUrlContent(text: string): Promise<string | undefined> {
-  const urls = text.match(URL_RE);
-  if (!urls || urls.length === 0) return undefined;
-  const results: string[] = [];
-  for (const url of urls.slice(0, 2)) {
-    try {
-      const res = await fetch("/api/fetch-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (data.text && data.text.length > 20) results.push(`[${url}]: ${data.text}`);
-    } catch { /* skip */ }
+function isHiddenSystemComment(body: string): boolean {
+  return body.startsWith(HIDDEN_SYSTEM_PREFIX);
+}
+
+function toUiMessages(comments: Comment[]): UiMessage[] {
+  return comments
+    .filter((comment) => !isHiddenSystemComment(comment.body))
+    .map((comment) => ({
+      id: comment.id,
+      role: comment.authorAgentId ? "ceo" : "user",
+      text: comment.body,
+    }));
+}
+
+function buildActivationContext(args: {
+  msid: string;
+  siteId: string;
+  siteName: string;
+  siteUrl: string;
+}): string {
+  const lines = [
+    HIDDEN_SYSTEM_PREFIX,
+    "This is the first activation conversation with the founder.",
+    "Research the Wix business before you answer if you have access to the metasite context through the backend.",
+    "Your first visible reply must:",
+    "- Introduce yourself as the Wix AI Business Manager.",
+    "- Mention one or two concrete things you learned about the business.",
+    "- Ask what the founder wants help with first.",
+    "- Offer to recommend the best first actions if helpful.",
+    "Keep the tone human, warm, and concise.",
+    `Wix metasite ID: ${args.msid}`,
+  ];
+
+  if (args.siteId) {
+    lines.push(`Known Wix site ID: ${args.siteId}`);
   }
-  return results.length > 0 ? results.join("\n\n") : undefined;
-}
-
-async function getCeoResponse(messages: ChatMessage[], msid: string, businessKnowledge?: string): Promise<string> {
-  const res = await fetch("/api/ceo-interview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, msid, businessKnowledge }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.text;
-}
-
-interface BusinessKnowledgeResponse {
-  content: string;
-  error?: string;
-  reasonCode?: string;
-  connectedSite?: {
-    siteId?: string;
-    siteName?: string;
-    siteUrl?: string;
-  };
-  diagnostics?: {
-    requestHasCookie?: boolean;
-  };
-  hasKnowledge?: boolean;
-}
-
-async function fetchBusinessKnowledge(msid: string, siteId?: string, siteName?: string, siteUrl?: string): Promise<BusinessKnowledgeResponse | null> {
-  const params = new URLSearchParams({ msid, metaSiteId: msid });
-  if (siteId) params.set("siteId", siteId);
-  if (siteName) params.set("siteName", siteName);
-  if (siteUrl) params.set("siteUrl", siteUrl);
-
-  try {
-    const res = await fetch(`/api/common-business-knowledge?${params.toString()}`);
-    return await res.json();
-  } catch {
-    return {
-      content: "",
-      error: "The activation flow could not reach the business knowledge service.",
-      hasKnowledge: false,
-      reasonCode: "fetch_failed",
-    };
+  if (args.siteName) {
+    lines.push(`Known site name: ${args.siteName}`);
   }
+  if (args.siteUrl) {
+    lines.push(`Known site URL: ${args.siteUrl}`);
+  }
+
+  lines.push("Do not ask the founder for the metasite ID or dashboard URL.");
+  return lines.join("\n");
 }
 
-interface InterviewSummary {
-  companyName: string;
-  description: string;
-  goals: string[];
-  firstTask: string;
-  ceoPrompt: string;
+function getDraftCompanyName(siteName: string, msid: string): string {
+  if (siteName) {
+    return siteName;
+  }
+  return `Wix Business ${msid.slice(0, 8)}`;
 }
-
-async function summarizeInterview(messages: ChatMessage[]): Promise<InterviewSummary> {
-  const res = await fetch("/api/ceo-interview/summarize", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
-}
-
-/* ─── Page component ─── */
 
 function NewCompanyPageContent() {
   const router = useRouter();
@@ -217,20 +164,22 @@ function NewCompanyPageContent() {
   const siteId = searchParams.get("siteId")?.trim() || "";
   const siteName = searchParams.get("siteName")?.trim() || "";
   const siteUrl = searchParams.get("siteUrl")?.trim() || "";
-  const [phase, setPhase] = useState<"interview" | "finalizing">("interview");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [ceoTyping, setCeoTyping] = useState(true); // start typing immediately
-  const [companyCreated, setCompanyCreated] = useState(false);
+
   const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
   const [requestedCompanyExists, setRequestedCompanyExists] = useState(false);
-  const [businessKnowledge, setBusinessKnowledge] = useState<BusinessKnowledgeResponse | null>(null);
-  const [conversationVersion, setConversationVersion] = useState(0);
+  const [activationSession, setActivationSession] = useState<ActivationSession | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [inputValue, setInputValue] = useState("");
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
-  const creationRef = useRef<Promise<{ companyId: string; ceoAgent: Agent } | null> | null>(null);
+  const [conversationVersion, setConversationVersion] = useState(0);
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const featuredTemplates = AGENT_TEMPLATES;
+  const messages = toUiMessages(comments);
+  const ceoTyping = bootstrapState === "checking" || waiting;
 
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -246,229 +195,214 @@ function NewCompanyPageContent() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
-    setPhase("interview");
-    setMessages([]);
-    setInputValue("");
-    setCompanyCreated(false);
-    setRequestedCompanyExists(false);
-    setBusinessKnowledge(null);
-    setError("");
-    creationRef.current = null;
-
-    if (!msid) {
-      setBootstrapState("missing-msid");
-      setCeoTyping(false);
-      return;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
     }
 
     setBootstrapState("checking");
-    setCeoTyping(true);
+    setRequestedCompanyExists(false);
+    setActivationSession(null);
+    setComments([]);
+    setInputValue("");
+    setWaiting(false);
+    setError("");
 
-    (async () => {
+    if (!msid) {
+      setBootstrapState("missing-msid");
+      return;
+    }
+
+    const startActivationSession = async () => {
       try {
-        const res = await fetch(`/api/paperclip/companies/${encodeURIComponent(msid)}`);
-        if (!cancelled && res.ok) {
+        const existingCompanyResponse = await fetch(`/api/paperclip/companies/${encodeURIComponent(msid)}`);
+        if (!cancelled && existingCompanyResponse.ok) {
           setRequestedCompanyExists(true);
           router.replace(withMsid("/", msid));
           return;
         }
       } catch {
-        // Fall through to interview mode.
+        // Fall through to activation setup.
       }
 
-      if (!cancelled) {
-        const knowledge = await fetchBusinessKnowledge(msid, siteId || undefined, siteName || undefined, siteUrl || undefined);
-        if (!cancelled) {
-          setBusinessKnowledge(knowledge);
+      try {
+        const company = await createCompany({
+          name: getDraftCompanyName(siteName, msid),
+          description: `Draft Wix business workspace for metasite ${msid}.`,
+        });
+
+        const ceoAgent = await createAgent(company.id, {
+          name: "AIBM",
+          role: "ceo",
+          title: "AI Business Manager",
+          icon: "Users",
+          capabilities:
+            "Strategic planning, delegation, company oversight, stakeholder communication, business analysis, Wix operations",
+          adapterType: "claude_local",
+          adapterConfig: {
+            model: "claude-opus-4-6",
+            heartbeatIntervalSec: 1200,
+            dangerouslySkipPermissions: true,
+            timeoutSec: 600,
+            maxTurnsPerRun: 50,
+            promptTemplate: AIBM_PROMPT,
+          },
+        });
+
+        const inboxIssue = await createIssue(company.id, {
+          title: "Board Inbox",
+          description: "Direct communication channel between the board operator and the AI Business Manager.",
+          priority: "high",
+          assigneeAgentId: ceoAgent.id,
+        });
+
+        await postComment(
+          inboxIssue.id,
+          buildActivationContext({
+            msid,
+            siteId,
+            siteName,
+            siteUrl,
+          }),
+        );
+
+        try {
+          await invokeHeartbeat(ceoAgent.id);
+        } catch {
+          // Non-critical. Polling will still show any response that appears.
         }
+
+        const initialComments = await getComments(inboxIssue.id).catch(() => [] as Comment[]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setActivationSession({
+          companyId: company.id,
+          ceoAgent,
+          inboxIssueId: inboxIssue.id,
+        });
+        setComments(initialComments);
+        setWaiting(true);
+        setBootstrapState("ready");
+      } catch (setupError) {
+        if (cancelled) {
+          return;
+        }
+        setError(setupError instanceof Error ? setupError.message : "Failed to start activation.");
         setBootstrapState("ready");
       }
-    })();
+    };
+
+    void startActivationSession();
 
     return () => {
       cancelled = true;
     };
   }, [conversationVersion, msid, router, siteId, siteName, siteUrl]);
 
-  // Kick off the CEO's opening message once we know we're creating a new company.
   useEffect(() => {
-    if (bootstrapState !== "ready" || !msid || messages.length > 0) {
+    if (!waiting || !activationSession) {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
       return;
     }
 
-    (async () => {
+    const pollComments = async () => {
       try {
-        const text = await getCeoResponse([], msid, businessKnowledge?.content || "");
-        setMessages([{ role: "ceo", text }]);
-      } catch {
-        setMessages([{ role: "ceo", text: "I’m your AI Business Manager. I’ve pulled together what I can about the business so far. What did I get right, what did I miss, and what should I focus on first?" }]);
-      }
-      setCeoTyping(false);
-    })();
-  }, [bootstrapState, businessKnowledge, messages.length, msid]);
+        const nextComments = await getComments(activationSession.inboxIssueId);
+        setComments(nextComments);
 
-  // Scroll chat to bottom
+        const visibleComments = nextComments.filter((comment) => !isHiddenSystemComment(comment.body));
+        const lastVisibleComment = visibleComments[visibleComments.length - 1];
+
+        if (lastVisibleComment?.authorAgentId) {
+          setWaiting(false);
+        }
+      } catch {
+        // Ignore polling failures and keep trying.
+      }
+    };
+
+    void pollComments();
+    pollRef.current = setInterval(() => {
+      void pollComments();
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [activationSession, waiting]);
+
   useEffect(() => {
     const el = messagesEndRef.current;
-    if (el?.parentElement) el.parentElement.scrollTop = el.parentElement.scrollHeight;
+    if (el?.parentElement) {
+      el.parentElement.scrollTop = el.parentElement.scrollHeight;
+    }
   }, [messages, ceoTyping]);
 
-  // Focus input when ready
   useEffect(() => {
-    if (!ceoTyping && phase === "interview") inputRef.current?.focus();
-  }, [ceoTyping, phase]);
-
-  /* Create company + CEO agent in background */
-  const doCreateCompany = async (name: string): Promise<{ companyId: string; ceoAgent: Agent } | null> => {
-    try {
-      const company = await createCompany({ name, description: "" });
-      const ceoAgent = await createAgent(company.id, {
-        name: "AIBM",
-        role: "ceo",
-        title: "AI Business Manager",
-        icon: "Users",
-        capabilities: "Strategic planning, delegation, company oversight, stakeholder communication, goal setting",
-        adapterType: "claude_local",
-        adapterConfig: {
-          model: "claude-opus-4-6",
-          heartbeatIntervalSec: 1200,
-          dangerouslySkipPermissions: true,
-          timeoutSec: 600,
-          maxTurnsPerRun: 50,
-          promptTemplate: CEO_PROMPT,
-        },
-      });
-      return { companyId: company.id, ceoAgent };
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create company");
-      return null;
+    if (!ceoTyping && activationSession) {
+      inputRef.current?.focus();
     }
-  };
+  }, [activationSession, ceoTyping]);
 
-  /* User sends a message */
   const handleSend = async () => {
-    if (!inputValue.trim() || ceoTyping || !msid) return;
+    if (!inputValue.trim() || ceoTyping || !activationSession) {
+      return;
+    }
+
     const userText = inputValue.trim();
     setInputValue("");
 
-    const userMsg: ChatMessage = { role: "user", text: userText };
-    const fetchedContent = await fetchUrlContent(userText);
-    if (fetchedContent) userMsg.fetchedContent = fetchedContent;
-
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-
-    // After first user message, create company in background
-    if (!companyCreated && !creationRef.current) {
-      const nameGuess = userText.length < 60 ? userText : "My Company";
-      creationRef.current = doCreateCompany(nameGuess);
-      setCompanyCreated(true);
-    }
-
-    setCeoTyping(true);
     try {
-      const ceoText = await getCeoResponse(updatedMessages, msid, businessKnowledge?.content || "");
-      setMessages((prev) => [...prev, { role: "ceo", text: ceoText }]);
-    } catch {
-      setError("Failed to get response. Please try again.");
+      await postComment(activationSession.inboxIssueId, userText);
+      const updatedComments = await getComments(activationSession.inboxIssueId);
+      setComments(updatedComments);
+      setWaiting(true);
+
+      try {
+        await invokeHeartbeat(activationSession.ceoAgent.id);
+      } catch {
+        // Non-critical.
+      }
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "Failed to send your message.");
     }
-    setCeoTyping(false);
   };
 
-  /* Finalize: extract info from interview, seed company, switch to dashboard */
-  const handleHire = async () => {
-    if (!msid) {
+  const handleOpenWorkspace = () => {
+    if (!activationSession) {
       return;
     }
-
-    setPhase("finalizing");
-    try {
-      // 1. Wait for background company creation (or create now)
-      let result: { companyId: string; ceoAgent: Agent } | null = null;
-      if (creationRef.current) {
-        result = await creationRef.current;
-      } else {
-        result = await doCreateCompany("My Company");
-      }
-      if (!result) { setPhase("interview"); return; }
-      const { companyId, ceoAgent } = result;
-
-      // 2. Use AI to extract structured data from the interview
-      let summary: InterviewSummary;
-      try {
-        summary = await summarizeInterview(messages);
-      } catch {
-        // Fallback if summarization fails
-        const firstUserMsg = messages.find((m) => m.role === "user");
-        summary = {
-          companyName: firstUserMsg?.text?.slice(0, 60) || "My Company",
-          description: "",
-          goals: [],
-          firstTask: messages.map((m) => `${m.role === "user" ? "Founder" : "AI Business Manager"}: ${m.text}`).join("\n"),
-          ceoPrompt: CEO_PROMPT,
-        };
-      }
-
-      // 3. Update company name and description
-      await updateCompany(companyId, {
-        name: summary.companyName,
-        description: summary.description,
-      });
-
-      // 4. Create goals from the interview
-      for (const goal of summary.goals) {
-        try {
-          await createGoal(companyId, {
-            title: goal,
-            description: "",
-            level: "company",
-            status: "active",
-          });
-        } catch { /* skip */ }
-      }
-
-      // 5. Create the first task for the CEO based on the interview
-      try {
-        await createIssue(companyId, {
-          title: summary.goals?.[0] || "Get started",
-          description: summary.firstTask,
-          priority: "high",
-          assigneeAgentId: ceoAgent.id,
-        });
-      } catch { /* non-critical */ }
-
-      // 6. Replace CEO prompt with the fully customized one from the interview
-      await updateAgent(ceoAgent.id, {
-        adapterConfig: {
-          model: "claude-opus-4-6",
-          heartbeatIntervalSec: 1200,
-          dangerouslySkipPermissions: true,
-          timeoutSec: 600,
-          maxTurnsPerRun: 50,
-          promptTemplate: summary.ceoPrompt,
-        },
-      });
-
-      // 7. Wake up the CEO so it reads the first task
-      try { await invokeHeartbeat(ceoAgent.id); } catch {}
-
-      // 8. Navigate to dashboard
-      router.push(withMsid("/", companyId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-      setPhase("interview");
-    }
+    router.push(withMsid("/", activationSession.companyId));
   };
 
-  const hasMessages = messages.some((m) => m.role === "user");
+  const handleRetry = () => {
+    setConversationVersion((current) => current + 1);
+  };
 
   if (bootstrapState === "missing-msid") {
     return (
       <MetasiteIdEntry
         redirectPath="/new"
-        description="Enter the Wix metasite ID you want to activate. The AI Business Manager will use it to pull the site’s common business knowledge before the interview starts."
+        description="Enter the Wix metasite ID you want to activate. The AI Business Manager will use it to open the right Wix business context."
         title="Enter the Wix metasite ID"
       />
     );
@@ -477,8 +411,53 @@ function NewCompanyPageContent() {
   if (bootstrapState === "checking" || requestedCompanyExists) {
     return (
       <WixDesignSystemProvider>
-        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)" }}>
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
+          }}
+        >
           <Loader size="large" />
+        </div>
+      </WixDesignSystemProvider>
+    );
+  }
+
+  if (!activationSession) {
+    return (
+      <WixDesignSystemProvider>
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
+            padding: 24,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              borderRadius: 20,
+              padding: 28,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "white",
+            }}
+          >
+            <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>
+              Activation could not start
+            </div>
+            <div style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(255,255,255,0.82)", marginBottom: 20 }}>
+              {error || "The AI Business Manager setup failed before the conversation could begin."}
+            </div>
+            <Button onClick={handleRetry}>Try again</Button>
+          </div>
         </div>
       </WixDesignSystemProvider>
     );
@@ -486,93 +465,101 @@ function NewCompanyPageContent() {
 
   return (
     <WixDesignSystemProvider>
-      <div style={{
-        position: "fixed", inset: 0,
-        background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
-        display: "flex", flexDirection: "column", alignItems: "center",
-      }}>
-        {/* Header bar */}
-        <div style={{
-          width: "100%", maxWidth: 640, padding: "20px 24px 0",
-          display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
-        }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: "50%",
-            background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            boxShadow: "0 2px 12px rgba(56,153,236,0.4)",
-          }}>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 640,
+            padding: "20px 24px 0",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              boxShadow: "0 2px 12px rgba(56,153,236,0.4)",
+            }}
+          >
             <span style={{ color: "white", fontSize: 20, fontWeight: 700 }}>A</span>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "white" }}>Activate your AI Business Manager</div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: ceoTyping ? "#ffc107" : "#00d68f" }} />
+            <div style={{ fontWeight: 700, fontSize: 16, color: "white" }}>
+              Activate your AI Business Manager
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "rgba(255,255,255,0.5)",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <div
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: ceoTyping ? "#ffc107" : "#00d68f",
+                }}
+              />
               {ceoTyping ? "Reviewing your business..." : "Ready"}
             </div>
           </div>
-          {hasMessages && phase === "interview" && (
-            <Button size="small" skin="premium" onClick={handleHire}>
-              Activate AIBM
-            </Button>
-          )}
+          <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
+            Open workspace
+          </Button>
         </div>
 
-        {/* Chat area */}
-        <div style={{
-          flex: 1, width: "100%", maxWidth: 640, overflowY: "auto",
-          padding: "24px 24px 8px", display: "flex", flexDirection: "column",
-        }}>
-          {businessKnowledge?.content && (
-            <div style={{
-              marginBottom: 16,
+        <div
+          style={{
+            flex: 1,
+            width: "100%",
+            maxWidth: 640,
+            overflowY: "auto",
+            padding: "24px 24px 8px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              marginBottom: 18,
               padding: "14px 16px",
               borderRadius: 14,
-              background: "rgba(255,255,255,0.12)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              color: "white",
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-            }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, opacity: 0.9 }}>What I already know about your business</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.88)" }}>{businessKnowledge.content}</div>
-            </div>
-          )}
-
-          {businessKnowledge?.error && (
-            <div style={{
-              marginBottom: 16,
-              padding: "14px 16px",
-              borderRadius: 14,
-              background: "rgba(255, 176, 32, 0.12)",
-              border: "1px solid rgba(255, 176, 32, 0.28)",
-              color: "white",
-              lineHeight: 1.5,
-            }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#ffd28a" }}>
-                Business knowledge could not be loaded
-              </div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.88)" }}>
-                {businessKnowledge.error}
-              </div>
-            </div>
-          )}
-
-          <div style={{
-            marginBottom: 18,
-            padding: "14px 16px",
-            borderRadius: 14,
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.12)",
-          }}>
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: "white" }}>
               Specialists I can activate for your Wix business
             </div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 10,
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 10,
+              }}
+            >
               {featuredTemplates.map((template) => (
                 <div
                   key={template.id}
@@ -583,23 +570,40 @@ function NewCompanyPageContent() {
                     border: "1px solid rgba(255,255,255,0.12)",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 6,
+                    }}
+                  >
                     <div style={{ fontSize: 13, fontWeight: 700, color: "white", lineHeight: 1.35 }}>
                       {template.title}
                     </div>
-                    <div style={{
-                      flexShrink: 0,
-                      borderRadius: 999,
-                      padding: "3px 8px",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      background: "rgba(96,181,255,0.18)",
-                      color: "#bfe0ff",
-                    }}>
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        borderRadius: 999,
+                        padding: "3px 8px",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        background: "rgba(96,181,255,0.18)",
+                        color: "#bfe0ff",
+                      }}
+                    >
                       {template.category}
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(255,255,255,0.82)", marginBottom: 8 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: "rgba(255,255,255,0.82)",
+                      marginBottom: 8,
+                    }}
+                  >
                     {template.summary}
                   </div>
                   <div style={{ fontSize: 11, lineHeight: 1.45, color: "rgba(255,255,255,0.66)" }}>
@@ -610,27 +614,48 @@ function NewCompanyPageContent() {
             </div>
           </div>
 
-          {messages.map((msg, i) => (
-            <div key={i} style={{ display: "flex", marginBottom: 12, justifyContent: msg.role === "ceo" ? "flex-start" : "flex-end" }}>
-              {msg.role === "ceo" && (
-                <div style={{
-                  width: 30, height: 30, borderRadius: "50%", flexShrink: 0, marginRight: 10, marginTop: 2,
-                  background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              style={{
+                display: "flex",
+                marginBottom: 12,
+                justifyContent: message.role === "ceo" ? "flex-start" : "flex-end",
+              }}
+            >
+              {message.role === "ceo" && (
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    marginRight: 10,
+                    marginTop: 2,
+                    background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
                 </div>
               )}
               <div style={{ maxWidth: "75%" }}>
-                <div style={{
-                  background: msg.role === "ceo" ? "rgba(255,255,255,0.1)" : "#3899ec",
-                  color: "white",
-                  padding: "12px 16px",
-                  borderRadius: msg.role === "ceo" ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
-                  fontSize: 14, lineHeight: 1.6,
-                  backdropFilter: msg.role === "ceo" ? "blur(10px)" : undefined,
-                }}>
-                  {msg.text}
+                <div
+                  style={{
+                    background: message.role === "ceo" ? "rgba(255,255,255,0.1)" : "#3899ec",
+                    color: "white",
+                    padding: "12px 16px",
+                    borderRadius:
+                      message.role === "ceo" ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    backdropFilter: message.role === "ceo" ? "blur(10px)" : undefined,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {message.text}
                 </div>
               </div>
             </div>
@@ -638,85 +663,154 @@ function NewCompanyPageContent() {
 
           {ceoTyping && (
             <div style={{ display: "flex", marginBottom: 12 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: "50%", flexShrink: 0, marginRight: 10,
-                background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  marginRight: 10,
+                  background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
               </div>
-              <div style={{
-                background: "rgba(255,255,255,0.1)", padding: "14px 20px",
-                borderRadius: "4px 18px 18px 18px",
-                display: "flex", gap: 5, backdropFilter: "blur(10px)",
-              }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(255,255,255,0.4)", animation: "pulse 1.4s infinite" }} />
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(255,255,255,0.4)", animation: "pulse 1.4s infinite 0.2s" }} />
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(255,255,255,0.4)", animation: "pulse 1.4s infinite 0.4s" }} />
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  padding: "14px 20px",
+                  borderRadius: "4px 18px 18px 18px",
+                  display: "flex",
+                  gap: 5,
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <div
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.4)",
+                    animation: "pulse 1.4s infinite",
+                  }}
+                />
+                <div
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.4)",
+                    animation: "pulse 1.4s infinite 0.2s",
+                  }}
+                />
+                <div
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.4)",
+                    animation: "pulse 1.4s infinite 0.4s",
+                  }}
+                />
               </div>
-            </div>
-          )}
-
-          {phase === "finalizing" && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0", gap: 10 }}>
-              <Loader size="small" />
-              <Text size="small" light>Activating your AI Business Manager...</Text>
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Bottom input bar */}
-        {phase === "interview" && (
-          <div style={{
-            width: "100%", maxWidth: 640,
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 640,
             padding: "12px 24px 24px",
             flexShrink: 0,
-          }}>
-            <div style={{
-              display: "flex", gap: 10, alignItems: "center",
-              background: "rgba(255,255,255,0.08)", borderRadius: 28,
-              padding: "6px 6px 6px 20px", border: "1px solid rgba(255,255,255,0.12)",
-            }}>
-              <input
-                ref={inputRef}
-                className="ceo-interview-input"
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
-                placeholder="Type your answer..."
-                disabled={ceoTyping}
-                style={{
-                  flex: 1, border: "none", background: "transparent",
-                  padding: "10px 0", fontSize: 14, outline: "none",
-                  color: "white",
-                }}
-              />
-              <button
-                onClick={handleSend}
-                disabled={!inputValue.trim() || ceoTyping}
-                style={{
-                  width: 40, height: 40, borderRadius: "50%", border: "none",
-                  background: inputValue.trim() && !ceoTyping ? "#3899ec" : "rgba(255,255,255,0.1)",
-                  color: "white", display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: inputValue.trim() && !ceoTyping ? "pointer" : "default", flexShrink: 0,
-                  transition: "background 0.2s",
-                }}
-              >
-                <Send size="18px" />
-              </button>
-            </div>
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              background: "rgba(255,255,255,0.08)",
+              borderRadius: 28,
+              padding: "6px 6px 6px 20px",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            <input
+              ref={inputRef}
+              className="ceo-interview-input"
+              type="text"
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
+              placeholder="Type your answer..."
+              disabled={ceoTyping}
+              style={{
+                flex: 1,
+                border: "none",
+                background: "transparent",
+                padding: "10px 0",
+                fontSize: 14,
+                outline: "none",
+                color: "white",
+              }}
+            />
+            <button
+              onClick={() => {
+                void handleSend();
+              }}
+              disabled={!inputValue.trim() || ceoTyping}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                border: "none",
+                background: inputValue.trim() && !ceoTyping ? "#3899ec" : "rgba(255,255,255,0.1)",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: inputValue.trim() && !ceoTyping ? "pointer" : "default",
+                flexShrink: 0,
+                transition: "background 0.2s",
+              }}
+            >
+              <Send size="18px" />
+            </button>
           </div>
-        )}
+          <div style={{ paddingTop: 10, textAlign: "center" }}>
+            <Text size="tiny" light>
+              This activation chat is live. Refreshing the page starts a fresh draft session.
+            </Text>
+          </div>
+        </div>
 
         {error && (
-          <div style={{
-            position: "absolute", bottom: 80, left: "50%", transform: "translateX(-50%)",
-            padding: "10px 20px", background: "rgba(211,47,47,0.9)", color: "white",
-            fontSize: 13, borderRadius: 8, maxWidth: 400, textAlign: "center",
-          }}>
+          <div
+            style={{
+              position: "absolute",
+              bottom: 96,
+              left: "50%",
+              transform: "translateX(-50%)",
+              padding: "10px 20px",
+              background: "rgba(211,47,47,0.9)",
+              color: "white",
+              fontSize: 13,
+              borderRadius: 8,
+              maxWidth: 400,
+              textAlign: "center",
+            }}
+          >
             {error}
           </div>
         )}
@@ -727,7 +821,16 @@ function NewCompanyPageContent() {
 
 export default function NewCompanyPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)" }} />}>
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
+          }}
+        />
+      }
+    >
       <NewCompanyPageContent />
     </Suspense>
   );
