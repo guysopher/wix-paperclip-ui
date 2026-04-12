@@ -245,7 +245,7 @@ function NewCompanyPageContent() {
           name: "AIBM",
           role: "ceo",
           title: "AI Business Manager",
-          icon: "Users",
+          icon: "brain",
           capabilities:
             "Strategic planning, delegation, company oversight, stakeholder communication, business analysis, Wix operations",
           adapterType: "claude_local",
