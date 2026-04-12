@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         method: "POST",
         body: JSON.stringify({
           title: "Board Inbox",
-          description: "Direct communication channel between the board operator and the CEO.",
+          description: "Direct communication channel between the board operator and the AI Business Manager.",
           priority: "high",
           assigneeAgentId: ceo.id,
         }),

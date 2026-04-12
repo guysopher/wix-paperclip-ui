@@ -578,7 +578,7 @@ function InboxContent() {
                   onChange={(e) => setComposeTo(e.target.value)}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #ddd", fontSize: 13 }}
                 >
-                  <option value="ceo">CEO (Board Inbox)</option>
+                  <option value="ceo">AI Business Manager (Board Inbox)</option>
                   {agents.filter((a) => a.role !== "ceo").map((a) => (
                     <option key={a.id} value={a.id}>{a.name} — {a.title}</option>
                   ))}
@@ -589,7 +589,7 @@ function InboxContent() {
                 <textarea
                   value={composeText}
                   onChange={(e) => setComposeText(e.target.value)}
-                  placeholder={composeTo === "ceo" ? "Message to the CEO..." : "Describe the task..."}
+                  placeholder={composeTo === "ceo" ? "Message to the AI Business Manager..." : "Describe the task..."}
                   rows={5}
                   autoFocus
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #ddd", fontSize: 13, resize: "vertical", fontFamily: "inherit" }}
@@ -609,7 +609,7 @@ function InboxContent() {
                   color: "white", fontSize: 13, fontWeight: 600, cursor: composeText.trim() && !composeSending ? "pointer" : "default",
                 }}
               >
-                {composeSending ? "Sending..." : composeTo === "ceo" ? "Send to CEO" : "Create Task"}
+                {composeSending ? "Sending..." : composeTo === "ceo" ? "Send to AI Business Manager" : "Create Task"}
               </button>
             </div>
           </div>

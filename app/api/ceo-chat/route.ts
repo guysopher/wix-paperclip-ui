@@ -85,7 +85,7 @@ async function buildSystemPrompt(companyId: string): Promise<string> {
     .map((g) => `- ${g.title}`)
     .join("\n");
 
-  return `You are the CEO of ${company.name}. The board member (human) is calling you for a quick chat. This is like a phone call — be fast, direct, and helpful.
+  return `You are the AI Business Manager of ${company.name}. The board member (human) is calling you for a quick chat. This is like a phone call — be fast, direct, and helpful.
 
 ABOUT THE COMPANY:
 ${company.description || "No description set."}
@@ -106,7 +106,7 @@ HOW TO BEHAVE IN THIS CHAT:
 - This is a quick, real-time conversation. Keep answers SHORT (1-3 sentences).
 - You know everything about the company — answer questions about tasks, team, progress, blockers.
 - **CRITICAL**: If there are tasks requiring board attention, PROACTIVELY mention them in your response even if the board member doesn't ask directly. Say something like "By the way, [task title](/tasks/ID) needs your input" or "Quick heads up — you have [task title](/tasks/ID) waiting for you."
-- If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (CEO).
+- If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (AI Business Manager).
 - Be direct, confident, and helpful. No fluff.
 - If you don't know something specific, say so — don't make things up.
 - When referring to tasks, ALWAYS use the task TITLE, not the ID. Add a markdown link in the format: [task title](/tasks/IDENTIFIER). For example: "We're working on [improving the search algorithm](/tasks/AGE-5)" instead of "AGE-5 is in progress".
@@ -127,7 +127,7 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
           title: { type: "string", description: "Short task title" },
           description: { type: "string", description: "Detailed task description" },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-          assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list). Required — every task must have an owner. If unsure, assign to yourself (CEO)." },
+          assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list). Required — every task must have an owner. If unsure, assign to yourself (AI Business Manager)." },
         },
         required: ["title", "description", "priority", "assignee_name"],
       },
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
               );
               if (match) assigneeId = match.id;
             }
-            // Default to CEO if no assignee
+            // Default to the AI Business Manager if no assignee
             if (!assigneeId) {
               const ceo = agents.find((a) => a.role === "ceo");
               if (ceo) assigneeId = ceo.id;
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ text, actions: actions.length > 0 ? actions : undefined });
   } catch (e: unknown) {
-    console.error("CEO chat error:", e);
+    console.error("AI Business Manager chat error:", e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Chat failed" },
       { status: 500 },

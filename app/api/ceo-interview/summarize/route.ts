@@ -3,17 +3,17 @@ import OpenAI from "openai";
 
 const client = new OpenAI();
 
-const EXTRACT_SYSTEM = `You are given a conversation between a CEO candidate and a Wix site owner. Extract structured information and generate a fully customized CEO role description.
+const EXTRACT_SYSTEM = `You are given a conversation between an AI Business Manager candidate and a Wix site owner. Extract structured information and generate a fully customized AI Business Manager role description.
 
-IMPORTANT: This CEO operates entirely within the Wix ecosystem. All actions — managing products, content, bookings, contacts, orders, SEO, blog posts — happen through Wix MCP tools. The CEO and all agents must use WixMCP to interact with the site.
+IMPORTANT: This AI Business Manager operates entirely within the Wix ecosystem. All actions — managing products, content, bookings, contacts, orders, SEO, blog posts — happen through Wix MCP tools. The AI Business Manager and all agents must use WixMCP to interact with the site.
 
 Return ONLY valid JSON with this exact shape:
 {
   "companyName": "the business name",
   "description": "1-2 sentence description of what the business does",
   "goals": ["goal 1", "goal 2"],
-  "firstTask": "A clear, actionable task brief for the CEO...",
-  "ceoPrompt": "The full, customized CEO prompt (see rules below)"
+  "firstTask": "A clear, actionable task brief for the AI Business Manager...",
+  "ceoPrompt": "The full, customized AI Business Manager prompt (see rules below)"
 }
 
 Rules for each field:
@@ -24,11 +24,11 @@ description: Concise, factual summary of the business.
 
 goals: 1-3 concrete goals the founder mentioned. Infer from conversation if not explicit.
 
-firstTask: The CEO's very first task. Write it as a detailed, actionable brief addressed to the CEO. Include every specific detail from the interview — Wix site URLs, customer segments, products, pain points, priorities. Emphasize using Wix MCP tools (CallWixSiteAPI, ManageWixSite, etc.) to audit and act on the site. The CEO should be able to read this and immediately start working.
+firstTask: The AI Business Manager's very first task. Write it as a detailed, actionable brief addressed to the AI Business Manager. Include every specific detail from the interview — Wix site URLs, customer segments, products, pain points, priorities. Emphasize using Wix MCP tools (CallWixSiteAPI, ManageWixSite, etc.) to audit and act on the site. The AI Business Manager should be able to read this and immediately start working.
 
-ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific CEO. This is NOT a generic CEO prompt — it must be deeply tailored to this business and the Wix ecosystem. Include:
+ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Business Manager. This is NOT a generic executive prompt — it must be deeply tailored to this business and the Wix ecosystem. Include:
 
-1. WHO YOU ARE: "You are the CEO of [company name]. [1-2 sentences about the company, what it does, who it serves — from the interview]. You operate entirely within the Wix ecosystem — your primary workspace is the Wix site, and all actions happen through Wix MCP tools."
+1. WHO YOU ARE: "You are the AI Business Manager of [company name]. [1-2 sentences about the company, what it does, who it serves — from the interview]. You operate entirely within the Wix ecosystem — your primary workspace is the Wix site, and all actions happen through Wix MCP tools."
 
 2. YOUR MISSION: Specific to this business. Reference the founder's goals, their market, their customers. What does success look like for THIS company's Wix site?
 
@@ -71,7 +71,7 @@ GOAL PROGRESS TRACKING:
 - Progress should reflect actual work done, not aspirations
 - Comment should be specific: what was done, what's next, what's blocking"
 
-The prompt should be 400-700 words. It must feel like it was written specifically for this company's CEO who lives and breathes the Wix ecosystem.`;
+The prompt should be 400-700 words. It must feel like it was written specifically for this company's AI Business Manager who lives and breathes the Wix ecosystem.`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const transcript = messages
       .map((m: { role: string; text: string }) =>
-        `${m.role === "user" ? "Founder" : "CEO"}: ${m.text}`
+        `${m.role === "user" ? "Founder" : "AI Business Manager"}: ${m.text}`
       )
       .join("\n");
 
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (e: unknown) {
-    console.error("CEO interview summarize error:", e);
+    console.error("AI Business Manager activation summarize error:", e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Summarize failed" },
       { status: 500 },

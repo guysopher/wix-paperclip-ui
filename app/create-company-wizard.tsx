@@ -31,14 +31,14 @@ export function CreateCompanyWizard({ open, onClose }: Props) {
         </div>
         <Heading size="medium">Start a new company</Heading>
         <div style={{ margin: "12px 0 32px", color: "#666", fontSize: 14, lineHeight: 1.6 }}>
-          Your new CEO will interview you about your business, check out your website, and build a plan — then get straight to work.
+          Your AI Business Manager will review your business, understand your goals, and get to work inside Wix.
         </div>
         <Button
           onClick={() => { onClose(); router.push("/new"); }}
           size="large"
           style={{ width: "100%" }}
         >
-          Interview a CEO
+          Activate AI Business Manager
         </Button>
         <button
           onClick={onClose}

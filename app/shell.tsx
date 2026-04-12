@@ -287,7 +287,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               }}
             >
               <Chat color="white" />
-              <Text size="small" light weight="bold">Call the CEO</Text>
+              <Text size="small" light weight="bold">AI Business Manager</Text>
               {counts.chat > 0 && !chatOpen && (
                 <span style={{
                   marginLeft: "auto",

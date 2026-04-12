@@ -645,7 +645,7 @@ function DashboardContent() {
                 } catch {}
               }}
             >
-              Wake CEO
+              Wake AI Business Manager
             </Button>
           )}
           <Button
@@ -1287,7 +1287,7 @@ function DashboardContent() {
 
           <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>🏢 Your Team</h3>
           <p>
-            Your company has a real org chart — a CEO, managers, engineers, and QA. Each agent has a role description that defines how they think and work. The CEO coordinates everyone and reports directly to you.
+            Your company has a real org chart — an AI Business Manager, managers, engineers, and QA. Each agent has a role description that defines how they think and work. The AI Business Manager coordinates everyone and reports directly to you.
           </p>
 
           <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>⏰ How They Work</h3>
@@ -1295,9 +1295,9 @@ function DashboardContent() {
             Agents work in <strong>check-ins</strong> (called heartbeats). During each check-in, an agent wakes up, reads their inbox, reviews tasks, does work, and goes back to sleep. You can set how often each agent checks in, or wake them up manually anytime.
           </p>
 
-          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>💬 Talking to the CEO</h3>
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>💬 Talking to the AI Business Manager</h3>
           <p>
-            The chat panel on the right is your direct line to the CEO. Send a message and the CEO will wake up, read it, take action (assign tasks, make decisions, coordinate the team), and reply. Think of it like messaging a real executive.
+            The chat panel on the right is your direct line to the AI Business Manager. Send a message and the AI Business Manager will wake up, read it, take action, coordinate the team, and reply.
           </p>
 
           <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>📋 Tasks &amp; Inbox</h3>

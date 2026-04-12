@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
   Loader,
@@ -23,7 +23,7 @@ import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
 
-const CEO_PROMPT = `You are the CEO of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
+const CEO_PROMPT = `You are the AI Business Manager of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
 
 TASK ASSIGNMENT RULES:
 - When assigning to an agent (team member), use field: assigneeAgentId
@@ -105,7 +105,7 @@ YOUR CORE ROLE:
 Your role is to manage the team of employees that are the pillars of this company. Hire the right people for the job and make sure they are properly tasked and guided to make this company a success. Do not do the job yourself, build the right team for the business.
 
 YOUR PERSONALITY:
-You are direct, decisive, and action-oriented. You think in outcomes, not process. You're the kind of CEO who would rather ship something imperfect today than plan something perfect for next month. You take ownership — if something is broken, you fix it or find someone who can. You're optimistic but realistic. You celebrate wins and learn from failures. You never say "nothing to do" — there's always something that can be improved.
+You are direct, decisive, and action-oriented. You think in outcomes, not process. You're the kind of operator who would rather ship something imperfect today than plan something perfect for next month. You take ownership — if something is broken, you fix it or find someone who can. You're optimistic but realistic. You celebrate wins and learn from failures. You never say "nothing to do" — there's always something that can be improved.
 
 RUN SUMMARY AND GOAL TRACKING:
 At the end of every run, the very last thing you output — no exceptions:
@@ -143,15 +143,42 @@ async function fetchUrlContent(text: string): Promise<string | undefined> {
   return results.length > 0 ? results.join("\n\n") : undefined;
 }
 
-async function getCeoResponse(messages: ChatMessage[], msid: string): Promise<string> {
+async function getCeoResponse(messages: ChatMessage[], msid: string, businessKnowledge?: string): Promise<string> {
   const res = await fetch("/api/ceo-interview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, msid }),
+    body: JSON.stringify({ messages, msid, businessKnowledge }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data.text;
+}
+
+interface BusinessKnowledgeResponse {
+  content: string;
+  connectedSite?: {
+    siteId?: string;
+    siteName?: string;
+    siteUrl?: string;
+  };
+  hasKnowledge?: boolean;
+}
+
+async function fetchBusinessKnowledge(msid: string, siteId?: string, siteName?: string, siteUrl?: string): Promise<BusinessKnowledgeResponse | null> {
+  const params = new URLSearchParams({ msid });
+  if (siteId) params.set("siteId", siteId);
+  if (siteName) params.set("siteName", siteName);
+  if (siteUrl) params.set("siteUrl", siteUrl);
+
+  try {
+    const res = await fetch(`/api/common-business-knowledge?${params.toString()}`);
+    if (!res.ok) {
+      return null;
+    }
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 interface InterviewSummary {
@@ -177,7 +204,11 @@ async function summarizeInterview(messages: ChatMessage[]): Promise<InterviewSum
 
 function NewCompanyPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const msid = useMsid();
+  const siteId = searchParams.get("siteId")?.trim() || "";
+  const siteName = searchParams.get("siteName")?.trim() || "";
+  const siteUrl = searchParams.get("siteUrl")?.trim() || "";
   const [phase, setPhase] = useState<"interview" | "finalizing">("interview");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -185,6 +216,7 @@ function NewCompanyPageContent() {
   const [companyCreated, setCompanyCreated] = useState(false);
   const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
   const [requestedCompanyExists, setRequestedCompanyExists] = useState(false);
+  const [businessKnowledge, setBusinessKnowledge] = useState<BusinessKnowledgeResponse | null>(null);
   const [error, setError] = useState("");
   const creationRef = useRef<Promise<{ companyId: string; ceoAgent: Agent } | null> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -198,6 +230,7 @@ function NewCompanyPageContent() {
     setInputValue("");
     setCompanyCreated(false);
     setRequestedCompanyExists(false);
+    setBusinessKnowledge(null);
     setError("");
     creationRef.current = null;
 
@@ -223,6 +256,10 @@ function NewCompanyPageContent() {
       }
 
       if (!cancelled) {
+        const knowledge = await fetchBusinessKnowledge(msid, siteId || undefined, siteName || undefined, siteUrl || undefined);
+        if (!cancelled) {
+          setBusinessKnowledge(knowledge);
+        }
         setBootstrapState("ready");
       }
     })();
@@ -230,7 +267,7 @@ function NewCompanyPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [msid, router]);
+  }, [msid, router, siteId, siteName, siteUrl]);
 
   // Kick off the CEO's opening message once we know we're creating a new company.
   useEffect(() => {
@@ -240,14 +277,14 @@ function NewCompanyPageContent() {
 
     (async () => {
       try {
-        const text = await getCeoResponse([], msid);
+        const text = await getCeoResponse([], msid, businessKnowledge?.content || "");
         setMessages([{ role: "ceo", text }]);
       } catch {
-        setMessages([{ role: "ceo", text: "Hey! I'm your CEO candidate — ready to make things happen. What's the name of your business?" }]);
+        setMessages([{ role: "ceo", text: "I’m your AI Business Manager. I’ve pulled together what I can about the business so far. What did I get right, what did I miss, and what should I focus on first?" }]);
       }
       setCeoTyping(false);
     })();
-  }, [bootstrapState, messages.length, msid]);
+  }, [bootstrapState, businessKnowledge, messages.length, msid]);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -265,9 +302,9 @@ function NewCompanyPageContent() {
     try {
       const company = await createCompany({ name, description: "" });
       const ceoAgent = await createAgent(company.id, {
-        name: "CEO",
+        name: "AIBM",
         role: "ceo",
-        title: "Chief Executive Officer",
+        title: "AI Business Manager",
         icon: "Users",
         capabilities: "Strategic planning, delegation, company oversight, stakeholder communication, goal setting",
         adapterType: "claude_local",
@@ -309,7 +346,7 @@ function NewCompanyPageContent() {
 
     setCeoTyping(true);
     try {
-      const ceoText = await getCeoResponse(updatedMessages, msid);
+      const ceoText = await getCeoResponse(updatedMessages, msid, businessKnowledge?.content || "");
       setMessages((prev) => [...prev, { role: "ceo", text: ceoText }]);
     } catch {
       setError("Failed to get response. Please try again.");
@@ -346,7 +383,7 @@ function NewCompanyPageContent() {
           companyName: firstUserMsg?.text?.slice(0, 60) || "My Company",
           description: "",
           goals: [],
-          firstTask: messages.map((m) => `${m.role === "user" ? "Founder" : "CEO"}: ${m.text}`).join("\n"),
+          firstTask: messages.map((m) => `${m.role === "user" ? "Founder" : "AI Business Manager"}: ${m.text}`).join("\n"),
           ceoPrompt: CEO_PROMPT,
         };
       }
@@ -408,7 +445,7 @@ function NewCompanyPageContent() {
     return (
       <MetasiteIdEntry
         redirectPath="/new"
-        description="Enter the Paperclip company ID you want to open. If it does not exist yet, the CEO interview will create a new company and then redirect you to the company’s real ID."
+        description="Enter the Paperclip company ID you want to open. If it does not exist yet, the AI Business Manager activation flow will create a new company and then redirect you to the company’s real ID."
         title="Open or Create by msid"
       />
     );
@@ -442,18 +479,18 @@ function NewCompanyPageContent() {
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             boxShadow: "0 2px 12px rgba(56,153,236,0.4)",
           }}>
-            <span style={{ color: "white", fontSize: 20, fontWeight: 700 }}>C</span>
+            <span style={{ color: "white", fontSize: 20, fontWeight: 700 }}>A</span>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "white" }}>CEO Interview</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "white" }}>Activate your AI Business Manager</div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: ceoTyping ? "#ffc107" : "#00d68f" }} />
-              {ceoTyping ? "Thinking..." : "Online"}
+              {ceoTyping ? "Reviewing your business..." : "Ready"}
             </div>
           </div>
           {hasMessages && phase === "interview" && (
             <Button size="small" skin="premium" onClick={handleHire}>
-              Hire the CEO
+              Activate AIBM
             </Button>
           )}
         </div>
@@ -463,6 +500,22 @@ function NewCompanyPageContent() {
           flex: 1, width: "100%", maxWidth: 640, overflowY: "auto",
           padding: "24px 24px 8px", display: "flex", flexDirection: "column",
         }}>
+          {businessKnowledge?.content && (
+            <div style={{
+              marginBottom: 16,
+              padding: "14px 16px",
+              borderRadius: 14,
+              background: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              color: "white",
+              lineHeight: 1.6,
+              whiteSpace: "pre-wrap",
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, opacity: 0.9 }}>What I already know about your business</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.88)" }}>{businessKnowledge.content}</div>
+            </div>
+          )}
+
           {messages.map((msg, i) => (
             <div key={i} style={{ display: "flex", marginBottom: 12, justifyContent: msg.role === "ceo" ? "flex-start" : "flex-end" }}>
               {msg.role === "ceo" && (
@@ -471,7 +524,7 @@ function NewCompanyPageContent() {
                   background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>C</span>
+                  <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
                 </div>
               )}
               <div style={{ maxWidth: "75%" }}>
@@ -496,7 +549,7 @@ function NewCompanyPageContent() {
                 background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-                <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>C</span>
+                <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
               </div>
               <div style={{
                 background: "rgba(255,255,255,0.1)", padding: "14px 20px",
@@ -513,7 +566,7 @@ function NewCompanyPageContent() {
           {phase === "finalizing" && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 0", gap: 10 }}>
               <Loader size="small" />
-              <Text size="small" light>Setting up your company...</Text>
+              <Text size="small" light>Activating your AI Business Manager...</Text>
             </div>
           )}
 
