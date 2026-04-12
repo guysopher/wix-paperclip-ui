@@ -81,6 +81,10 @@ function copyRequestHeaders(request: NextRequest, extra?: HeadersInit): Headers 
   return headers;
 }
 
+function hasIncomingCookie(request: NextRequest): boolean {
+  return Boolean(request.headers.get("cookie")?.trim());
+}
+
 async function parseJsonResponse(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) {
@@ -142,9 +146,16 @@ async function fetchBoJson(
     headers,
     body,
     cache: "no-store",
-    redirect: "follow",
+    redirect: "manual",
     signal: AbortSignal.timeout(BO_TIMEOUT_MS),
   });
+
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location") || "";
+    if (location.includes("bo-wewix-login") || location.includes("login")) {
+      throw new Error("Wix BO authentication is required");
+    }
+  }
 
   const payload = await parseJsonResponse(response);
   if (!response.ok) {
@@ -158,6 +169,12 @@ async function fetchBoJson(
 }
 
 async function fetchAuthToken(request: NextRequest, metaSiteId: string): Promise<string> {
+  if (!hasIncomingCookie(request)) {
+    throw new Error(
+      "This request did not include a Wix BO session cookie. On this Vercel domain, the UI cannot forward your wix-bo.com login to the business knowledge APIs.",
+    );
+  }
+
   const candidates = ["/ai-assistant/api/get-auth-token", "/api/get-auth-token"];
   let lastError: Error | null = null;
 
@@ -401,6 +418,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: "metaSiteId is required",
+        reasonCode: "missing_metasite_id",
         content: "",
         hasKnowledge: false,
       },
@@ -440,6 +458,15 @@ export async function GET(request: NextRequest) {
       metaSiteId,
       content,
       hasKnowledge: Boolean(content),
+      reasonCode:
+        collectComposeLines(composeSummary).length > 0
+          ? "business_insights_loaded"
+          : insights.length > 0
+            ? "insights_library_loaded"
+            : "no_knowledge_available",
+      diagnostics: {
+        requestHasCookie: hasIncomingCookie(request),
+      },
       source:
         collectComposeLines(composeSummary).length > 0
           ? "business-insights"
@@ -458,8 +485,12 @@ export async function GET(request: NextRequest) {
       {
         error: message,
         metaSiteId,
+        reasonCode: hasIncomingCookie(request) ? "wix_bo_auth_failed" : "missing_wix_bo_cookie",
         content: "",
         hasKnowledge: false,
+        diagnostics: {
+          requestHasCookie: hasIncomingCookie(request),
+        },
       },
       { status: 502 },
     );

@@ -157,10 +157,15 @@ async function getCeoResponse(messages: ChatMessage[], msid: string, businessKno
 
 interface BusinessKnowledgeResponse {
   content: string;
+  error?: string;
+  reasonCode?: string;
   connectedSite?: {
     siteId?: string;
     siteName?: string;
     siteUrl?: string;
+  };
+  diagnostics?: {
+    requestHasCookie?: boolean;
   };
   hasKnowledge?: boolean;
 }
@@ -173,12 +178,14 @@ async function fetchBusinessKnowledge(msid: string, siteId?: string, siteName?: 
 
   try {
     const res = await fetch(`/api/common-business-knowledge?${params.toString()}`);
-    if (!res.ok) {
-      return null;
-    }
     return await res.json();
   } catch {
-    return null;
+    return {
+      content: "",
+      error: "The activation flow could not reach the business knowledge service.",
+      hasKnowledge: false,
+      reasonCode: "fetch_failed",
+    };
   }
 }
 
@@ -218,11 +225,25 @@ function NewCompanyPageContent() {
   const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
   const [requestedCompanyExists, setRequestedCompanyExists] = useState(false);
   const [businessKnowledge, setBusinessKnowledge] = useState<BusinessKnowledgeResponse | null>(null);
+  const [conversationVersion, setConversationVersion] = useState(0);
   const [error, setError] = useState("");
   const creationRef = useRef<Promise<{ companyId: string; ceoAgent: Agent } | null> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const featuredTemplates = AGENT_TEMPLATES;
+
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setConversationVersion((current) => current + 1);
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,7 +290,7 @@ function NewCompanyPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [msid, router, siteId, siteName, siteUrl]);
+  }, [conversationVersion, msid, router, siteId, siteName, siteUrl]);
 
   // Kick off the CEO's opening message once we know we're creating a new company.
   useEffect(() => {
@@ -515,6 +536,25 @@ function NewCompanyPageContent() {
             }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, opacity: 0.9 }}>What I already know about your business</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.88)" }}>{businessKnowledge.content}</div>
+            </div>
+          )}
+
+          {businessKnowledge?.error && (
+            <div style={{
+              marginBottom: 16,
+              padding: "14px 16px",
+              borderRadius: 14,
+              background: "rgba(255, 176, 32, 0.12)",
+              border: "1px solid rgba(255, 176, 32, 0.28)",
+              color: "white",
+              lineHeight: 1.5,
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#ffd28a" }}>
+                Business knowledge could not be loaded
+              </div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.88)" }}>
+                {businessKnowledge.error}
+              </div>
             </div>
           )}
 
