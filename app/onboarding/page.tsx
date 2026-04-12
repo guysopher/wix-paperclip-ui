@@ -19,6 +19,7 @@ import {
   createCompany,
   createAgent,
   updateAgent,
+  updateCompany,
   createGoal,
   createIssue,
   postComment,
@@ -33,6 +34,7 @@ import { useCompany, Providers } from "../providers";
 import { IconPicker } from "@/components/icon-picker";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { useMsidPath } from "@/lib/msid-client";
+import { buildCompanyDescription, mergeCompanyDescription } from "@/lib/company-metadata";
 
 // --- Hardcoded Wix sites ---
 interface WixSite {
@@ -355,7 +357,15 @@ function OnboardingFlow() {
       const desc = `${site.name} is a business powered by Wix at ${site.url}. It uses ${site.apps.join(", ")}. Agents have full access to the Wix site via MCP tools.`;
       const newCompany = await createCompany({
         name: site.name,
-        description: desc,
+        description: buildCompanyDescription({
+          version: 1,
+          businessDescription: desc,
+          wixBinding: {
+            siteId: site.id,
+            siteName: site.name,
+            siteUrl: site.url,
+          },
+        }),
       });
       setCompany(newCompany);
 
@@ -394,6 +404,17 @@ function OnboardingFlow() {
         assigneeAgentId: ceo.id,
       });
       setInboxIssue(inbox);
+
+      await updateCompany(newCompany.id, {
+        description: mergeCompanyDescription(newCompany.description, {
+          wixBinding: {
+            siteId: site.id,
+            siteName: site.name,
+            siteUrl: site.url,
+            activationIssueId: inbox.id,
+          },
+        }),
+      }).catch(() => undefined);
 
       // 4. Post system context comment
       const systemContext = `[System context - not visible to user]\nSite: ${site.name}\nURL: ${site.url}\nApps: ${site.apps.join(", ")}\nThe user just selected this site for their AI company. Start the interview.`;
@@ -462,25 +483,7 @@ function OnboardingFlow() {
         status: "active",
       });
 
-      // 3. Connect Wix site
-      if (selectedSite) {
-        try {
-          await fetch("/api/wix-config", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              companyId: company.id,
-              siteId: selectedSite.id,
-              siteName: selectedSite.name,
-              siteUrl: selectedSite.url,
-            }),
-          });
-        } catch {
-          // non-critical
-        }
-      }
-
-      // 4. Set the company in context and navigate
+      // 3. Set the company in context and navigate
       await refreshCompanies();
       setCompanyId(company.id);
 

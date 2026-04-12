@@ -125,36 +125,58 @@ function toUiMessages(comments: Comment[]): UiMessage[] {
     }));
 }
 
-function buildActivationContext(args: {
+function buildActivationIssueDescription(args: {
   msid: string;
   siteId: string;
   siteName: string;
   siteUrl: string;
 }): string {
+  const metadataJson = buildCompanyDescription({
+    version: 1,
+    businessDescription: "",
+    wixBinding: {
+      metaSiteId: args.msid,
+      siteId: args.siteId || undefined,
+      siteName: args.siteName || undefined,
+      siteUrl: args.siteUrl || undefined,
+    },
+  });
+
   const lines = [
-    HIDDEN_SYSTEM_PREFIX,
-    "This is the first activation conversation with the founder.",
-    "Research the Wix business before you answer if you have access to the metasite context through the backend.",
-    "Your first visible reply must:",
-    "- Introduce yourself as the Wix AI Business Manager.",
-    "- Mention one or two concrete things you learned about the business.",
-    "- Ask what the founder wants help with first.",
-    "- Offer to recommend the best first actions if helpful.",
-    "Keep the tone human, warm, and concise.",
-    `Wix metasite ID: ${args.msid}`,
+    "This is your first activation task for this Wix business.",
+    "",
+    "Research brief:",
+    `- Wix metasite ID: ${args.msid}`,
   ];
 
   if (args.siteId) {
-    lines.push(`Known Wix site ID: ${args.siteId}`);
+    lines.push(`- Known Wix site ID: ${args.siteId}`);
   }
   if (args.siteName) {
-    lines.push(`Known site name: ${args.siteName}`);
+    lines.push(`- Known site name: ${args.siteName}`);
   }
   if (args.siteUrl) {
-    lines.push(`Known site URL: ${args.siteUrl}`);
+    lines.push(`- Known site URL: ${args.siteUrl}`);
   }
 
-  lines.push("Do not ask the founder for the metasite ID or dashboard URL.");
+  lines.push("");
+  lines.push("What you need to do:");
+  lines.push("- Use the Wix access available to you through the backend to research this metasite before you reply.");
+  lines.push("- Treat the company description as the source-of-truth JSON mapper between Wix and Paperclip.");
+  lines.push("- Preserve the existing JSON shape in company.description and fill in any missing Wix binding details you can verify, such as siteId, siteName, siteUrl, auth hints, tokens, and other useful data.");
+  lines.push("- Also fill in businessDescription with a concise factual summary of the business once you know enough.");
+  lines.push("- If you cannot retrieve something, leave the existing fields intact and say what is missing.");
+  lines.push("");
+  lines.push("Current company.description JSON:");
+  lines.push(metadataJson);
+  lines.push("");
+  lines.push("Your first visible reply to the founder must:");
+  lines.push("- Introduce yourself as the Wix AI Business Manager.");
+  lines.push("- Mention one or two concrete things you learned about the business.");
+  lines.push("- Ask what they want help with first.");
+  lines.push("- Offer to recommend the best first actions if helpful.");
+  lines.push("- Keep the tone human, warm, and concise.");
+  lines.push("- Do not ask for the metasite ID again unless you explicitly could not access it.");
   return lines.join("\n");
 }
 
@@ -290,7 +312,12 @@ function NewCompanyPageContent() {
 
         const inboxIssue = await createIssue(company.id, {
           title: "Board Inbox",
-          description: "Direct communication channel between the board operator and the AI Business Manager.",
+          description: buildActivationIssueDescription({
+            msid,
+            siteId,
+            siteName,
+            siteUrl,
+          }),
           priority: "high",
           assigneeAgentId: ceoAgent.id,
         });
@@ -302,16 +329,6 @@ function NewCompanyPageContent() {
             },
           }),
         }).catch(() => undefined);
-
-        await postComment(
-          inboxIssue.id,
-          buildActivationContext({
-            msid,
-            siteId,
-            siteName,
-            siteUrl,
-          }),
-        );
 
         try {
           await invokeHeartbeat(ceoAgent.id);

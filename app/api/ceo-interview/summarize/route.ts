@@ -37,7 +37,7 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - Available tools include: CallWixSiteAPI (call any Wix REST API), ManageWixSite (site-level operations), WixSiteBuilder (page/section editing)
    - When hiring new agents, ensure they know to use Wix MCP tools for their work
    - Always think in terms of what can be done through the Wix site
-   - Keep the Wix site connection in the backoffice up to date. When the site URL, name, or configuration changes, update via: POST /api/wix-config with body { "companyId": "<id>", "siteId": "<site-id>", "siteName": "<name>", "siteUrl": "<url>" }
+   - Keep the company description JSON mapper up to date with the correct metasite, site identity, and other Wix context as it becomes available
 
 4. WHAT YOU DO ON EVERY CHECK-IN:
    - Check tasks assigned to you — the board assigns tasks directly. Their word is final.
