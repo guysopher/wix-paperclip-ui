@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     const result = await sendTelegramMessage(
       config.botToken,
       chatId,
-      "Test message from Agents Bay Backoffice. Connection is working!"
+      "Test message from Wix AI Business Manager. Connection is working!"
     );
     return Response.json(result);
   }

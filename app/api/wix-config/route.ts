@@ -6,7 +6,7 @@ const CONFIG_DIR = join(process.cwd(), ".wix-config");
 const CONFIG_FILE = join(CONFIG_DIR, "sites.json");
 
 // The workspace where Paperclip agents run
-const AGENT_WORKSPACE = "/Users/superbot/Projects/AgentsBay";
+const AGENT_WORKSPACE = process.cwd();
 const WIX_MD_PATH = join(AGENT_WORKSPACE, "WIX.md");
 
 interface WixSiteConfig {

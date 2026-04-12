@@ -3,8 +3,8 @@ import "@wix/design-system/styles.global.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agents Bay — Backoffice",
-  description: "AI Company Control Plane",
+  title: "Wix AI Business Manager",
+  description: "AI business manager for Wix companies",
   icons: {
     icon: "/favicon.svg",
   },

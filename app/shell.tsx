@@ -118,6 +118,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const totalBadge = (counts.inbox || 0) + (counts.approvals || 0);
 
   const currentCompany = companies.find((c) => c.id === companyId);
+  const hasActiveCompany = Boolean(currentCompany);
+
+  useEffect(() => {
+    if (!hasActiveCompany) {
+      setChatOpen(false);
+    }
+  }, [hasActiveCompany]);
 
   const handleCompanyCreated = async (newCompanyId: string) => {
     await refreshCompanies();
@@ -164,23 +171,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </span>
           )}
         </button>
-        <Text size="small" light weight="bold">Agents Bay</Text>
+        <Text size="small" light weight="bold">Wix AI Business Manager</Text>
         <div style={{ flex: 1 }} />
-        <button
-          onClick={() => setChatOpen(!chatOpen)}
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 4, position: "relative" }}
-        >
-          <Chat color="white" size="22px" />
-          {counts.chat > 0 && !chatOpen && (
-            <span style={{
-              position: "absolute", top: -2, right: -2,
-              minWidth: 14, height: 14, borderRadius: 7,
-              backgroundColor: "#ee5951", color: "white",
-              fontSize: 9, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>!</span>
-          )}
-        </button>
+        {hasActiveCompany && (
+          <button
+            onClick={() => setChatOpen(!chatOpen)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, position: "relative" }}
+          >
+            <Chat color="white" size="22px" />
+            {counts.chat > 0 && !chatOpen && (
+              <span style={{
+                position: "absolute", top: -2, right: -2,
+                minWidth: 14, height: 14, borderRadius: 7,
+                backgroundColor: "#ee5951", color: "white",
+                fontSize: 9, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>!</span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Mobile overlay */}
@@ -263,36 +272,38 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <div style={{ flexGrow: 1 }} />
 
-        <div style={{ padding: "8px 12px" }}>
-          <button
-            onClick={() => { setChatOpen(!chatOpen); setMenuOpen(false); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 9,
-              padding: "10px 12px", borderRadius: 8,
-              backgroundColor: chatOpen ? "#3899ec" : counts.chat > 0 ? "rgba(56, 153, 236, 0.4)" : "rgba(56, 153, 236, 0.25)",
-              border: chatOpen ? "none" : counts.chat > 0 ? "1px solid #3899ec" : "1px solid rgba(56, 153, 236, 0.4)",
-              cursor: "pointer", width: "100%", textAlign: "left",
-              boxShadow: chatOpen ? "0 2px 8px rgba(56, 153, 236, 0.3)" : "none",
-              position: "relative",
-            }}
-          >
-            <Chat color="white" />
-            <Text size="small" light weight="bold">Call the CEO</Text>
-            {counts.chat > 0 && !chatOpen && (
-              <span style={{
-                marginLeft: "auto",
-                minWidth: 18, height: 18, borderRadius: 9,
-                backgroundColor: "#ee5951",
-                color: "white", fontSize: 10, fontWeight: 700,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                padding: "0 5px",
-                animation: "pulse 2s infinite",
-              }}>
-                !
-              </span>
-            )}
-          </button>
-        </div>
+        {hasActiveCompany && (
+          <div style={{ padding: "8px 12px" }}>
+            <button
+              onClick={() => { setChatOpen(!chatOpen); setMenuOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 9,
+                padding: "10px 12px", borderRadius: 8,
+                backgroundColor: chatOpen ? "#3899ec" : counts.chat > 0 ? "rgba(56, 153, 236, 0.4)" : "rgba(56, 153, 236, 0.25)",
+                border: chatOpen ? "none" : counts.chat > 0 ? "1px solid #3899ec" : "1px solid rgba(56, 153, 236, 0.4)",
+                cursor: "pointer", width: "100%", textAlign: "left",
+                boxShadow: chatOpen ? "0 2px 8px rgba(56, 153, 236, 0.3)" : "none",
+                position: "relative",
+              }}
+            >
+              <Chat color="white" />
+              <Text size="small" light weight="bold">Call the CEO</Text>
+              {counts.chat > 0 && !chatOpen && (
+                <span style={{
+                  marginLeft: "auto",
+                  minWidth: 18, height: 18, borderRadius: 9,
+                  backgroundColor: "#ee5951",
+                  color: "white", fontSize: 10, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "0 5px",
+                  animation: "pulse 2s infinite",
+                }}>
+                  !
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main content */}
@@ -303,26 +314,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </Box>
 
       {/* CEO Chat slide-in panel - always mounted, slides in/out */}
-      <div
-        className="ceo-chat-panel"
-        style={{
-          position: "fixed",
-          right: 0,
-          top: 0,
-          width: 380,
-          height: "100vh",
-          borderLeft: "1px solid #e0e0e0",
-          display: "flex",
-          flexDirection: "column",
-          background: "#f7f8fa",
-          transform: chatOpen ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          zIndex: 100,
-          boxShadow: chatOpen ? "-4px 0 12px rgba(0, 0, 0, 0.1)" : "none",
-        }}
-      >
-        <CeoChatPanel onClose={() => setChatOpen(false)} />
-      </div>
+      {hasActiveCompany && (
+        <div
+          className="ceo-chat-panel"
+          style={{
+            position: "fixed",
+            right: 0,
+            top: 0,
+            width: 380,
+            height: "100vh",
+            borderLeft: "1px solid #e0e0e0",
+            display: "flex",
+            flexDirection: "column",
+            background: "#f7f8fa",
+            transform: chatOpen ? "translateX(0)" : "translateX(100%)",
+            transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            zIndex: 100,
+            boxShadow: chatOpen ? "-4px 0 12px rgba(0, 0, 0, 0.1)" : "none",
+          }}
+        >
+          <CeoChatPanel onClose={() => setChatOpen(false)} />
+        </div>
+      )}
 
       {/* Create Company Wizard */}
       <CreateCompanyWizard

@@ -186,7 +186,6 @@ function TeamContent() {
         if (row.status === "running") {
           return (
             <a href={companyPath(`/runs?agent=${row.id}&status=running`)} style={{ textDecoration: "none" }}>
-            <a href={companyPath(`/runs?agent=${row.id}&status=running`)} style={{ textDecoration: "none" }}>
               <Badge size="tiny" skin="success">Working</Badge>
             </a>
           );

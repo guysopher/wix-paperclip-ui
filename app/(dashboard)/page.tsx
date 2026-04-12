@@ -325,7 +325,7 @@ function DashboardContent() {
               }}>
                 <span style={{ color: "white", fontSize: 30, fontWeight: 700 }}>C</span>
               </div>
-              <Heading size="medium">Welcome to Agents Bay</Heading>
+              <Heading size="medium">Welcome to Wix AI Business Manager</Heading>
               <Text secondary style={{ marginTop: 8, display: "block" }}>
                 {companies.length > 0 ? "Select a company to get started, or create a new one." : "Create your first company to get started."}
               </Text>

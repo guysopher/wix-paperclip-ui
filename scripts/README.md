@@ -1,6 +1,6 @@
 # Scripts
 
-Utility scripts for the AgentsBay backoffice.
+Utility scripts for the Wix AI Business Manager backoffice.
 
 ## add-run-summary-to-agents.js
 
