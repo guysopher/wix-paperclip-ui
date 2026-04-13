@@ -17,6 +17,40 @@ export interface CompanyDescriptionMetadata {
   extra?: Record<string, unknown>;
 }
 
+export type ActivationMode = "existing_site" | "new_site";
+export type NewSiteInterviewStage =
+  | "business_name"
+  | "business_description"
+  | "site_specifics"
+  | "building"
+  | "complete";
+
+export interface NewSiteInterviewMetadata {
+  stage: NewSiteInterviewStage;
+  businessName?: string;
+  businessDescription?: string;
+  siteSpecifics?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface PicassoBridgeMetadata {
+  jobId?: string;
+  status?: string;
+  siteId?: string;
+  siteUrl?: string;
+  developmentUrl?: string;
+  requestedAt?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
+export interface ActivationMetadata {
+  mode?: ActivationMode;
+  newSiteInterview?: NewSiteInterviewMetadata;
+  picassoBridge?: PicassoBridgeMetadata;
+}
+
 const LEGACY_METASITE_PATTERN = /metasite\s+([0-9a-fA-F-]{36})/i;
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "version",
@@ -63,6 +97,73 @@ function getUnknownMap(value: unknown): Record<string, unknown> | undefined {
   }
 
   return Object.fromEntries(entries);
+}
+
+function getActivationMode(value: unknown): ActivationMode | undefined {
+  return value === "existing_site" || value === "new_site" ? value : undefined;
+}
+
+function normalizeNewSiteInterview(value: unknown): NewSiteInterviewMetadata | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const stage = value.stage;
+  if (
+    stage !== "business_name" &&
+    stage !== "business_description" &&
+    stage !== "site_specifics" &&
+    stage !== "building" &&
+    stage !== "complete"
+  ) {
+    return undefined;
+  }
+
+  return {
+    stage,
+    businessName: getString(value.businessName),
+    businessDescription: getString(value.businessDescription),
+    siteSpecifics: getString(value.siteSpecifics),
+    startedAt: getString(value.startedAt),
+    completedAt: getString(value.completedAt),
+  };
+}
+
+function normalizePicassoBridge(value: unknown): PicassoBridgeMetadata | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    jobId: getString(value.jobId),
+    status: getString(value.status),
+    siteId: getString(value.siteId),
+    siteUrl: getString(value.siteUrl),
+    developmentUrl: getString(value.developmentUrl),
+    requestedAt: getString(value.requestedAt),
+    updatedAt: getString(value.updatedAt),
+    error: getString(value.error),
+  };
+}
+
+export function getCompanyActivation(description: string | null | undefined): ActivationMetadata | undefined {
+  const metadata = parseCompanyDescription(description);
+  const activationRaw = metadata.extra?.activation;
+  if (!isRecord(activationRaw)) {
+    return undefined;
+  }
+
+  const activation: ActivationMetadata = {
+    mode: getActivationMode(activationRaw.mode),
+    newSiteInterview: normalizeNewSiteInterview(activationRaw.newSiteInterview),
+    picassoBridge: normalizePicassoBridge(activationRaw.picassoBridge),
+  };
+
+  if (!activation.mode && !activation.newSiteInterview && !activation.picassoBridge) {
+    return undefined;
+  }
+
+  return activation;
 }
 
 function normalizeWixBinding(raw: Record<string, unknown>): WixBindingMetadata | undefined {

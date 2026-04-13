@@ -9,22 +9,29 @@ import { Send } from "@wix/wix-ui-icons-common";
 import {
   archiveCompany,
   createAgent,
+  createPicassoBridgeJob,
   createCompany,
   createIssue,
   deleteCompany,
+  getPicassoBridgeJob,
   getCompanies,
   getComments,
   getHeartbeatRuns,
   invokeHeartbeat,
   postComment,
   updateCompany,
+  updateIssue,
   type Agent,
   type Comment,
   type HeartbeatRun,
+  type PicassoBridgeJob,
 } from "@/lib/api";
 import {
+  type ActivationMetadata,
+  type ActivationMode,
   buildCompanyDescription,
   findCompanyByMsid,
+  getCompanyActivation,
   getCompanyWixBinding,
   mergeCompanyDescription,
 } from "@/lib/company-metadata";
@@ -115,6 +122,10 @@ interface ActivationSession {
   companyId: string;
   ceoAgent: Agent;
   inboxIssueId: string;
+  mode: ActivationMode;
+  companyName: string;
+  companyDescription: string;
+  workspaceContextId: string;
 }
 
 interface UiMessage {
@@ -124,6 +135,12 @@ interface UiMessage {
 }
 
 type ActivationChatTrigger = "initial_open" | "backend_update" | "user_message";
+
+interface NewSiteInterviewDraft {
+  businessName: string;
+  businessDescription: string;
+  siteSpecifics: string;
+}
 
 function isHiddenSystemComment(body: string): boolean {
   return body.startsWith(HIDDEN_SYSTEM_PREFIX);
@@ -150,6 +167,22 @@ function buildBackendSignature(comments: Comment[], runs: HeartbeatRun[]): strin
     latestRun?.id || "no-run",
     latestRun?.status || "no-status",
     String(activeRunCount),
+  ].join(":");
+}
+
+function buildActivationSignature(
+  comments: Comment[],
+  runs: HeartbeatRun[],
+  bridgeJob: PicassoBridgeJob | null,
+): string {
+  return [
+    buildBackendSignature(comments, runs),
+    bridgeJob?.status || "no-bridge",
+    bridgeJob?.updatedAt || "no-bridge-update",
+    bridgeJob?.result?.siteId || "no-bridge-site-id",
+    bridgeJob?.result?.developmentUrl || "no-bridge-dev-url",
+    bridgeJob?.result?.siteUrl || "no-bridge-site-url",
+    bridgeJob?.error || "no-bridge-error",
   ].join(":");
 }
 
@@ -292,6 +325,64 @@ function buildActivationIssueDescription(args: {
   return lines.join("\n");
 }
 
+function buildNewSiteIssueDescription(args: {
+  companyName: string;
+  interview: NewSiteInterviewDraft;
+  picassoJobId?: string;
+  picassoStatus?: string;
+  buildError?: string;
+}): string {
+  const lines = [
+    `Create a brand new Wix site for ${args.interview.businessName || args.companyName || "this business"}.`,
+    "",
+    "This activation flow started without an existing Wix metasite.",
+    "The founder is creating a new business site from scratch through the Picasso bridge.",
+    "",
+    "Founder inputs:",
+    `- Business name: ${args.interview.businessName || "Not captured yet"}`,
+    `- Business description: ${args.interview.businessDescription || "Not captured yet"}`,
+    `- Specific site requests: ${args.interview.siteSpecifics || "Not captured yet"}`,
+    "",
+    "Current build state:",
+    `- Picasso job ID: ${args.picassoJobId || "Not started"}`,
+    `- Picasso status: ${args.picassoStatus || "Not started"}`,
+  ];
+
+  if (args.buildError) {
+    lines.push(`- Build error: ${args.buildError}`);
+  }
+
+  lines.push("");
+  lines.push("Your job as the AI Team Lead is to stay founder-facing and strategic while the first version of the site is being created.");
+  lines.push("- Keep the founder engaged with clear next steps.");
+  lines.push("- Suggest practical ways the AI Team can help the business beyond the initial site build.");
+  lines.push("- Do not ask for the same intake details again unless something is actually missing.");
+
+  return lines.join("\n");
+}
+
+function buildNewSiteBridgePrompt(interview: NewSiteInterviewDraft): string {
+  const lines = [
+    `Create a new Wix business site for ${interview.businessName}.`,
+    "",
+    `Business overview: ${interview.businessDescription}.`,
+    "",
+    "Core expectations:",
+    "- Create a polished first version of the site that feels credible and launchable.",
+    "- Include a strong homepage and any obvious core sections needed for this business.",
+    "- Make the structure, copy direction, and calls to action fit the business type.",
+  ];
+
+  if (interview.siteSpecifics) {
+    lines.push(`- Specific founder requests: ${interview.siteSpecifics}.`);
+  }
+
+  lines.push("");
+  lines.push("Prioritize clarity, credibility, and conversion over flashy design.");
+
+  return lines.join("\n");
+}
+
 function getDraftCompanyName(siteName: string, msid: string): string {
   if (siteName) {
     return siteName;
@@ -306,8 +397,10 @@ function NewCompanyPageContent() {
   const siteId = searchParams.get("siteId")?.trim() || "";
   const siteName = searchParams.get("siteName")?.trim() || "";
   const siteUrl = searchParams.get("siteUrl")?.trim() || "";
+  const selectedMode = msid ? "existing_site" : null;
 
   const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
+  const [activationModeSelection, setActivationModeSelection] = useState<ActivationMode | null>(selectedMode);
   const [requestedCompanyExists, setRequestedCompanyExists] = useState(false);
   const [activationSession, setActivationSession] = useState<ActivationSession | null>(null);
   const [chatMessages, setChatMessages] = useState<UiMessage[]>([]);
@@ -318,6 +411,7 @@ function NewCompanyPageContent() {
   const [conversationVersion, setConversationVersion] = useState(0);
   const [showReadyReveal, setShowReadyReveal] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [bridgeJob, setBridgeJob] = useState<PicassoBridgeJob | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -326,7 +420,43 @@ function NewCompanyPageContent() {
   const backendSignatureRef = useRef("");
   const chatMessagesRef = useRef<UiMessage[]>([]);
   const ceoTyping = bootstrapState === "checking" || chatSending;
+  const effectiveActivationMode = msid ? "existing_site" : activationModeSelection;
+  const activationMetadata = activationSession
+    ? getCompanyActivation(activationSession.companyDescription)
+    : undefined;
+  const interviewStage = activationMetadata?.newSiteInterview?.stage || "business_name";
+  const bridgeStatus = activationMetadata?.picassoBridge?.status || bridgeJob?.status || "not_started";
+  const isNewSiteFlow = activationSession?.mode === "new_site";
   const showRunSpinner = chatSending || backendBusy;
+  const headerStatusText = chatSending
+    ? "Thinking..."
+    : isNewSiteFlow
+      ? bridgeStatus === "queued" || bridgeStatus === "running"
+        ? "Building the first site version"
+        : interviewStage === "building" || interviewStage === "complete"
+          ? "Planning the next moves"
+          : "Collecting business details"
+      : backendBusy
+        ? "Reviewing the business and preparing next steps"
+        : "Ready to help";
+  const headerDescriptionText = isNewSiteFlow
+    ? bridgeStatus === "queued" || bridgeStatus === "running"
+      ? "Your AI Team Lead is building the first site version and lining up practical next steps for the business."
+      : interviewStage === "building" || interviewStage === "complete"
+        ? "Your AI Team Lead is turning the business brief into a first site version and mapping the smartest next actions."
+        : "Your AI Team Lead is gathering the business basics so the first site version starts from a clean brief."
+    : "Your AI Team Lead is already reviewing the business and lining up practical recommendations.";
+  const spinnerLabel = backendBusy
+    ? isNewSiteFlow
+      ? bridgeStatus === "queued" || bridgeStatus === "running"
+        ? "Building the first site version..."
+        : "Preparing the next steps..."
+      : "Research in progress..."
+    : "Thinking...";
+
+  useEffect(() => {
+    setActivationModeSelection(selectedMode);
+  }, [selectedMode]);
 
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
@@ -373,69 +503,100 @@ function NewCompanyPageContent() {
     setChatSending(false);
     setError("");
     setShowReadyReveal(false);
+    setBridgeJob(null);
     backendSignatureRef.current = "";
     if (revealTimeoutRef.current) {
       clearTimeout(revealTimeoutRef.current);
       revealTimeoutRef.current = null;
     }
 
-    if (!msid) {
+    if (!effectiveActivationMode) {
+      setBootstrapState("missing-msid");
+      return;
+    }
+
+    if (effectiveActivationMode === "existing_site" && !msid) {
       setBootstrapState("missing-msid");
       return;
     }
 
     const startActivationSession = async () => {
-      try {
-        const companies = await getCompanies();
-        const legacyCompanyIdMatch = companies.find((company) => company.id === msid) || null;
-        const legacyMappedMsid = legacyCompanyIdMatch
-          ? getCompanyWixBinding(legacyCompanyIdMatch.description)?.metaSiteId || ""
-          : "";
+      if (effectiveActivationMode === "existing_site") {
+        try {
+          const companies = await getCompanies();
+          const legacyCompanyIdMatch = companies.find((company) => company.id === msid) || null;
+          const legacyMappedMsid = legacyCompanyIdMatch
+            ? getCompanyWixBinding(legacyCompanyIdMatch.description)?.metaSiteId || ""
+            : "";
 
-        if (
-          !cancelled &&
-          legacyMappedMsid &&
-          legacyMappedMsid !== msid
-        ) {
-          router.replace(withMsid("/new", legacyMappedMsid));
-          return;
-        }
-
-        const existingCompany = findCompanyByMsid(companies, msid);
-        if (!cancelled && existingCompany) {
-          if (siteId || siteName || siteUrl) {
-            await updateCompany(existingCompany.id, {
-              description: mergeCompanyDescription(existingCompany.description, {
-                wixBinding: {
-                  metaSiteId: msid,
-                  siteId: siteId || undefined,
-                  siteName: siteName || undefined,
-                  siteUrl: siteUrl || undefined,
-                },
-              }),
-            }).catch(() => undefined);
+          if (
+            !cancelled &&
+            legacyMappedMsid &&
+            legacyMappedMsid !== msid
+          ) {
+            router.replace(withMsid("/new", legacyMappedMsid));
+            return;
           }
-          setRequestedCompanyExists(true);
-          router.replace(withMsid("/", msid));
-          return;
+
+          const existingCompany = findCompanyByMsid(companies, msid as string);
+          if (!cancelled && existingCompany) {
+            if (siteId || siteName || siteUrl) {
+              await updateCompany(existingCompany.id, {
+                description: mergeCompanyDescription(existingCompany.description, {
+                  wixBinding: {
+                    metaSiteId: msid as string,
+                    siteId: siteId || undefined,
+                    siteName: siteName || undefined,
+                    siteUrl: siteUrl || undefined,
+                  },
+                }),
+              }).catch(() => undefined);
+            }
+            setRequestedCompanyExists(true);
+            router.replace(withMsid("/", msid as string));
+            return;
+          }
+        } catch {
+          // Fall through to activation setup.
         }
-      } catch {
-        // Fall through to activation setup.
       }
 
       try {
         const company = await createCompany({
-          name: getDraftCompanyName(siteName, msid),
-          description: buildCompanyDescription({
-            version: 1,
-            businessDescription: "",
-            wixBinding: {
-              metaSiteId: msid,
-              siteId: siteId || undefined,
-              siteName: siteName || undefined,
-              siteUrl: siteUrl || undefined,
-            },
-          }),
+          name:
+            effectiveActivationMode === "existing_site"
+              ? getDraftCompanyName(siteName, msid as string)
+              : "New Business",
+          description:
+            effectiveActivationMode === "existing_site"
+              ? buildCompanyDescription({
+                  version: 1,
+                  businessDescription: "",
+                  wixBinding: {
+                    metaSiteId: msid as string,
+                    siteId: siteId || undefined,
+                    siteName: siteName || undefined,
+                    siteUrl: siteUrl || undefined,
+                  },
+                  extra: {
+                    activation: {
+                      mode: "existing_site",
+                    },
+                  },
+                })
+              : buildCompanyDescription({
+                  version: 1,
+                  businessDescription: "",
+                  extra: {
+                    activation: {
+                      mode: "new_site",
+                      newSiteInterview: {
+                        stage: "business_name",
+                        startedAt: new Date().toISOString(),
+                      },
+                    },
+                  },
+                }),
         });
 
         const ceoAgent = await createAgent(company.id, {
@@ -457,13 +618,26 @@ function NewCompanyPageContent() {
         });
 
         const inboxIssue = await createIssue(company.id, {
-          title: `Kickstart AI Team for Wix metasite ${msid}`,
-          description: buildActivationIssueDescription({
-            msid,
-            siteId,
-            siteName,
-            siteUrl,
-          }),
+          title:
+            effectiveActivationMode === "existing_site"
+              ? `Kickstart AI Team for Wix metasite ${msid}`
+              : "Create a new Wix site from scratch",
+          description:
+            effectiveActivationMode === "existing_site"
+              ? buildActivationIssueDescription({
+                  msid: msid as string,
+                  siteId,
+                  siteName,
+                  siteUrl,
+                })
+              : buildNewSiteIssueDescription({
+                  companyName: company.name,
+                  interview: {
+                    businessName: "",
+                    businessDescription: "",
+                    siteSpecifics: "",
+                  },
+                }),
           priority: "high",
           assigneeAgentId: ceoAgent.id,
         });
@@ -477,7 +651,9 @@ function NewCompanyPageContent() {
         }).catch(() => undefined);
 
         try {
-          await invokeHeartbeat(ceoAgent.id);
+          if (effectiveActivationMode === "existing_site") {
+            await invokeHeartbeat(ceoAgent.id);
+          }
         } catch {
           // Non-critical. Polling will still show any response that appears.
         }
@@ -495,9 +671,18 @@ function NewCompanyPageContent() {
           companyId: company.id,
           ceoAgent,
           inboxIssueId: inboxIssue.id,
+          mode: effectiveActivationMode,
+          companyName: company.name,
+          companyDescription: mergeCompanyDescription(company.description, {
+            wixBinding: {
+              activationIssueId: inboxIssue.id,
+            },
+          }),
+          workspaceContextId:
+            effectiveActivationMode === "existing_site" ? (msid as string) : company.id,
         });
         setBackendBusy(initialRuns.some((run) => ["queued", "running"].includes(run.status)));
-        backendSignatureRef.current = buildBackendSignature(initialComments, initialRuns);
+        backendSignatureRef.current = buildActivationSignature(initialComments, initialRuns, null);
         setBootstrapState("ready");
       } catch (setupError) {
         if (cancelled) {
@@ -513,7 +698,52 @@ function NewCompanyPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [conversationVersion, msid, router, siteId, siteName, siteUrl]);
+  }, [conversationVersion, effectiveActivationMode, msid, router, siteId, siteName, siteUrl]);
+
+  const updateActivationState = async (args: {
+    name?: string;
+    businessDescription?: string;
+    activation: ActivationMetadata;
+    issueTitle?: string;
+    issueDescription?: string;
+  }) => {
+    if (!activationSession) {
+      return null;
+    }
+
+    const nextDescription = mergeCompanyDescription(activationSession.companyDescription, {
+      businessDescription: args.businessDescription,
+      extra: {
+        activation: args.activation,
+      },
+    });
+
+    const updatedCompany = await updateCompany(activationSession.companyId, {
+      ...(args.name && args.name !== activationSession.companyName ? { name: args.name } : {}),
+      description: nextDescription,
+    });
+
+    setActivationSession((current) => {
+      if (!current || current.companyId !== updatedCompany.id) {
+        return current;
+      }
+
+      return {
+        ...current,
+        companyName: updatedCompany.name,
+        companyDescription: updatedCompany.description,
+      };
+    });
+
+    if (args.issueTitle || args.issueDescription) {
+      await updateIssue(activationSession.inboxIssueId, {
+        ...(args.issueTitle ? { title: args.issueTitle } : {}),
+        ...(args.issueDescription ? { description: args.issueDescription } : {}),
+      }).catch(() => undefined);
+    }
+
+    return updatedCompany;
+  };
 
   useEffect(() => {
     if (!activationSession) {
@@ -526,14 +756,77 @@ function NewCompanyPageContent() {
 
     const pollBackendState = async () => {
       try {
-        const [nextComments, nextRuns] = await Promise.all([
+        const currentActivation = getCompanyActivation(activationSession.companyDescription);
+        const currentBridgeJobId = currentActivation?.picassoBridge?.jobId;
+        const [nextComments, nextRuns, nextBridgeJob] = await Promise.all([
           getComments(activationSession.inboxIssueId),
           getHeartbeatRuns(activationSession.companyId).catch(() => [] as HeartbeatRun[]),
+          currentBridgeJobId
+            ? getPicassoBridgeJob(currentBridgeJobId).catch(() => null)
+            : Promise.resolve(null),
         ]);
-        const hasActiveRuns = nextRuns.some((run) => ["queued", "running"].includes(run.status));
+        const hasActiveRuns =
+          nextRuns.some((run) => ["queued", "running"].includes(run.status)) ||
+          Boolean(nextBridgeJob && ["queued", "running"].includes(nextBridgeJob.status));
         setBackendBusy(hasActiveRuns);
+        setBridgeJob(nextBridgeJob);
 
-        const nextSignature = buildBackendSignature(nextComments, nextRuns);
+        if (nextBridgeJob && activationSession.mode === "new_site") {
+          const nextActivation: ActivationMetadata = {
+            mode: "new_site",
+            newSiteInterview: {
+              ...(currentActivation?.newSiteInterview || {
+                stage: "building",
+              }),
+              stage: nextBridgeJob.status === "succeeded" ? "complete" : "building",
+            },
+            picassoBridge: {
+              jobId: nextBridgeJob.id,
+              status: nextBridgeJob.status,
+              siteId: nextBridgeJob.result?.siteId || undefined,
+              siteUrl: nextBridgeJob.result?.siteUrl || undefined,
+              developmentUrl: nextBridgeJob.result?.developmentUrl || undefined,
+              requestedAt: currentActivation?.picassoBridge?.requestedAt,
+              updatedAt: nextBridgeJob.updatedAt,
+              error: nextBridgeJob.error || undefined,
+            },
+          };
+
+          const currentPicasso = currentActivation?.picassoBridge;
+          const stageChanged =
+            currentActivation?.newSiteInterview?.stage !== nextActivation.newSiteInterview?.stage;
+          const bridgeChanged =
+            currentPicasso?.status !== nextActivation.picassoBridge?.status ||
+            currentPicasso?.siteId !== nextActivation.picassoBridge?.siteId ||
+            currentPicasso?.siteUrl !== nextActivation.picassoBridge?.siteUrl ||
+            currentPicasso?.developmentUrl !== nextActivation.picassoBridge?.developmentUrl ||
+            currentPicasso?.error !== nextActivation.picassoBridge?.error;
+
+          if (stageChanged || bridgeChanged) {
+            const draft: NewSiteInterviewDraft = {
+              businessName: currentActivation?.newSiteInterview?.businessName || activationSession.companyName,
+              businessDescription:
+                currentActivation?.newSiteInterview?.businessDescription || "",
+              siteSpecifics: currentActivation?.newSiteInterview?.siteSpecifics || "",
+            };
+
+            await updateActivationState({
+              name: draft.businessName || activationSession.companyName,
+              businessDescription: draft.businessDescription || undefined,
+              activation: nextActivation,
+              issueTitle: `Create new Wix site for ${draft.businessName || activationSession.companyName}`,
+              issueDescription: buildNewSiteIssueDescription({
+                companyName: activationSession.companyName,
+                interview: draft,
+                picassoJobId: nextBridgeJob.id,
+                picassoStatus: nextBridgeJob.status,
+                buildError: nextBridgeJob.error || undefined,
+              }),
+            });
+          }
+        }
+
+        const nextSignature = buildActivationSignature(nextComments, nextRuns, nextBridgeJob);
         if (
           nextSignature !== backendSignatureRef.current &&
           chatMessagesRef.current.length > 0
@@ -622,18 +915,28 @@ function NewCompanyPageContent() {
         setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
       }
     } catch {
+      const nextActivation = activationSession
+        ? getCompanyActivation(activationSession.companyDescription)
+        : undefined;
+      const isNewSiteActivation = activationSession?.mode === "new_site";
       if (trigger === "initial_open") {
         setChatMessages((current) =>
           appendUiMessage(current, {
             role: "ceo",
-            text: "Hey, I just kicked off the research on your Wix business. I'm pulling together what I can already see and I'll keep you posted as I learn more.",
+            text: isNewSiteActivation
+              ? "Hey, I’m your AI Team Lead. Let’s get the basics in place so I can start building the first version of the site. What’s the business called?"
+              : "Hey, I just kicked off the research on your Wix business. I'm pulling together what I can already see and I'll keep you posted as I learn more.",
           }),
         );
       } else {
         setChatMessages((current) =>
           appendUiMessage(current, {
             role: "ceo",
-            text: "I’m on it. I’ve passed that into the activation work and I’ll keep you posted with the useful bits as the research comes in.",
+            text: isNewSiteActivation && nextActivation?.newSiteInterview?.stage === "building"
+              ? "I’ve got what I need. I’m starting the first version now and I’ll keep you posted with smart next moves while it takes shape."
+              : isNewSiteActivation
+                ? "Perfect. I’m building the brief as we go. Keep the details coming and I’ll turn them into a solid first version."
+                : "I’m on it. I’ve passed that into the activation work and I’ll keep you posted with the useful bits as the research comes in.",
           }),
         );
       }
@@ -662,11 +965,163 @@ function NewCompanyPageContent() {
       text: userText,
     });
     setChatMessages(nextMessages);
-    setBackendBusy(true);
+    if (activationSession.mode === "existing_site") {
+      setBackendBusy(true);
+    }
 
     try {
       await postComment(activationSession.inboxIssueId, userText);
       await getComments(activationSession.inboxIssueId).catch(() => [] as Comment[]);
+
+      if (activationSession.mode === "new_site") {
+        const currentActivation = getCompanyActivation(activationSession.companyDescription);
+        const currentInterview = currentActivation?.newSiteInterview || {
+          stage: "business_name" as const,
+          startedAt: new Date().toISOString(),
+        };
+        const currentDraft: NewSiteInterviewDraft = {
+          businessName: currentInterview.businessName || activationSession.companyName || "",
+          businessDescription: currentInterview.businessDescription || "",
+          siteSpecifics: currentInterview.siteSpecifics || "",
+        };
+        const nextActivation: ActivationMetadata = {
+          mode: "new_site",
+          newSiteInterview: {
+            ...currentInterview,
+          },
+          picassoBridge: currentActivation?.picassoBridge,
+        };
+
+        switch (currentInterview.stage) {
+          case "business_name": {
+            const businessName = userText;
+            currentDraft.businessName = businessName;
+            nextActivation.newSiteInterview = {
+              ...nextActivation.newSiteInterview,
+              businessName,
+              stage: "business_description",
+              startedAt: currentInterview.startedAt || new Date().toISOString(),
+            };
+
+            await updateActivationState({
+              name: businessName,
+              activation: nextActivation,
+              issueTitle: `Create new Wix site for ${businessName}`,
+              issueDescription: buildNewSiteIssueDescription({
+                companyName: businessName,
+                interview: currentDraft,
+              }),
+            });
+            break;
+          }
+          case "business_description": {
+            currentDraft.businessDescription = userText;
+            nextActivation.newSiteInterview = {
+              ...nextActivation.newSiteInterview,
+              businessDescription: userText,
+              stage: "site_specifics",
+            };
+
+            await updateActivationState({
+              name: currentDraft.businessName || activationSession.companyName,
+              businessDescription: userText,
+              activation: nextActivation,
+              issueTitle: `Create new Wix site for ${currentDraft.businessName || activationSession.companyName}`,
+              issueDescription: buildNewSiteIssueDescription({
+                companyName: currentDraft.businessName || activationSession.companyName,
+                interview: currentDraft,
+              }),
+            });
+            break;
+          }
+          case "site_specifics": {
+            const requestedAt = new Date().toISOString();
+            currentDraft.siteSpecifics = userText;
+            let nextPicassoBridge: ActivationMetadata["picassoBridge"] = {
+              status: "queued",
+              requestedAt,
+              updatedAt: requestedAt,
+            };
+
+            try {
+              const bridgeResponse = await createPicassoBridgeJob({
+                mode: "create_site",
+                prompt: buildNewSiteBridgePrompt(currentDraft),
+                designer: "none",
+                companyId: activationSession.companyId,
+                issueId: activationSession.inboxIssueId,
+                requestedBy: "paperclip-ui",
+                metadata: {
+                  businessName: currentDraft.businessName,
+                },
+              });
+
+              nextPicassoBridge = {
+                jobId: bridgeResponse.jobId,
+                status: bridgeResponse.status,
+                requestedAt,
+                updatedAt: requestedAt,
+              };
+
+              setBridgeJob({
+                id: bridgeResponse.jobId,
+                mode: "create_site",
+                status: bridgeResponse.status,
+                prompt: buildNewSiteBridgePrompt(currentDraft),
+                designer: "none",
+                companyId: activationSession.companyId,
+                issueId: activationSession.inboxIssueId,
+                requestedBy: "paperclip-ui",
+                createdAt: requestedAt,
+                updatedAt: requestedAt,
+              });
+              setBackendBusy(true);
+            } catch (bridgeError) {
+              nextPicassoBridge = {
+                status: "failed",
+                requestedAt,
+                updatedAt: requestedAt,
+                error:
+                  bridgeError instanceof Error
+                    ? bridgeError.message
+                    : "Failed to start the Picasso bridge job.",
+              };
+              setBackendBusy(false);
+            }
+
+            nextActivation.newSiteInterview = {
+              ...nextActivation.newSiteInterview,
+              siteSpecifics: userText,
+              stage: "building",
+              completedAt: requestedAt,
+            };
+            nextActivation.picassoBridge = nextPicassoBridge;
+
+            await updateActivationState({
+              name: currentDraft.businessName || activationSession.companyName,
+              businessDescription: currentDraft.businessDescription || undefined,
+              activation: nextActivation,
+              issueTitle: `Create new Wix site for ${currentDraft.businessName || activationSession.companyName}`,
+              issueDescription: buildNewSiteIssueDescription({
+                companyName: currentDraft.businessName || activationSession.companyName,
+                interview: currentDraft,
+                picassoJobId: nextPicassoBridge?.jobId,
+                picassoStatus: nextPicassoBridge?.status,
+                buildError: nextPicassoBridge?.error,
+              }),
+            });
+            break;
+          }
+          case "building":
+          case "complete":
+            break;
+          default:
+            break;
+        }
+
+        void requestActivationReply(nextMessages, "user_message");
+        return;
+      }
 
       try {
         await invokeHeartbeat(activationSession.ceoAgent.id);
@@ -681,10 +1136,10 @@ function NewCompanyPageContent() {
   };
 
   const handleOpenWorkspace = () => {
-    if (!activationSession || !msid) {
+    if (!activationSession) {
       return;
     }
-    router.push(withMsid("/", msid));
+    router.push(withMsid("/", activationSession.workspaceContextId));
   };
 
   const handleRetry = () => {
@@ -724,12 +1179,78 @@ function NewCompanyPageContent() {
   };
 
   if (bootstrapState === "missing-msid") {
+    if (activationModeSelection === "existing_site") {
+      return (
+        <MetasiteIdEntry
+          redirectPath="/new"
+          description="Enter the Wix metasite ID you want to activate. The AI Team Lead will use it to open the right Wix business context."
+          title="Enter the Wix metasite ID"
+        />
+      );
+    }
+
     return (
-      <MetasiteIdEntry
-        redirectPath="/new"
-        description="Enter the Wix metasite ID you want to activate. The AI Team Lead will use it to open the right Wix business context."
-        title="Enter the Wix metasite ID"
-      />
+      <WixDesignSystemProvider>
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 45%, #1e4764 100%)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 840,
+              display: "grid",
+              gap: 18,
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            }}
+          >
+            {[
+              {
+                key: "existing_site",
+                title: "Use existing site",
+                description:
+                  "Bring an existing Wix business into Paperclip by entering its metasite ID.",
+              },
+              {
+                key: "new_site",
+                title: "Create new site",
+                description:
+                  "Start from scratch. The AI Team Lead will interview you briefly, then kick off the first site build through Picasso.",
+              },
+            ].map((option) => (
+              <div
+                key={option.key}
+                style={{
+                  borderRadius: 26,
+                  padding: 28,
+                  background: "rgba(255,255,255,0.9)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "0 24px 60px rgba(8, 28, 45, 0.25)",
+                }}
+              >
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#123049", marginBottom: 10 }}>
+                  {option.title}
+                </div>
+                <div style={{ fontSize: 15, lineHeight: 1.65, color: "#557086", marginBottom: 24 }}>
+                  {option.description}
+                </div>
+                <Button
+                  onClick={() => setActivationModeSelection(option.key as ActivationMode)}
+                  {...(option.key === "new_site" ? { skin: "premium" as const } : {})}
+                >
+                  {option.key === "new_site" ? "Start new site flow" : "Enter metasite ID"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </WixDesignSystemProvider>
     );
   }
 
@@ -927,12 +1448,10 @@ function NewCompanyPageContent() {
                 />
                 {chatSending
                   ? "Thinking..."
-                  : backendBusy
-                    ? "Reviewing the business and preparing next steps"
-                    : "Ready to help"}
+                  : headerStatusText}
               </div>
               <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6a8092", marginTop: 8 }}>
-                Your AI Team Lead is already reviewing the business and lining up practical recommendations.
+                {headerDescriptionText}
               </div>
             </div>
             <div style={{ flexShrink: 0 }}>
@@ -1030,7 +1549,7 @@ function NewCompanyPageContent() {
                 <Loader size="tiny" />
               </div>
               <span style={{ fontSize: 14, color: "#7b8c9d" }}>
-                {backendBusy ? "Research in progress..." : "Thinking..."}
+                {spinnerLabel}
               </span>
             </div>
           )}

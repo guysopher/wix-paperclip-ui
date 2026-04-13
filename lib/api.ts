@@ -1,5 +1,6 @@
 // Always use the Next.js proxy so browser traffic does not depend on upstream CORS.
 const API_BASE = "/api/paperclip";
+const PICASSO_BRIDGE_BASE = "/api/picasso-bridge";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -9,6 +10,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       "ngrok-skip-browser-warning": "1",
       ...options?.headers,
     },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json();
+}
+
+async function bridgeRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${PICASSO_BRIDGE_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    cache: "no-store",
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
@@ -255,3 +272,51 @@ export interface Goal {
   level: string;
   status: string;
 }
+
+export interface PicassoBridgeJobRequest {
+  mode: "create_site";
+  prompt: string;
+  designer?: string;
+  companyId?: string;
+  issueId?: string;
+  requestedBy?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface PicassoBridgeJobResult {
+  siteId?: string | null;
+  conversationId?: string | null;
+  projectId?: string | null;
+  developmentUrl?: string | null;
+  siteUrl?: string | null;
+}
+
+export interface PicassoBridgeJob {
+  id: string;
+  mode: "create_site";
+  status: string;
+  prompt: string;
+  designer: string;
+  companyId?: string | null;
+  issueId?: string | null;
+  requestedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  error?: string | null;
+  result?: PicassoBridgeJobResult | null;
+  hasRecording?: boolean;
+  stdout?: string;
+  stderr?: string;
+  recording?: string;
+}
+
+export const createPicassoBridgeJob = (data: PicassoBridgeJobRequest) =>
+  bridgeRequest<{ jobId: string; status: string; mode: string; pollUrl: string }>("/jobs", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const getPicassoBridgeJob = (jobId: string, includeLogs = false) =>
+  bridgeRequest<PicassoBridgeJob>(`/jobs/${jobId}${includeLogs ? "?includeLogs=1" : ""}`);

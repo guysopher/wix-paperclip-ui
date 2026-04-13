@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import {
+  getCompanyActivation,
   getCompanyBusinessDescription,
   getCompanyWixBinding,
   parseCompanyDescription,
@@ -191,6 +192,55 @@ function buildTriggerInstruction(
   }
 }
 
+function buildNewSiteInterviewReply(companyName: string, description: string): string {
+  const activation = getCompanyActivation(description);
+  const interview = activation?.newSiteInterview;
+  const stage = interview?.stage || "business_name";
+
+  switch (stage) {
+    case "business_description":
+      return `Nice. ${interview?.businessName || companyName || "That"} gives me a good starting point. What is the business about?`;
+    case "site_specifics":
+      return "Got it. Is there anything specific you already want on the site like pages, tone, style, bookings, store setup, or anything else I should build around?";
+    case "building":
+    case "complete":
+      return `Perfect. I have enough to start building ${interview?.businessName || companyName || "the site"} now. While that’s underway, I’ll also map out the smartest next moves for the business so we can keep momentum once the first version is ready.`;
+    case "business_name":
+    default:
+      return "Hey, I’m your AI Team Lead. If we’re creating this from scratch, let’s start with the basics. What’s the business called?";
+  }
+}
+
+function buildNewSiteBuildInstruction(
+  trigger: ActivationChatRequest["trigger"],
+  status: string,
+): string {
+  switch (trigger) {
+    case "backend_update":
+      if (status === "succeeded") {
+        return "The first site build has succeeded. Give the founder a concise, confident update. Mention that the first version is ready, briefly say what happens next, and suggest 2 to 4 practical ways the AI Team Lead can keep helping grow the business.";
+      }
+      if (status === "failed" || status === "canceled") {
+        return "The site build did not complete successfully. Explain that plainly, keep it calm, and immediately pivot to what you can still help with next. Do not sound alarmist or technical.";
+      }
+      return "The site build is underway. Give the founder a short progress update and suggest 2 to 4 practical next steps the AI Team Lead can help with for the business while the first version is being built.";
+    case "user_message":
+      if (status === "succeeded") {
+        return "The first site build has already succeeded. Answer like the founder is now moving from creation into execution. Keep it practical and suggest concrete next moves you can help with.";
+      }
+      if (status === "failed" || status === "canceled") {
+        return "The site build did not start or complete successfully. Say that plainly, keep it calm, and pivot quickly into what you can do next for the founder without sounding technical.";
+      }
+      return "The founder just replied during the new-site build flow. Answer them conversationally, grounded in the current business inputs and build state. If the build is already underway, mention that naturally and suggest practical next steps you can help with.";
+    case "initial_open":
+    default:
+      if (status === "failed" || status === "canceled") {
+        return "The site build did not complete successfully. Explain that simply and confidently, then suggest the most useful next things the AI Team Lead can still help with for the business.";
+      }
+      return "The founder just completed the intake for a new site build. Tell them you are starting the first version now, keep it warm and practical, and mention a few concrete business areas you can help with next beyond just the site build.";
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ActivationChatRequest;
@@ -209,7 +259,75 @@ export async function POST(request: NextRequest) {
 
     const wixBinding = getCompanyWixBinding(company.description);
     const businessDescription = getCompanyBusinessDescription(company.description);
+    const activation = getCompanyActivation(company.description);
     const activeRunCount = runs.filter((run) => ["queued", "running"].includes(run.status)).length;
+
+    if (activation?.mode === "new_site") {
+      const interviewStage = activation.newSiteInterview?.stage || "business_name";
+      const picassoStatus = activation.picassoBridge?.status || "not_started";
+
+      if (interviewStage !== "building" && interviewStage !== "complete") {
+        return NextResponse.json({
+          text: buildNewSiteInterviewReply(company.name, company.description),
+        });
+      }
+
+      const buildPrompt = `You are the founder-facing AI Team Lead for a brand new Wix site creation flow.
+
+You already interviewed the founder and now the first version of the site is being created.
+
+Rules:
+- Sound warm, sharp, practical, and confident.
+- Keep it concise. Usually 70-160 words.
+- Never sound like a system log, internal operator note, or technical support ticket.
+- Do not mention internal tools, bridge services, JSON, metadata, tasks, or implementation details.
+- Be founder-facing and business-focused.
+- Suggest practical business next steps you can help with beyond just "building the site".
+- If useful, you may use a short bullet list with at most 4 items.
+
+Current business inputs:
+- Business name: ${activation.newSiteInterview?.businessName || company.name}
+- Business summary: ${activation.newSiteInterview?.businessDescription || businessDescription || "Not captured yet"}
+- Specific site requests: ${activation.newSiteInterview?.siteSpecifics || "None captured yet"}
+
+Current build state:
+- Picasso job status: ${picassoStatus}
+- Site ID: ${activation.picassoBridge?.siteId || "Unknown"}
+- Development URL: ${activation.picassoBridge?.developmentUrl || "Unknown"}
+- Site URL: ${activation.picassoBridge?.siteUrl || "Unknown"}
+
+Instruction:
+${buildNewSiteBuildInstruction(body.trigger, picassoStatus)}
+`;
+
+      const buildMessages: OpenAI.ChatCompletionMessageParam[] = [
+        { role: "system", content: buildPrompt },
+      ];
+
+      for (const message of body.messages || []) {
+        buildMessages.push({
+          role: message.role === "user" ? "user" : "assistant",
+          content: message.text,
+        });
+      }
+
+      if (!body.messages || body.messages.length === 0) {
+        buildMessages.push({
+          role: "user",
+          content: "[Start the founder-facing new-site build conversation now.]",
+        });
+      }
+
+      const buildResponse = await client.chat.completions.create({
+        model: "gpt-5.4",
+        max_completion_tokens: 300,
+        messages: buildMessages,
+      });
+
+      return NextResponse.json({
+        text: buildResponse.choices[0]?.message?.content || "",
+      });
+    }
 
     const systemPrompt = `You are the founder-facing Wix AI Team Lead business assessment chat.
 
