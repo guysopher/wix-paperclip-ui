@@ -11,11 +11,13 @@ import {
   createIssue,
   getCompanies,
   getComments,
+  getHeartbeatRuns,
   invokeHeartbeat,
   postComment,
   updateCompany,
   type Agent,
   type Comment,
+  type HeartbeatRun,
 } from "@/lib/api";
 import {
   buildCompanyDescription,
@@ -118,18 +120,47 @@ interface UiMessage {
   text: string;
 }
 
+type ActivationChatTrigger = "initial_open" | "backend_update" | "user_message";
+
 function isHiddenSystemComment(body: string): boolean {
   return body.startsWith(HIDDEN_SYSTEM_PREFIX);
 }
 
-function toUiMessages(comments: Comment[]): UiMessage[] {
-  return comments
-    .filter((comment) => !isHiddenSystemComment(comment.body))
-    .map((comment) => ({
-      id: comment.id,
-      role: comment.authorAgentId ? "ceo" : "user",
-      text: comment.body,
-    }));
+function getVisibleBackendComments(comments: Comment[]): Comment[] {
+  return comments.filter((comment) => !isHiddenSystemComment(comment.body));
+}
+
+function buildBackendSignature(comments: Comment[], runs: HeartbeatRun[]): string {
+  const visibleComments = getVisibleBackendComments(comments);
+  const latestAgentComment = [...visibleComments]
+    .reverse()
+    .find((comment) => Boolean(comment.authorAgentId));
+  const latestRun = [...runs].sort((a, b) => {
+    const left = new Date(b.createdAt).getTime();
+    const right = new Date(a.createdAt).getTime();
+    return left - right;
+  })[0];
+  const activeRunCount = runs.filter((run) => ["queued", "running"].includes(run.status)).length;
+
+  return [
+    latestAgentComment?.id || "no-agent-comment",
+    latestRun?.id || "no-run",
+    latestRun?.status || "no-status",
+    String(activeRunCount),
+  ].join(":");
+}
+
+function appendUiMessage(
+  current: UiMessage[],
+  next: Omit<UiMessage, "id">,
+): UiMessage[] {
+  return [
+    ...current,
+    {
+      id: `${next.role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ...next,
+    },
+  ];
 }
 
 function buildActivationIssueDescription(args: {
@@ -276,17 +307,23 @@ function NewCompanyPageContent() {
   const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
   const [requestedCompanyExists, setRequestedCompanyExists] = useState(false);
   const [activationSession, setActivationSession] = useState<ActivationSession | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [chatMessages, setChatMessages] = useState<UiMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
-  const [waiting, setWaiting] = useState(false);
+  const [backendBusy, setBackendBusy] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
   const [error, setError] = useState("");
   const [conversationVersion, setConversationVersion] = useState(0);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const messages = toUiMessages(comments);
-  const ceoTyping = bootstrapState === "checking" || waiting;
+  const backendSignatureRef = useRef("");
+  const chatMessagesRef = useRef<UiMessage[]>([]);
+  const ceoTyping = bootstrapState === "checking" || chatSending;
+
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
 
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -320,10 +357,12 @@ function NewCompanyPageContent() {
     setBootstrapState("checking");
     setRequestedCompanyExists(false);
     setActivationSession(null);
-    setComments([]);
+    setChatMessages([]);
     setInputValue("");
-    setWaiting(false);
+    setBackendBusy(false);
+    setChatSending(false);
     setError("");
+    backendSignatureRef.current = "";
 
     if (!msid) {
       setBootstrapState("missing-msid");
@@ -428,7 +467,10 @@ function NewCompanyPageContent() {
           // Non-critical. Polling will still show any response that appears.
         }
 
-        const initialComments = await getComments(inboxIssue.id).catch(() => [] as Comment[]);
+        const [initialComments, initialRuns] = await Promise.all([
+          getComments(inboxIssue.id).catch(() => [] as Comment[]),
+          getHeartbeatRuns(company.id).catch(() => [] as HeartbeatRun[]),
+        ]);
 
         if (cancelled) {
           return;
@@ -439,8 +481,8 @@ function NewCompanyPageContent() {
           ceoAgent,
           inboxIssueId: inboxIssue.id,
         });
-        setComments(initialComments);
-        setWaiting(true);
+        setBackendBusy(initialRuns.some((run) => ["queued", "running"].includes(run.status)));
+        backendSignatureRef.current = buildBackendSignature(initialComments, initialRuns);
         setBootstrapState("ready");
       } catch (setupError) {
         if (cancelled) {
@@ -459,7 +501,7 @@ function NewCompanyPageContent() {
   }, [conversationVersion, msid, router, siteId, siteName, siteUrl]);
 
   useEffect(() => {
-    if (!waiting || !activationSession) {
+    if (!activationSession) {
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
@@ -467,25 +509,31 @@ function NewCompanyPageContent() {
       return;
     }
 
-    const pollComments = async () => {
+    const pollBackendState = async () => {
       try {
-        const nextComments = await getComments(activationSession.inboxIssueId);
-        setComments(nextComments);
+        const [nextComments, nextRuns] = await Promise.all([
+          getComments(activationSession.inboxIssueId),
+          getHeartbeatRuns(activationSession.companyId).catch(() => [] as HeartbeatRun[]),
+        ]);
+        const hasActiveRuns = nextRuns.some((run) => ["queued", "running"].includes(run.status));
+        setBackendBusy(hasActiveRuns);
 
-        const visibleComments = nextComments.filter((comment) => !isHiddenSystemComment(comment.body));
-        const lastVisibleComment = visibleComments[visibleComments.length - 1];
-
-        if (lastVisibleComment?.authorAgentId) {
-          setWaiting(false);
+        const nextSignature = buildBackendSignature(nextComments, nextRuns);
+        if (
+          nextSignature !== backendSignatureRef.current &&
+          chatMessagesRef.current.length > 0
+        ) {
+          backendSignatureRef.current = nextSignature;
+          void requestActivationReply(chatMessagesRef.current, "backend_update");
         }
       } catch {
         // Ignore polling failures and keep trying.
       }
     };
 
-    void pollComments();
+    void pollBackendState();
     pollRef.current = setInterval(() => {
-      void pollComments();
+      void pollBackendState();
     }, POLL_INTERVAL_MS);
 
     return () => {
@@ -494,14 +542,14 @@ function NewCompanyPageContent() {
         pollRef.current = null;
       }
     };
-  }, [activationSession, waiting]);
+  }, [activationSession]);
 
   useEffect(() => {
     const el = messagesEndRef.current;
     if (el?.parentElement) {
       el.parentElement.scrollTop = el.parentElement.scrollHeight;
     }
-  }, [messages, ceoTyping]);
+  }, [chatMessages, ceoTyping]);
 
   useEffect(() => {
     if (!ceoTyping && activationSession) {
@@ -509,25 +557,87 @@ function NewCompanyPageContent() {
     }
   }, [activationSession, ceoTyping]);
 
+  const requestActivationReply = async (
+    nextMessages: UiMessage[],
+    trigger: ActivationChatTrigger,
+  ) => {
+    if (!activationSession) {
+      return;
+    }
+
+    setChatSending(true);
+    try {
+      const response = await fetch("/api/activation-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: activationSession.companyId,
+          issueId: activationSession.inboxIssueId,
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            text: message.text,
+          })),
+          trigger,
+        }),
+      });
+      const data = await response.json();
+      if (data.text) {
+        setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
+      }
+    } catch {
+      if (trigger === "initial_open") {
+        setChatMessages((current) =>
+          appendUiMessage(current, {
+            role: "ceo",
+            text: "Hey, I just kicked off the research on your Wix business. I'm pulling together what I can already see and I'll keep you posted as I learn more.",
+          }),
+        );
+      } else {
+        setChatMessages((current) =>
+          appendUiMessage(current, {
+            role: "ceo",
+            text: "I’m on it. I’ve passed that into the activation work and I’ll keep you posted with the useful bits as the research comes in.",
+          }),
+        );
+      }
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!activationSession || chatMessages.length > 0) {
+      return;
+    }
+
+    void requestActivationReply([], "initial_open");
+  }, [activationSession, chatMessages.length]);
+
   const handleSend = async () => {
-    if (!inputValue.trim() || ceoTyping || !activationSession) {
+    if (!inputValue.trim() || chatSending || !activationSession) {
       return;
     }
 
     const userText = inputValue.trim();
     setInputValue("");
+    const nextMessages = appendUiMessage(chatMessagesRef.current, {
+      role: "user",
+      text: userText,
+    });
+    setChatMessages(nextMessages);
+    setBackendBusy(true);
 
     try {
       await postComment(activationSession.inboxIssueId, userText);
-      const updatedComments = await getComments(activationSession.inboxIssueId);
-      setComments(updatedComments);
-      setWaiting(true);
+      await getComments(activationSession.inboxIssueId).catch(() => [] as Comment[]);
 
       try {
         await invokeHeartbeat(activationSession.ceoAgent.id);
       } catch {
         // Non-critical.
       }
+
+      void requestActivationReply(nextMessages, "user_message");
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Failed to send your message.");
     }
@@ -665,10 +775,14 @@ function NewCompanyPageContent() {
                   width: 7,
                   height: 7,
                   borderRadius: "50%",
-                  background: ceoTyping ? "#ffc107" : "#00d68f",
+                  background: chatSending ? "#ffc107" : backendBusy ? "#5aa9ff" : "#00d68f",
                 }}
               />
-              {ceoTyping ? "Reviewing your business..." : "Ready"}
+              {chatSending
+                ? "Thinking..."
+                : backendBusy
+                  ? "Researching in the background"
+                  : "Ready"}
             </div>
           </div>
           <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
@@ -687,7 +801,7 @@ function NewCompanyPageContent() {
             flexDirection: "column",
           }}
         >
-          {messages.map((message) => (
+          {chatMessages.map((message) => (
             <div
               key={message.id}
               style={{
@@ -734,7 +848,7 @@ function NewCompanyPageContent() {
             </div>
           ))}
 
-          {ceoTyping && (
+          {chatSending && (
             <div style={{ display: "flex", marginBottom: 12 }}>
               <div
                 style={{
@@ -827,7 +941,7 @@ function NewCompanyPageContent() {
                 }
               }}
               placeholder="Type your answer..."
-              disabled={ceoTyping}
+              disabled={chatSending || bootstrapState === "checking"}
               style={{
                 flex: 1,
                 border: "none",
@@ -848,12 +962,12 @@ function NewCompanyPageContent() {
                 height: 40,
                 borderRadius: "50%",
                 border: "none",
-                background: inputValue.trim() && !ceoTyping ? "#3899ec" : "rgba(255,255,255,0.1)",
+                background: inputValue.trim() && !chatSending ? "#3899ec" : "rgba(255,255,255,0.1)",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                cursor: inputValue.trim() && !ceoTyping ? "pointer" : "default",
+                cursor: inputValue.trim() && !chatSending ? "pointer" : "default",
                 flexShrink: 0,
                 transition: "background 0.2s",
               }}
