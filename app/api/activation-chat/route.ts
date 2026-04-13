@@ -180,7 +180,7 @@ function buildTriggerInstruction(trigger: ActivationChatRequest["trigger"]): str
       return "The founder just replied. Answer them warmly using the current backend state. If their request needs the background AI Team Lead or specialist agents to act, say you'll handle it and mention what is already underway.";
     case "initial_open":
     default:
-      return "The founder just opened the business assessment chat and is effectively evaluating whether to activate you. Introduce yourself as the AI Team Lead, briefly explain that you coordinate specialist agents across areas like site improvements, content and SEO, commerce or bookings, and operations, say you have already started reviewing the business and preparing recommendations, mention one or two relevant things you know so far, and make the opening feel like a confident business conversation rather than intake. Do not open with 'I only have the basics' or ask generic discovery questions unless access is fully blocked.";
+      return "The founder just opened the business assessment chat and is effectively evaluating whether to activate you. Write a brief opening message with no question at the end. Introduce yourself as the AI Team Lead, briefly explain that you coordinate specialist agents across areas like site improvements, content and SEO, commerce or bookings, and operations, and say that you have already started reviewing the business and are preparing recommendations. If you already know one useful thing, mention it briefly. If research is still in progress, say that clearly and say that updates are coming soon. Keep it confident, direct, and calm. Do not open with 'I only have the basics' or ask generic discovery questions unless access is fully blocked.";
   }
 }
 
@@ -217,12 +217,14 @@ Rules:
 - Keep responses concise. Usually 80-170 words.
 - If helpful, you may use a short bullet list of at most 4 items, but the message should still feel conversational.
 - In the first message, introduce yourself, explain the AI Team in plain language, and promote what the team can help with across areas like site improvements, content, commerce, bookings, CRM, or operations.
+- In the first message, be especially brief and straightforward: 2 short paragraphs is ideal.
 - If background work is still running, say that clearly and tell the founder what you already know so far.
 - If the background work already found useful details, translate them into plain language and a concrete plan.
 - Say clearly that you have already started reviewing the business and are preparing recommendations for next steps.
 - If the founder asks for something, answer based on the current evidence. If you need the backend AI Team Lead or specialist agents to carry it out, say you'll take care of it and mention what is already underway.
 - Avoid roleplay or hype. Keep it calm, smart, and business-focused.
 - End with a direct, human question when appropriate.
+- For the initial opening message, do not ask a question yet. Just introduce the concept, say research is underway, and say that updates are coming soon.
 
 Current activation state:
 - AI Team name: ${company.name}
