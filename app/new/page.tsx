@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Loader, Text } from "@wix/design-system";
 import { WixDesignSystemProvider } from "@wix/design-system";
@@ -695,10 +696,13 @@ function NewCompanyPageContent() {
               backdropFilter: "blur(18px)",
             }}
           >
-            <img
+            <Image
               src="/ai-team-logo.png"
               alt="AI Team logo"
+              width={132}
+              height={132}
               style={{ width: 132, height: 132, objectFit: "contain" }}
+              priority
             />
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "#16324a" }}>
@@ -709,7 +713,9 @@ function NewCompanyPageContent() {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#7b8c9d" }}>
-              <Loader size="small" color="grey" />
+              <div style={{ opacity: 0.6 }}>
+                <Loader size="small" />
+              </div>
               <span style={{ fontSize: 14 }}>Loading…</span>
             </div>
           </div>
@@ -978,7 +984,7 @@ function NewCompanyPageContent() {
               }}
             >
               <div style={{ opacity: 0.7 }}>
-                <Loader size="tiny" color="grey" />
+                <Loader size="tiny" />
               </div>
               <span style={{ fontSize: 14, color: "#7b8c9d" }}>
                 {backendBusy ? "Research still in progress..." : "Thinking..."}
