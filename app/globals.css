@@ -113,7 +113,7 @@ html, body {
 
 /* CEO interview full-screen input placeholder */
 .ceo-interview-input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(22, 50, 74, 0.42);
 }
 
 @keyframes pulse {

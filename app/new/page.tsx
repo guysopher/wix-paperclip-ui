@@ -725,80 +725,146 @@ function NewCompanyPageContent() {
         style={{
           position: "fixed",
           inset: 0,
-          background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
+          background: "linear-gradient(180deg, #f5fbff 0%, #edf6ff 50%, #f9fcf6 100%)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          overflow: "hidden",
         }}
       >
         <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: -120,
+            left: -80,
+            width: 320,
+            height: 320,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(104,192,255,0.32) 0%, rgba(104,192,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 90,
+            right: -70,
+            width: 280,
+            height: 280,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(117,228,183,0.24) 0%, rgba(117,228,183,0) 72%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            bottom: -140,
+            left: "30%",
+            width: 360,
+            height: 360,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(255,205,118,0.18) 0%, rgba(255,205,118,0) 72%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
           style={{
             width: "100%",
-            maxWidth: 640,
-            padding: "20px 24px 0",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
+            maxWidth: 760,
+            padding: "28px 24px 0",
             flexShrink: 0,
+            position: "relative",
+            zIndex: 1,
           }}
         >
           <div
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              boxShadow: "0 2px 12px rgba(56,153,236,0.4)",
+              gap: 14,
+              padding: "18px 20px",
+              borderRadius: 24,
+              background: "rgba(255,255,255,0.78)",
+              border: "1px solid rgba(159,196,224,0.5)",
+              boxShadow: "0 18px 50px rgba(71, 112, 145, 0.12)",
+              backdropFilter: "blur(18px)",
             }}
           >
-            <span style={{ color: "white", fontSize: 20, fontWeight: 700 }}>A</span>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "white" }}>
-              Set up your AI Team
-            </div>
             <div
               style={{
-                fontSize: 12,
-                color: "rgba(255,255,255,0.5)",
+                width: 50,
+                height: 50,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #2f8cff 0%, #64b9ff 65%, #87d7c0 100%)",
                 display: "flex",
                 alignItems: "center",
-                gap: 5,
+                justifyContent: "center",
+                flexShrink: 0,
+                boxShadow: "0 8px 18px rgba(47,140,255,0.28)",
               }}
             >
+              <span style={{ color: "white", fontSize: 20, fontWeight: 700 }}>A</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: "#16324a" }}>
+                Set up your AI Team
+              </div>
               <div
                 style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: chatSending ? "#ffc107" : backendBusy ? "#5aa9ff" : "#00d68f",
+                  fontSize: 13,
+                  color: "#4d677d",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 4,
                 }}
-              />
-              {chatSending
-                ? "Thinking..."
-                : backendBusy
-                  ? "Researching in the background"
-                  : "Ready"}
+              >
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: chatSending ? "#ffb020" : backendBusy ? "#4d9bff" : "#28c76f",
+                    boxShadow: chatSending
+                      ? "0 0 0 4px rgba(255,176,32,0.14)"
+                      : backendBusy
+                        ? "0 0 0 4px rgba(77,155,255,0.14)"
+                        : "0 0 0 4px rgba(40,199,111,0.14)",
+                  }}
+                />
+                {chatSending
+                  ? "Thinking..."
+                  : backendBusy
+                    ? "Reviewing the business and preparing next steps"
+                    : "Ready to help"}
+              </div>
+              <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6a8092", marginTop: 8 }}>
+                Your AI Team Lead is already reviewing the business and lining up practical recommendations.
+              </div>
+            </div>
+            <div style={{ flexShrink: 0 }}>
+              <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
+                Open workspace
+              </Button>
             </div>
           </div>
-          <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
-            Open workspace
-          </Button>
         </div>
 
         <div
           style={{
             flex: 1,
             width: "100%",
-            maxWidth: 640,
+            maxWidth: 760,
             overflowY: "auto",
-            padding: "24px 24px 8px",
+            padding: "18px 24px 8px",
             display: "flex",
             flexDirection: "column",
+            position: "relative",
+            zIndex: 1,
           }}
         >
           {chatMessages.map((message) => (
@@ -819,26 +885,38 @@ function NewCompanyPageContent() {
                     flexShrink: 0,
                     marginRight: 10,
                     marginTop: 2,
-                    background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
+                    background: "linear-gradient(135deg, #2f8cff 0%, #64b9ff 65%, #87d7c0 100%)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    boxShadow: "0 6px 12px rgba(47,140,255,0.22)",
                   }}
                 >
                   <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
                 </div>
               )}
-              <div style={{ maxWidth: "75%" }}>
+              <div style={{ maxWidth: "82%" }}>
                 <div
                   style={{
-                    background: message.role === "ceo" ? "rgba(255,255,255,0.1)" : "#3899ec",
-                    color: "white",
-                    padding: "12px 16px",
+                    background:
+                      message.role === "ceo"
+                        ? "rgba(255,255,255,0.88)"
+                        : "linear-gradient(135deg, #2f8cff 0%, #54a7ff 100%)",
+                    color: message.role === "ceo" ? "#183247" : "white",
+                    padding: "16px 20px",
                     borderRadius:
                       message.role === "ceo" ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
-                    fontSize: 14,
-                    lineHeight: 1.6,
-                    backdropFilter: message.role === "ceo" ? "blur(10px)" : undefined,
+                    fontSize: 16,
+                    lineHeight: 1.72,
+                    backdropFilter: message.role === "ceo" ? "blur(14px)" : undefined,
+                    border:
+                      message.role === "ceo"
+                        ? "1px solid rgba(159,196,224,0.5)"
+                        : "1px solid rgba(47,140,255,0.18)",
+                    boxShadow:
+                      message.role === "ceo"
+                        ? "0 14px 34px rgba(77, 103, 128, 0.12)"
+                        : "0 12px 26px rgba(47,140,255,0.22)",
                     whiteSpace: "pre-wrap",
                   }}
                 >
@@ -857,22 +935,25 @@ function NewCompanyPageContent() {
                   borderRadius: "50%",
                   flexShrink: 0,
                   marginRight: 10,
-                  background: "linear-gradient(135deg, #3899ec 0%, #60b5ff 100%)",
+                  background: "linear-gradient(135deg, #2f8cff 0%, #64b9ff 65%, #87d7c0 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  boxShadow: "0 6px 12px rgba(47,140,255,0.22)",
                 }}
               >
                 <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
               </div>
               <div
                 style={{
-                  background: "rgba(255,255,255,0.1)",
-                  padding: "14px 20px",
+                  background: "rgba(255,255,255,0.88)",
+                  padding: "16px 22px",
                   borderRadius: "4px 18px 18px 18px",
                   display: "flex",
                   gap: 5,
-                  backdropFilter: "blur(10px)",
+                  backdropFilter: "blur(14px)",
+                  border: "1px solid rgba(159,196,224,0.5)",
+                  boxShadow: "0 14px 34px rgba(77, 103, 128, 0.12)",
                 }}
               >
                 <div
@@ -880,7 +961,7 @@ function NewCompanyPageContent() {
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: "rgba(255,255,255,0.4)",
+                    background: "rgba(47,140,255,0.4)",
                     animation: "pulse 1.4s infinite",
                   }}
                 />
@@ -889,7 +970,7 @@ function NewCompanyPageContent() {
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: "rgba(255,255,255,0.4)",
+                    background: "rgba(47,140,255,0.4)",
                     animation: "pulse 1.4s infinite 0.2s",
                   }}
                 />
@@ -898,7 +979,7 @@ function NewCompanyPageContent() {
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: "rgba(255,255,255,0.4)",
+                    background: "rgba(47,140,255,0.4)",
                     animation: "pulse 1.4s infinite 0.4s",
                   }}
                 />
@@ -912,9 +993,11 @@ function NewCompanyPageContent() {
         <div
           style={{
             width: "100%",
-            maxWidth: 640,
-            padding: "12px 24px 24px",
+            maxWidth: 760,
+            padding: "16px 24px 28px",
             flexShrink: 0,
+            position: "relative",
+            zIndex: 1,
           }}
         >
           <div
@@ -922,10 +1005,12 @@ function NewCompanyPageContent() {
               display: "flex",
               gap: 10,
               alignItems: "center",
-              background: "rgba(255,255,255,0.08)",
-              borderRadius: 28,
-              padding: "6px 6px 6px 20px",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.92)",
+              borderRadius: 30,
+              padding: "8px 8px 8px 20px",
+              border: "1px solid rgba(159,196,224,0.46)",
+              boxShadow: "0 18px 44px rgba(71, 112, 145, 0.14)",
+              backdropFilter: "blur(18px)",
             }}
           >
             <input
@@ -946,10 +1031,10 @@ function NewCompanyPageContent() {
                 flex: 1,
                 border: "none",
                 background: "transparent",
-                padding: "10px 0",
-                fontSize: 14,
+                padding: "14px 0",
+                fontSize: 16,
                 outline: "none",
-                color: "white",
+                color: "#16324a",
               }}
             />
             <button
@@ -958,11 +1043,14 @@ function NewCompanyPageContent() {
               }}
               disabled={!inputValue.trim() || ceoTyping}
               style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 borderRadius: "50%",
                 border: "none",
-                background: inputValue.trim() && !chatSending ? "#3899ec" : "rgba(255,255,255,0.1)",
+                background:
+                  inputValue.trim() && !chatSending
+                    ? "linear-gradient(135deg, #2f8cff 0%, #54a7ff 100%)"
+                    : "#dfe9f2",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
@@ -976,7 +1064,7 @@ function NewCompanyPageContent() {
             </button>
           </div>
           <div style={{ paddingTop: 10, textAlign: "center" }}>
-            <Text size="tiny" light>
+            <Text size="small" style={{ color: "#698094" }}>
               This activation chat is live. Refreshing the page starts a fresh draft session.
             </Text>
           </div>
