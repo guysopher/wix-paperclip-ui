@@ -19,7 +19,6 @@ import {
   Globe,
   ChevronDown,
   Settings,
-  Code,
   Feed,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
@@ -36,8 +35,7 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
   { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
   { key: "/team", label: "Team", Icon: Users, countKey: "team" },
-  { key: "/wix", label: "Wix", Icon: Code },
-  { key: "/company", label: "AI Team", Icon: Globe },
+  { key: "/company", label: "Business", Icon: Globe },
   { key: "/settings", label: "Settings", Icon: Settings },
 ];
 
