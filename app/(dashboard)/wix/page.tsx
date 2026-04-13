@@ -148,7 +148,7 @@ function WixContent() {
                     <code style={{ fontSize: 12, background: "#f5f5f5", padding: "2px 8px", borderRadius: 4 }}>
                       {metaSiteId || "Not set"}
                     </code>
-                    {metaSiteId && <CopyClipboard size="small" value={metaSiteId} />}
+                    {metaSiteId && <CopyClipboard value={metaSiteId} />}
                   </div>
 
                   <Text size="small" secondary weight="bold">Site ID</Text>
@@ -156,7 +156,7 @@ function WixContent() {
                     <code style={{ fontSize: 12, background: "#f5f5f5", padding: "2px 8px", borderRadius: 4 }}>
                       {siteId || "Not set"}
                     </code>
-                    {siteId && <CopyClipboard size="small" value={siteId} />}
+                    {siteId && <CopyClipboard value={siteId} />}
                   </div>
 
                   <Text size="small" secondary weight="bold">Site Name</Text>
