@@ -928,40 +928,22 @@ function NewCompanyPageContent() {
           ))}
 
           {showRunSpinner && (
-            <div style={{ display: "flex", marginBottom: 12 }}>
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: "50%",
-                  flexShrink: 0,
-                  marginRight: 10,
-                  background: "linear-gradient(135deg, #2f8cff 0%, #64b9ff 65%, #87d7c0 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 6px 12px rgba(47,140,255,0.22)",
-                }}
-              >
-                <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 18,
+                marginLeft: 56,
+                padding: "2px 0 2px 2px",
+              }}
+            >
+              <div style={{ opacity: 0.7 }}>
+                <Loader size="tiny" color="grey" />
               </div>
-              <div
-                style={{
-                  background: "rgba(255,255,255,0.88)",
-                  padding: "16px 22px",
-                  borderRadius: "4px 18px 18px 18px",
-                  display: "flex",
-                  gap: 5,
-                  backdropFilter: "blur(14px)",
-                  border: "1px solid rgba(159,196,224,0.5)",
-                  boxShadow: "0 14px 34px rgba(77, 103, 128, 0.12)",
-                }}
-              >
-                <Loader size="small" />
-                <span style={{ fontSize: 14, color: "#527089" }}>
-                  {backendBusy ? "Research still in progress..." : "Thinking..."}
-                </span>
-              </div>
+              <span style={{ fontSize: 14, color: "#7b8c9d" }}>
+                {backendBusy ? "Research still in progress..." : "Thinking..."}
+              </span>
             </div>
           )}
 
