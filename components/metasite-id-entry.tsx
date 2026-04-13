@@ -66,7 +66,7 @@ export function MetasiteIdEntry({
         backgroundSize: "540px auto",
       }}
     >
-      <Card
+      <div
         style={{
           width: "100%",
           maxWidth: 560,
@@ -77,102 +77,104 @@ export function MetasiteIdEntry({
           backdropFilter: "blur(12px)",
         }}
       >
-        <Card.Content>
-          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
-            <div>
+        <Card>
+          <Card.Content>
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
+              <div>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    background: "rgba(47, 111, 237, 0.1)",
+                    color: "#2f6fed",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: 0.3,
+                    marginBottom: 14,
+                  }}
+                >
+                  Open your AI Team
+                </div>
+                <Heading size="large">{title}</Heading>
+                <Text secondary style={{ marginTop: 10, display: "block", fontSize: 15, lineHeight: 1.6 }}>
+                  {description}
+                </Text>
+                <Text secondary style={{ marginTop: 8, display: "block", fontSize: 14, lineHeight: 1.6 }}>
+                  Paste either the raw metasite ID or a Wix dashboard URL and I’ll extract it for you.
+                </Text>
+              </div>
+
               <div
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "6px 12px",
-                  borderRadius: 999,
-                  background: "rgba(47, 111, 237, 0.1)",
-                  color: "#2f6fed",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: 0.3,
-                  marginBottom: 14,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  padding: 18,
+                  borderRadius: 18,
+                  background: "rgba(244, 248, 252, 0.92)",
+                  border: "1px solid #dfe8f2",
                 }}
               >
-                Open your AI Team
-              </div>
-              <Heading size="large">{title}</Heading>
-              <Text secondary style={{ marginTop: 10, display: "block", fontSize: 15, lineHeight: 1.6 }}>
-                {description}
-              </Text>
-              <Text secondary style={{ marginTop: 8, display: "block", fontSize: 14, lineHeight: 1.6 }}>
-                Paste either the raw metasite ID or a Wix dashboard URL and I’ll extract it for you.
-              </Text>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                padding: 18,
-                borderRadius: 18,
-                background: "rgba(244, 248, 252, 0.92)",
-                border: "1px solid #dfe8f2",
-              }}
-            >
-              <Text size="small" weight="bold" style={{ display: "block", marginBottom: 0, color: "#243b53" }}>
-                msid
-              </Text>
-              <Input
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-                placeholder="Paste the msid or Wix dashboard URL"
-                status={showError ? "error" : undefined}
-              />
-              {showError && (
-                <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
-                  Enter a valid metasite ID or paste a Wix dashboard URL that contains one.
+                <Text size="small" weight="bold" style={{ display: "block", marginBottom: 0, color: "#243b53" }}>
+                  msid
                 </Text>
-              )}
-              <Button onClick={handleSubmit} disabled={!isValidMsid(trimmed)} size="medium">
-                Continue
-              </Button>
-            </div>
-
-            <div
-              style={{
-                height: 1,
-                background: "linear-gradient(90deg, rgba(208,220,234,0) 0%, rgba(208,220,234,1) 50%, rgba(208,220,234,0) 100%)",
-              }}
-            />
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                padding: 18,
-                borderRadius: 18,
-                background: "linear-gradient(135deg, rgba(140, 76, 246, 0.08) 0%, rgba(47, 111, 237, 0.05) 100%)",
-                border: "1px solid rgba(140, 76, 246, 0.16)",
-              }}
-            >
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#17324a" }}>Create a new site</div>
-              <Text secondary style={{ fontSize: 14, lineHeight: 1.6 }}>
-                {createNewSiteDescription}
-              </Text>
-              <div>
-                <Button skin="premium" onClick={handleCreateNewSite}>
-                  Create a new site
+                <Input
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
+                  placeholder="Paste the msid or Wix dashboard URL"
+                  status={showError ? "error" : undefined}
+                />
+                {showError && (
+                  <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
+                    Enter a valid metasite ID or paste a Wix dashboard URL that contains one.
+                  </Text>
+                )}
+                <Button onClick={handleSubmit} disabled={!isValidMsid(trimmed)} size="medium">
+                  Continue
                 </Button>
               </div>
+
+              <div
+                style={{
+                  height: 1,
+                  background: "linear-gradient(90deg, rgba(208,220,234,0) 0%, rgba(208,220,234,1) 50%, rgba(208,220,234,0) 100%)",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  padding: 18,
+                  borderRadius: 18,
+                  background: "linear-gradient(135deg, rgba(140, 76, 246, 0.08) 0%, rgba(47, 111, 237, 0.05) 100%)",
+                  border: "1px solid rgba(140, 76, 246, 0.16)",
+                }}
+              >
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#17324a" }}>Create a new site</div>
+                <Text secondary style={{ fontSize: 14, lineHeight: 1.6 }}>
+                  {createNewSiteDescription}
+                </Text>
+                <div>
+                  <Button skin="premium" onClick={handleCreateNewSite}>
+                    Create a new site
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
-        </Card.Content>
-      </Card>
+          </Card.Content>
+        </Card>
+      </div>
     </div>
   );
 }
