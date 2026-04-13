@@ -63,6 +63,7 @@ function RunDetailContent({ runId }: { runId: string }) {
   const [detailedEvents, setDetailedEvents] = useState<DetailedRunEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLog, setLoadingLog] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [loadingDebug, setLoadingDebug] = useState(false);
 
@@ -134,6 +135,18 @@ function RunDetailContent({ runId }: { runId: string }) {
     setLoadingDebug(false);
   };
 
+  const toggleDebug = async () => {
+    if (showDebug) {
+      setShowDebug(false);
+      return;
+    }
+
+    setShowDebug(true);
+    if (!debugInfo && !loadingDebug) {
+      await fetchDebugInfo();
+    }
+  };
+
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name || "Unknown";
 
   if (loading) {
@@ -176,10 +189,10 @@ function RunDetailContent({ runId }: { runId: string }) {
           <Button
             size="tiny"
             priority="secondary"
-            onClick={fetchDebugInfo}
+            onClick={() => void toggleDebug()}
             disabled={loadingDebug}
           >
-            {loadingDebug ? "Loading..." : "Debug"}
+            {loadingDebug ? "Loading..." : showDebug ? "Hide Debug" : "Debug"}
           </Button>
         }
       />
@@ -259,7 +272,7 @@ function RunDetailContent({ runId }: { runId: string }) {
           </Card>
 
           {/* Debug Info Card - Only visible when debug button clicked */}
-          {debugInfo && (
+          {showDebug && debugInfo && (
             <Card>
               <Card.Header
                 title="RUN_SUMMARY Debug"
@@ -331,12 +344,6 @@ function RunDetailContent({ runId }: { runId: string }) {
                       Error: {debugInfo.error}
                     </div>
                   )}
-
-                  <div style={{ marginTop: 16 }}>
-                    <Button size="tiny" priority="secondary" onClick={() => setDebugInfo(null)}>
-                      Hide
-                    </Button>
-                  </div>
                 </div>
               </Card.Content>
             </Card>
@@ -474,128 +481,130 @@ function RunDetailContent({ runId }: { runId: string }) {
             </Card.Content>
           </Card>
 
-          <Card>
-            <Card.Header
-              title="Detailed Trace"
-              subtitle="Exact tools, commands, and results captured in this run log."
-            />
-            <Card.Divider />
-            <Card.Content>
-              {loadingLog ? (
-                <Box padding="24px" align="center">
-                  <Loader size="small" />
-                </Box>
-              ) : detailedEvents.length === 0 ? (
-                <Text size="small" secondary>No detailed trace available for this run.</Text>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {detailedEvents.map((event, index) => {
-                    const ts = event.timestamp
-                      ? new Date(event.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        })
-                      : "";
+          {showDebug && (
+            <Card>
+              <Card.Header
+                title="Detailed Trace"
+                subtitle="Exact tools, commands, and results captured in this run log."
+              />
+              <Card.Divider />
+              <Card.Content>
+                {loadingLog ? (
+                  <Box padding="24px" align="center">
+                    <Loader size="small" />
+                  </Box>
+                ) : detailedEvents.length === 0 ? (
+                  <Text size="small" secondary>No detailed trace available for this run.</Text>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {detailedEvents.map((event, index) => {
+                      const ts = event.timestamp
+                        ? new Date(event.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : "";
 
-                    const header = event.toolName
-                      ? `${event.title || event.toolName} (${event.toolName})`
-                      : event.title || event.kind.replace("_", " ");
+                      const header = event.toolName
+                        ? `${event.title || event.toolName} (${event.toolName})`
+                        : event.title || event.kind.replace("_", " ");
 
-                    return (
-                      <div
-                        key={`${event.kind}-${index}`}
-                        style={{
-                          border: "1px solid #eceff3",
-                          borderRadius: 8,
-                          overflow: "hidden",
-                          background: "#fff",
-                        }}
-                      >
+                      return (
                         <div
+                          key={`${event.kind}-${index}`}
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "8px 12px",
-                            background:
-                              event.kind === "tool_use"
-                                ? "#eef6ff"
-                                : event.kind === "tool_result"
-                                  ? "#eefaf0"
-                                  : event.kind === "thinking"
-                                    ? "#fff7e6"
-                                    : "#f7f9fc",
-                            borderBottom: "1px solid #eceff3",
+                            border: "1px solid #eceff3",
+                            borderRadius: 8,
+                            overflow: "hidden",
+                            background: "#fff",
                           }}
                         >
-                          <Text size="small" weight="bold">{header}</Text>
-                          {ts && <Text size="tiny" secondary>{ts}</Text>}
-                        </div>
-
-                        {event.text && (
-                          <pre
+                          <div
                             style={{
-                              margin: 0,
-                              padding: "12px 14px",
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                              fontSize: 12,
-                              lineHeight: 1.6,
-                              background: event.kind === "thinking" ? "#fffdf6" : "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "8px 12px",
+                              background:
+                                event.kind === "tool_use"
+                                  ? "#eef6ff"
+                                  : event.kind === "tool_result"
+                                    ? "#eefaf0"
+                                    : event.kind === "thinking"
+                                      ? "#fff7e6"
+                                      : "#f7f9fc",
+                              borderBottom: "1px solid #eceff3",
                             }}
                           >
-                            {event.text}
-                          </pre>
-                        )}
+                            <Text size="small" weight="bold">{header}</Text>
+                            {ts && <Text size="tiny" secondary>{ts}</Text>}
+                          </div>
 
-                        {event.input && (
-                          <div>
-                            <div style={{ padding: "8px 14px 0", fontSize: 11, color: "#6b7280" }}>Input</div>
+                          {event.text && (
                             <pre
                               style={{
                                 margin: 0,
-                                padding: "8px 14px 12px",
+                                padding: "12px 14px",
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-word",
                                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                                 fontSize: 12,
                                 lineHeight: 1.6,
-                                background: "#fbfcfe",
+                                background: event.kind === "thinking" ? "#fffdf6" : "#fff",
                               }}
                             >
-                              {event.input}
+                              {event.text}
                             </pre>
-                          </div>
-                        )}
+                          )}
 
-                        {event.output && (
-                          <div>
-                            <div style={{ padding: "8px 14px 0", fontSize: 11, color: "#6b7280" }}>Result</div>
-                            <pre
-                              style={{
-                                margin: 0,
-                                padding: "8px 14px 12px",
-                                whiteSpace: "pre-wrap",
-                                wordBreak: "break-word",
-                                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                                fontSize: 12,
-                                lineHeight: 1.6,
-                                background: "#f8fffa",
-                              }}
-                            >
-                              {event.output}
-                            </pre>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card.Content>
-          </Card>
+                          {event.input && (
+                            <div>
+                              <div style={{ padding: "8px 14px 0", fontSize: 11, color: "#6b7280" }}>Input</div>
+                              <pre
+                                style={{
+                                  margin: 0,
+                                  padding: "8px 14px 12px",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                  fontSize: 12,
+                                  lineHeight: 1.6,
+                                  background: "#fbfcfe",
+                                }}
+                              >
+                                {event.input}
+                              </pre>
+                            </div>
+                          )}
+
+                          {event.output && (
+                            <div>
+                              <div style={{ padding: "8px 14px 0", fontSize: 11, color: "#6b7280" }}>Result</div>
+                              <pre
+                                style={{
+                                  margin: 0,
+                                  padding: "8px 14px 12px",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                  fontSize: 12,
+                                  lineHeight: 1.6,
+                                  background: "#f8fffa",
+                                }}
+                              >
+                                {event.output}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
+          )}
         </Box>
       </Page.Content>
     </Page>
