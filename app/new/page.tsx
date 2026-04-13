@@ -190,6 +190,15 @@ function appendUiMessage(
   current: UiMessage[],
   next: Omit<UiMessage, "id">,
 ): UiMessage[] {
+  const lastMessage = current[current.length - 1];
+  if (
+    lastMessage &&
+    lastMessage.role === next.role &&
+    lastMessage.text.trim() === next.text.trim()
+  ) {
+    return current;
+  }
+
   return [
     ...current,
     {
@@ -432,7 +441,11 @@ function NewCompanyPageContent() {
   const interviewStage = activationMetadata?.newSiteInterview?.stage || "business_name";
   const bridgeStatus = activationMetadata?.picassoBridge?.status || bridgeJob?.status || "not_started";
   const isNewSiteFlow = activationSession?.mode === "new_site";
-  const showRunSpinner = chatSending || backendBusy;
+  const buildInProgress =
+    isNewSiteFlow && (bridgeStatus === "queued" || bridgeStatus === "running");
+  const showBackendProgress =
+    activationSession?.mode === "existing_site" ? backendBusy : buildInProgress;
+  const showRunSpinner = chatSending || showBackendProgress;
   const headerStatusText = chatSending
     ? "Thinking..."
     : isNewSiteFlow
@@ -451,13 +464,11 @@ function NewCompanyPageContent() {
         ? "Your AI Team Lead is turning the business brief into a first site version and mapping the smartest next actions."
         : "Your AI Team Lead is gathering the business basics so the first site version starts from a clean brief."
     : "Your AI Team Lead is already reviewing the business and lining up practical recommendations.";
-  const spinnerLabel = backendBusy
-    ? isNewSiteFlow
-      ? bridgeStatus === "queued" || bridgeStatus === "running"
-        ? "Building the first site version..."
-        : "Preparing the next steps..."
-      : "Research in progress..."
-    : "Thinking...";
+  const spinnerLabel = chatSending
+    ? "Thinking..."
+    : isNewSiteFlow
+      ? "Building the first site version..."
+      : "Research in progress...";
 
   useEffect(() => {
     setActivationModeSelection(selectedMode);
@@ -728,36 +739,21 @@ function NewCompanyPageContent() {
           trigger,
         }),
       });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Activation chat failed" }));
+        throw new Error(payload.error || "Activation chat failed");
+      }
       const data = await response.json();
       if (data.text) {
         setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
       }
-    } catch {
-      const nextActivation = activationSession
-        ? getCompanyActivation(activationSession.companyDescription)
-        : undefined;
-      const isNewSiteActivation = activationSession?.mode === "new_site";
-      if (trigger === "initial_open") {
-        setChatMessages((current) =>
-          appendUiMessage(current, {
-            role: "ceo",
-            text: isNewSiteActivation
-              ? "Hey, I’m your AI Team Lead. Let’s get the basics in place so I can start building the first version of the site. What’s the business called?"
-              : "Hey, I just kicked off the research on your Wix business. I'm pulling together what I can already see and I'll keep you posted as I learn more.",
-          }),
-        );
-      } else {
-        setChatMessages((current) =>
-          appendUiMessage(current, {
-            role: "ceo",
-            text: isNewSiteActivation && nextActivation?.newSiteInterview?.stage === "building"
-              ? "I’ve got what I need. I’m starting the first version now and I’ll keep you posted with smart next moves while it takes shape."
-              : isNewSiteActivation
-                ? "Perfect. I’m building the brief as we go. Keep the details coming and I’ll turn them into a solid first version."
-                : "I’m on it. I’ve passed that into the activation work and I’ll keep you posted with the useful bits as the research comes in.",
-          }),
-        );
-      }
+      setError("");
+    } catch (replyError) {
+      setError(
+        replyError instanceof Error
+          ? replyError.message
+          : "Failed to get a reply from the AI Team Lead.",
+      );
     } finally {
       setChatSending(false);
     }
@@ -890,12 +886,26 @@ function NewCompanyPageContent() {
         }
 
         const nextSignature = buildActivationSignature(nextComments, nextRuns, nextBridgeJob);
+        const nextStage =
+          activationSession.mode === "new_site"
+            ? nextBridgeJob
+              ? nextBridgeJob.status === "succeeded"
+                ? "complete"
+                : "building"
+              : currentActivation?.newSiteInterview?.stage || "business_name"
+            : null;
         if (
           nextSignature !== backendSignatureRef.current &&
           chatMessagesRef.current.length > 0
         ) {
           backendSignatureRef.current = nextSignature;
-          void requestActivationReply(chatMessagesRef.current, "backend_update");
+          if (
+            activationSession.mode !== "new_site" ||
+            nextStage === "building" ||
+            nextStage === "complete"
+          ) {
+            void requestActivationReply(chatMessagesRef.current, "backend_update");
+          }
         }
       } catch {
         // Ignore polling failures and keep trying.
@@ -1379,10 +1389,10 @@ function NewCompanyPageContent() {
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: chatSending ? "#ffb020" : backendBusy ? "#4d9bff" : "#28c76f",
+                    background: chatSending ? "#ffb020" : showBackendProgress ? "#4d9bff" : "#28c76f",
                     boxShadow: chatSending
                       ? "0 0 0 4px rgba(255,176,32,0.14)"
-                      : backendBusy
+                      : showBackendProgress
                         ? "0 0 0 4px rgba(77,155,255,0.14)"
                         : "0 0 0 4px rgba(40,199,111,0.14)",
                   }}

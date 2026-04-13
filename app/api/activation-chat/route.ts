@@ -192,22 +192,25 @@ function buildTriggerInstruction(
   }
 }
 
-function buildNewSiteInterviewReply(companyName: string, description: string): string {
-  const activation = getCompanyActivation(description);
-  const interview = activation?.newSiteInterview;
-  const stage = interview?.stage || "business_name";
+function buildNewSiteInterviewInstruction(
+  trigger: ActivationChatRequest["trigger"],
+  stage: string,
+): string {
+  const nextQuestion =
+    stage === "business_name"
+      ? "Ask for the business name."
+      : stage === "business_description"
+        ? "Ask what the business does and who it serves."
+        : "Ask what specifically they want included in the first version of the site, such as pages, tone, features, bookings, store setup, or anything else that matters.";
 
-  switch (stage) {
-    case "business_description":
-      return `Nice. ${interview?.businessName || companyName || "That"} gives me a good starting point. What is the business about?`;
-    case "site_specifics":
-      return "Got it. Is there anything specific you already want on the site like pages, tone, style, bookings, store setup, or anything else I should build around?";
-    case "building":
-    case "complete":
-      return `Perfect. I have enough to start building ${interview?.businessName || companyName || "the site"} now. While that’s underway, I’ll also map out the smartest next moves for the business so we can keep momentum once the first version is ready.`;
-    case "business_name":
+  switch (trigger) {
+    case "user_message":
+      return `The founder just answered your previous intake question. Respond like the lead of a strong independent studio onboarding a new client. Briefly acknowledge what they said, then ask exactly one next question. ${nextQuestion}`;
+    case "backend_update":
+      return `The backend state changed during intake, but the founder is still mid-interview. Do not post a progress update. Continue the interview naturally and ask exactly one next question. ${nextQuestion}`;
+    case "initial_open":
     default:
-      return "Hey, I’m your AI Team Lead. If we’re creating this from scratch, let’s start with the basics. What’s the business called?";
+      return `This is the first message in a brand new client intake for a site being created from scratch. Sound like a sharp, warm studio lead meeting a new client. Keep it concise, confident, and human, and ask exactly one question. ${nextQuestion}`;
   }
 }
 
@@ -267,8 +270,57 @@ export async function POST(request: NextRequest) {
       const picassoStatus = activation.picassoBridge?.status || "not_started";
 
       if (interviewStage !== "building" && interviewStage !== "complete") {
+        const interviewPrompt = `You are the founder-facing AI Team Lead for a new Wix site intake.
+
+You are speaking to a founder the way a strong independent studio would speak to a new client.
+
+Rules:
+- Every response must feel written by a real person, not a form, script, bot, or support workflow.
+- Ask exactly one question at a time.
+- Keep the message concise. Usually 40-110 words.
+- Acknowledge the founder's last answer briefly when relevant, but do not repeat it awkwardly or paraphrase it mechanically.
+- Do not use canned phrasing, templates, labels, or numbered questions.
+- Do not mention internal tools, metadata, bridge jobs, JSON, stages, or implementation details.
+- Do not ask for information you already have.
+- Sound commercially aware and design-aware, as if you are preparing to brief a real studio team.
+
+Current known business inputs:
+- Business name: ${activation.newSiteInterview?.businessName || company.name || "Not captured yet"}
+- Business summary: ${activation.newSiteInterview?.businessDescription || businessDescription || "Not captured yet"}
+- Specific site requests: ${activation.newSiteInterview?.siteSpecifics || "Not captured yet"}
+
+Current interview step: ${interviewStage}
+
+Instruction:
+${buildNewSiteInterviewInstruction(body.trigger, interviewStage)}
+`;
+
+        const interviewMessages: OpenAI.ChatCompletionMessageParam[] = [
+          { role: "system", content: interviewPrompt },
+        ];
+
+        for (const message of body.messages || []) {
+          interviewMessages.push({
+            role: message.role === "user" ? "user" : "assistant",
+            content: message.text,
+          });
+        }
+
+        if (!body.messages || body.messages.length === 0) {
+          interviewMessages.push({
+            role: "user",
+            content: "[Start the client intake conversation now.]",
+          });
+        }
+
+        const interviewResponse = await client.chat.completions.create({
+          model: "gpt-5.4",
+          max_completion_tokens: 220,
+          messages: interviewMessages,
+        });
+
         return NextResponse.json({
-          text: buildNewSiteInterviewReply(company.name, company.description),
+          text: interviewResponse.choices[0]?.message?.content || "",
         });
       }
 
