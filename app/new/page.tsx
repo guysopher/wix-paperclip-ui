@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Loader, Text } from "@wix/design-system";
@@ -394,10 +394,15 @@ function NewCompanyPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const msid = useMsid();
+  const requestedMode = searchParams.get("mode");
   const siteId = searchParams.get("siteId")?.trim() || "";
   const siteName = searchParams.get("siteName")?.trim() || "";
   const siteUrl = searchParams.get("siteUrl")?.trim() || "";
-  const selectedMode = msid ? "existing_site" : null;
+  const selectedMode = msid
+    ? "existing_site"
+    : requestedMode === "new_site"
+      ? "new_site"
+      : null;
 
   const [bootstrapState, setBootstrapState] = useState<"checking" | "missing-msid" | "ready">("checking");
   const [activationModeSelection, setActivationModeSelection] = useState<ActivationMode | null>(selectedMode);
@@ -700,7 +705,65 @@ function NewCompanyPageContent() {
     };
   }, [conversationVersion, effectiveActivationMode, msid, router, siteId, siteName, siteUrl]);
 
-  const updateActivationState = async (args: {
+  const requestActivationReply = useCallback(async (
+    nextMessages: UiMessage[],
+    trigger: ActivationChatTrigger,
+  ) => {
+    if (!activationSession) {
+      return;
+    }
+
+    setChatSending(true);
+    try {
+      const response = await fetch("/api/activation-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: activationSession.companyId,
+          issueId: activationSession.inboxIssueId,
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            text: message.text,
+          })),
+          trigger,
+        }),
+      });
+      const data = await response.json();
+      if (data.text) {
+        setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
+      }
+    } catch {
+      const nextActivation = activationSession
+        ? getCompanyActivation(activationSession.companyDescription)
+        : undefined;
+      const isNewSiteActivation = activationSession?.mode === "new_site";
+      if (trigger === "initial_open") {
+        setChatMessages((current) =>
+          appendUiMessage(current, {
+            role: "ceo",
+            text: isNewSiteActivation
+              ? "Hey, I’m your AI Team Lead. Let’s get the basics in place so I can start building the first version of the site. What’s the business called?"
+              : "Hey, I just kicked off the research on your Wix business. I'm pulling together what I can already see and I'll keep you posted as I learn more.",
+          }),
+        );
+      } else {
+        setChatMessages((current) =>
+          appendUiMessage(current, {
+            role: "ceo",
+            text: isNewSiteActivation && nextActivation?.newSiteInterview?.stage === "building"
+              ? "I’ve got what I need. I’m starting the first version now and I’ll keep you posted with smart next moves while it takes shape."
+              : isNewSiteActivation
+                ? "Perfect. I’m building the brief as we go. Keep the details coming and I’ll turn them into a solid first version."
+                : "I’m on it. I’ve passed that into the activation work and I’ll keep you posted with the useful bits as the research comes in.",
+          }),
+        );
+      }
+    } finally {
+      setChatSending(false);
+    }
+  }, [activationSession]);
+
+  const updateActivationState = useCallback(async (args: {
     name?: string;
     businessDescription?: string;
     activation: ActivationMetadata;
@@ -743,7 +806,7 @@ function NewCompanyPageContent() {
     }
 
     return updatedCompany;
-  };
+  }, [activationSession]);
 
   useEffect(() => {
     if (!activationSession) {
@@ -850,7 +913,7 @@ function NewCompanyPageContent() {
         pollRef.current = null;
       }
     };
-  }, [activationSession]);
+  }, [activationSession, requestActivationReply, updateActivationState]);
 
   useEffect(() => {
     if (!activationSession || bootstrapState !== "ready") {
@@ -887,71 +950,13 @@ function NewCompanyPageContent() {
     }
   }, [activationSession, ceoTyping]);
 
-  const requestActivationReply = async (
-    nextMessages: UiMessage[],
-    trigger: ActivationChatTrigger,
-  ) => {
-    if (!activationSession) {
-      return;
-    }
-
-    setChatSending(true);
-    try {
-      const response = await fetch("/api/activation-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId: activationSession.companyId,
-          issueId: activationSession.inboxIssueId,
-          messages: nextMessages.map((message) => ({
-            role: message.role,
-            text: message.text,
-          })),
-          trigger,
-        }),
-      });
-      const data = await response.json();
-      if (data.text) {
-        setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
-      }
-    } catch {
-      const nextActivation = activationSession
-        ? getCompanyActivation(activationSession.companyDescription)
-        : undefined;
-      const isNewSiteActivation = activationSession?.mode === "new_site";
-      if (trigger === "initial_open") {
-        setChatMessages((current) =>
-          appendUiMessage(current, {
-            role: "ceo",
-            text: isNewSiteActivation
-              ? "Hey, I’m your AI Team Lead. Let’s get the basics in place so I can start building the first version of the site. What’s the business called?"
-              : "Hey, I just kicked off the research on your Wix business. I'm pulling together what I can already see and I'll keep you posted as I learn more.",
-          }),
-        );
-      } else {
-        setChatMessages((current) =>
-          appendUiMessage(current, {
-            role: "ceo",
-            text: isNewSiteActivation && nextActivation?.newSiteInterview?.stage === "building"
-              ? "I’ve got what I need. I’m starting the first version now and I’ll keep you posted with smart next moves while it takes shape."
-              : isNewSiteActivation
-                ? "Perfect. I’m building the brief as we go. Keep the details coming and I’ll turn them into a solid first version."
-                : "I’m on it. I’ve passed that into the activation work and I’ll keep you posted with the useful bits as the research comes in.",
-          }),
-        );
-      }
-    } finally {
-      setChatSending(false);
-    }
-  };
-
   useEffect(() => {
     if (!activationSession || chatMessages.length > 0) {
       return;
     }
 
     void requestActivationReply([], "initial_open");
-  }, [activationSession, chatMessages.length]);
+  }, [activationSession, chatMessages.length, requestActivationReply]);
 
   const handleSend = async () => {
     if (!inputValue.trim() || chatSending || !activationSession) {
@@ -1179,78 +1184,14 @@ function NewCompanyPageContent() {
   };
 
   if (bootstrapState === "missing-msid") {
-    if (activationModeSelection === "existing_site") {
-      return (
-        <MetasiteIdEntry
-          redirectPath="/new"
-          description="Enter the Wix metasite ID you want to activate. The AI Team Lead will use it to open the right Wix business context."
-          title="Enter the Wix metasite ID"
-        />
-      );
-    }
-
     return (
-      <WixDesignSystemProvider>
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-            background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 45%, #1e4764 100%)",
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 840,
-              display: "grid",
-              gap: 18,
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            }}
-          >
-            {[
-              {
-                key: "existing_site",
-                title: "Use existing site",
-                description:
-                  "Bring an existing Wix business into Paperclip by entering its metasite ID.",
-              },
-              {
-                key: "new_site",
-                title: "Create new site",
-                description:
-                  "Start from scratch. The AI Team Lead will interview you briefly, then kick off the first site build through Picasso.",
-              },
-            ].map((option) => (
-              <div
-                key={option.key}
-                style={{
-                  borderRadius: 26,
-                  padding: 28,
-                  background: "rgba(255,255,255,0.9)",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  boxShadow: "0 24px 60px rgba(8, 28, 45, 0.25)",
-                }}
-              >
-                <div style={{ fontSize: 26, fontWeight: 700, color: "#123049", marginBottom: 10 }}>
-                  {option.title}
-                </div>
-                <div style={{ fontSize: 15, lineHeight: 1.65, color: "#557086", marginBottom: 24 }}>
-                  {option.description}
-                </div>
-                <Button
-                  onClick={() => setActivationModeSelection(option.key as ActivationMode)}
-                  {...(option.key === "new_site" ? { skin: "premium" as const } : {})}
-                >
-                  {option.key === "new_site" ? "Start new site flow" : "Enter metasite ID"}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </WixDesignSystemProvider>
+      <MetasiteIdEntry
+        redirectPath="/new"
+        description="Open an existing Wix business by pasting its metasite ID or manage URL."
+        createNewSiteDescription="Start from scratch. The AI Team Lead will interview you briefly, then kick off the first site build through Picasso."
+        onCreateNewSite={() => setActivationModeSelection("new_site")}
+        title="Open or create your Wix site"
+      />
     );
   }
 
