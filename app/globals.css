@@ -126,6 +126,45 @@ html, body {
   50% { opacity: 0.4; }
 }
 
+@keyframes activation-reveal-fade {
+  0%, 65% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes activation-reveal-logo-zoom {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(14);
+  }
+}
+
+.activation-ready-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  pointer-events: none;
+  animation: activation-reveal-fade 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.activation-ready-reveal-logo {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  animation: activation-reveal-logo-zoom 1.05s cubic-bezier(0.18, 0.9, 0.24, 1) forwards;
+  transform-origin: center center;
+}
+
 /* Shimmer skeleton animation */
 @keyframes shimmer {
   0% { background-position: -400px 0; }

@@ -314,8 +314,10 @@ function NewCompanyPageContent() {
   const [chatSending, setChatSending] = useState(false);
   const [error, setError] = useState("");
   const [conversationVersion, setConversationVersion] = useState(0);
+  const [showReadyReveal, setShowReadyReveal] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const backendSignatureRef = useRef("");
@@ -345,6 +347,9 @@ function NewCompanyPageContent() {
       if (pollRef.current) {
         clearInterval(pollRef.current);
       }
+      if (revealTimeoutRef.current) {
+        clearTimeout(revealTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -364,7 +369,12 @@ function NewCompanyPageContent() {
     setBackendBusy(false);
     setChatSending(false);
     setError("");
+    setShowReadyReveal(false);
     backendSignatureRef.current = "";
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
 
     if (!msid) {
       setBootstrapState("missing-msid");
@@ -547,6 +557,28 @@ function NewCompanyPageContent() {
   }, [activationSession]);
 
   useEffect(() => {
+    if (!activationSession || bootstrapState !== "ready") {
+      return;
+    }
+
+    setShowReadyReveal(true);
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+    }
+    revealTimeoutRef.current = setTimeout(() => {
+      setShowReadyReveal(false);
+      revealTimeoutRef.current = null;
+    }, 1050);
+
+    return () => {
+      if (revealTimeoutRef.current) {
+        clearTimeout(revealTimeoutRef.current);
+        revealTimeoutRef.current = null;
+      }
+    };
+  }, [activationSession, bootstrapState]);
+
+  useEffect(() => {
     const el = messagesEndRef.current;
     if (el?.parentElement) {
       el.parentElement.scrollTop = el.parentElement.scrollHeight;
@@ -675,47 +707,18 @@ function NewCompanyPageContent() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "linear-gradient(180deg, #f5fbff 0%, #edf6ff 50%, #f9fcf6 100%)",
+            background: "#fff",
             padding: 24,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 18,
-              padding: "28px 32px",
-              borderRadius: 28,
-              background: "rgba(255,255,255,0.78)",
-              border: "1px solid rgba(159,196,224,0.5)",
-              boxShadow: "0 18px 50px rgba(71, 112, 145, 0.12)",
-              backdropFilter: "blur(18px)",
-            }}
-          >
-            <Image
-              src="/ai-team-logo.png"
-              alt="AI Team logo"
-              width={132}
-              height={132}
-              style={{ width: 132, height: 132, objectFit: "contain" }}
-              priority
-            />
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "#16324a" }}>
-                Setting up your AI Team
-              </div>
-              <div style={{ marginTop: 8, fontSize: 15, lineHeight: 1.6, color: "#637c90", maxWidth: 360 }}>
-                Your AI Team Lead is getting the workspace ready and connecting the first business context.
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#7b8c9d" }}>
-              <div style={{ opacity: 0.6 }}>
-                <Loader size="small" />
-              </div>
-              <span style={{ fontSize: 14 }}>Loading…</span>
-            </div>
-          </div>
+          <Image
+            src="/ai-team-logo.png"
+            alt="AI Team logo"
+            width={180}
+            height={180}
+            style={{ width: 180, height: 180, objectFit: "contain" }}
+            priority
+          />
         </div>
       </WixDesignSystemProvider>
     );
@@ -771,6 +774,18 @@ function NewCompanyPageContent() {
           overflow: "hidden",
         }}
       >
+        {showReadyReveal && (
+          <div className="activation-ready-reveal">
+            <Image
+              className="activation-ready-reveal-logo"
+              src="/ai-team-logo.png"
+              alt="AI Team logo"
+              width={180}
+              height={180}
+              priority
+            />
+          </div>
+        )}
         <div
           aria-hidden="true"
           style={{
