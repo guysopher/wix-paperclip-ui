@@ -398,7 +398,6 @@ function CompanyContent() {
                     rows={12}
                     resizable
                     status={descriptionError ? "error" : undefined}
-                    style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontSize: 12, lineHeight: 1.5 }}
                   />
                   {descriptionError && (
                     <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
