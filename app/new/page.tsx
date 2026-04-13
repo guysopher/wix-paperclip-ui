@@ -7,9 +7,11 @@ import { Button, Loader, Text } from "@wix/design-system";
 import { WixDesignSystemProvider } from "@wix/design-system";
 import { Send } from "@wix/wix-ui-icons-common";
 import {
+  archiveCompany,
   createAgent,
   createCompany,
   createIssue,
+  deleteCompany,
   getCompanies,
   getComments,
   getHeartbeatRuns,
@@ -315,6 +317,7 @@ function NewCompanyPageContent() {
   const [error, setError] = useState("");
   const [conversationVersion, setConversationVersion] = useState(0);
   const [showReadyReveal, setShowReadyReveal] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -686,6 +689,38 @@ function NewCompanyPageContent() {
 
   const handleRetry = () => {
     setConversationVersion((current) => current + 1);
+  };
+
+  const handleRestart = async () => {
+    if (!activationSession || restarting) {
+      return;
+    }
+
+    const shouldRestart = window.confirm(
+      "Restart this interview? The current AI Team will be deleted and the setup will start over.",
+    );
+    if (!shouldRestart) {
+      return;
+    }
+
+    setRestarting(true);
+    setError("");
+
+    try {
+      try {
+        await deleteCompany(activationSession.companyId);
+      } catch {
+        await archiveCompany(activationSession.companyId);
+      }
+      window.location.reload();
+    } catch (restartError) {
+      setError(
+        restartError instanceof Error
+          ? restartError.message
+          : "Failed to restart the interview.",
+      );
+      setRestarting(false);
+    }
   };
 
   if (bootstrapState === "missing-msid") {
@@ -1101,6 +1136,34 @@ function NewCompanyPageContent() {
           >
             {error}
           </div>
+        )}
+
+        {activationSession && (
+          <button
+            onClick={() => {
+              void handleRestart();
+            }}
+            disabled={restarting}
+            style={{
+              position: "fixed",
+              right: 20,
+              bottom: 20,
+              zIndex: 12,
+              border: "1px solid rgba(22,50,74,0.14)",
+              background: "rgba(255,255,255,0.88)",
+              color: "#527089",
+              borderRadius: 999,
+              padding: "8px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: restarting ? "default" : "pointer",
+              boxShadow: "0 10px 24px rgba(71, 112, 145, 0.12)",
+              backdropFilter: "blur(12px)",
+              opacity: restarting ? 0.7 : 1,
+            }}
+          >
+            {restarting ? "Restarting..." : "Restart"}
+          </button>
         )}
       </div>
     </WixDesignSystemProvider>
