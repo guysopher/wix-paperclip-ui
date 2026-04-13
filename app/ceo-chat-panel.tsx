@@ -13,7 +13,7 @@ interface ChatMessage {
   actions?: Array<{ type: string; title: string; identifier?: string }>;
 }
 
-export function CeoChatPanel({ onClose }: { onClose: () => void }) {
+export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () => void; showCloseButton?: boolean }) {
   const { companyId, companyPath } = useCompany();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
@@ -135,12 +135,14 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
             {sending ? "Thinking..." : "Online"}
           </div>
         </div>
-        <button
-          onClick={onClose}
-          style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", borderRadius: 4 }}
-        >
-          <X color="#999" size="20px" />
-        </button>
+        {showCloseButton && (
+          <button
+            onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", borderRadius: 4 }}
+          >
+            <X color="#999" size="20px" />
+          </button>
+        )}
       </div>
 
       {/* Messages */}

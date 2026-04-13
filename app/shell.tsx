@@ -44,22 +44,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const counts = useBadgeCounts();
   const { companyId, companies, setCompanyId, companyPath, refreshCompanies, wizardOpen, closeCreateWizard } = useCompany();
-  const [chatOpen, setChatOpen] = useState(() => {
-    // Load chat open state from localStorage
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('ceo-chat-open');
-      return stored !== null ? stored === 'true' : true;
-    }
-    return true;
-  });
+  const [chatOpen, setChatOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  // Persist chat open/closed state
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('ceo-chat-open', String(chatOpen));
-    }
-  }, [chatOpen]);
 
   // Close menu on navigation
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -119,10 +106,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const hasActiveCompany = Boolean(currentCompany);
 
   useEffect(() => {
-    if (!hasActiveCompany) {
+    const syncIsMobile = () => setIsMobile(window.innerWidth <= 768);
+    syncIsMobile();
+    window.addEventListener("resize", syncIsMobile);
+    return () => window.removeEventListener("resize", syncIsMobile);
+  }, []);
+
+  useEffect(() => {
+    if (!hasActiveCompany || !isMobile) {
       setChatOpen(false);
     }
-  }, [hasActiveCompany]);
+  }, [hasActiveCompany, isMobile]);
 
   const handleCompanyCreated = async (newCompanyId: string) => {
     await refreshCompanies();
@@ -171,7 +165,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </button>
         <Text size="small" light weight="bold">Wix AI Team</Text>
         <div style={{ flex: 1 }} />
-        {hasActiveCompany && (
+        {hasActiveCompany && isMobile && (
           <button
             onClick={() => setChatOpen(!chatOpen)}
             style={{ background: "none", border: "none", cursor: "pointer", padding: 4, position: "relative" }}
@@ -270,7 +264,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <div style={{ flexGrow: 1 }} />
 
-        {hasActiveCompany && (
+        {hasActiveCompany && isMobile && (
           <div style={{ padding: "8px 12px" }}>
             <button
               onClick={() => { setChatOpen(!chatOpen); setMenuOpen(false); }}
@@ -311,27 +305,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </Box>
 
-      {/* CEO Chat slide-in panel - always mounted, slides in/out */}
+      {/* AI Team Lead chat panel */}
       {hasActiveCompany && (
         <div
           className="ceo-chat-panel"
           style={{
-            position: "fixed",
-            right: 0,
-            top: 0,
-            width: 380,
+            position: isMobile ? "fixed" : "relative",
+            right: isMobile ? 0 : undefined,
+            top: isMobile ? 0 : undefined,
+            width: isMobile ? "100%" : 380,
+            flex: isMobile ? undefined : "0 0 380px",
             height: "100vh",
             borderLeft: "1px solid #e0e0e0",
             display: "flex",
             flexDirection: "column",
             background: "#f7f8fa",
-            transform: chatOpen ? "translateX(0)" : "translateX(100%)",
-            transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            zIndex: 100,
-            boxShadow: chatOpen ? "-4px 0 12px rgba(0, 0, 0, 0.1)" : "none",
+            transform: isMobile ? (chatOpen ? "translateX(0)" : "translateX(100%)") : "none",
+            transition: isMobile ? "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+            zIndex: isMobile ? 1001 : 1,
+            boxShadow: isMobile ? (chatOpen ? "-4px 0 12px rgba(0, 0, 0, 0.1)" : "none") : "none",
           }}
         >
-          <CeoChatPanel onClose={() => setChatOpen(false)} />
+          <CeoChatPanel onClose={() => setChatOpen(false)} showCloseButton={isMobile} />
         </div>
       )}
 
