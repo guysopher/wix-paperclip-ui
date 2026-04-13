@@ -675,10 +675,7 @@ function NewCompanyPageContent() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "#f5fbff",
-            backgroundImage: "url('/ai-team-background.png')",
-            backgroundRepeat: "repeat",
-            backgroundSize: "420px auto",
+            background: "linear-gradient(180deg, #f5fbff 0%, #edf6ff 50%, #f9fcf6 100%)",
             padding: 24,
           }}
         >
@@ -767,11 +764,7 @@ function NewCompanyPageContent() {
         style={{
           position: "fixed",
           inset: 0,
-          backgroundColor: "#f5fbff",
-          backgroundImage:
-            "linear-gradient(rgba(245, 251, 255, 0.88), rgba(245, 251, 255, 0.9)), url('/ai-team-background.png')",
-          backgroundRepeat: "repeat",
-          backgroundSize: "auto, 420px auto",
+          background: "linear-gradient(180deg, #f5fbff 0%, #edf6ff 50%, #f9fcf6 100%)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
