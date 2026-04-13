@@ -8,13 +8,20 @@ import {
   Text,
   Button,
   Loader,
-  CopyClipboard,
   Badge,
 } from "@wix/design-system";
 import { Refresh, ExternalLink } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { getCompany, type Company } from "@/lib/api";
 import { getCompanyWixBinding } from "@/lib/company-metadata";
+
+async function copyToClipboard(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    // Ignore clipboard failures.
+  }
+}
 
 function WixContent() {
   const { companyId } = useCompany();
@@ -148,7 +155,23 @@ function WixContent() {
                     <code style={{ fontSize: 12, background: "#f5f5f5", padding: "2px 8px", borderRadius: 4 }}>
                       {metaSiteId || "Not set"}
                     </code>
-                    {metaSiteId && <CopyClipboard value={metaSiteId} />}
+                    {metaSiteId && (
+                      <button
+                        type="button"
+                        onClick={() => void copyToClipboard(metaSiteId)}
+                        style={{
+                          border: "1px solid #d5d9e0",
+                          background: "#fff",
+                          borderRadius: 4,
+                          fontSize: 11,
+                          padding: "2px 6px",
+                          cursor: "pointer",
+                          color: "#4a4a4a",
+                        }}
+                      >
+                        Copy
+                      </button>
+                    )}
                   </div>
 
                   <Text size="small" secondary weight="bold">Site ID</Text>
@@ -156,7 +179,23 @@ function WixContent() {
                     <code style={{ fontSize: 12, background: "#f5f5f5", padding: "2px 8px", borderRadius: 4 }}>
                       {siteId || "Not set"}
                     </code>
-                    {siteId && <CopyClipboard value={siteId} />}
+                    {siteId && (
+                      <button
+                        type="button"
+                        onClick={() => void copyToClipboard(siteId)}
+                        style={{
+                          border: "1px solid #d5d9e0",
+                          background: "#fff",
+                          borderRadius: 4,
+                          fontSize: 11,
+                          padding: "2px 6px",
+                          cursor: "pointer",
+                          color: "#4a4a4a",
+                        }}
+                      >
+                        Copy
+                      </button>
+                    )}
                   </div>
 
                   <Text size="small" secondary weight="bold">Site Name</Text>
