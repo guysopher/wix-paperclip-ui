@@ -747,7 +747,7 @@ function NewCompanyPageContent() {
           }}
         >
           <Image
-            src="/ai-team-logo.svg"
+            src="/ai-team-logo.svg?v=2"
             alt="AI Team logo"
             width={180}
             height={180}
@@ -813,7 +813,7 @@ function NewCompanyPageContent() {
           <div className="activation-ready-reveal">
             <Image
               className="activation-ready-reveal-logo"
-              src="/ai-team-logo.svg"
+              src="/ai-team-logo.svg?v=2"
               alt="AI Team logo"
               width={180}
               height={180}
