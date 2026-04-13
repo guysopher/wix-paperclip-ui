@@ -20,18 +20,19 @@ export function MetasiteIdEntry({
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const [value, setValue] = useState(() => normalizeMsid(initialValue) || "");
+  const [value, setValue] = useState(() => initialValue || "");
 
   const trimmed = value.trim();
-  const showError = trimmed.length > 0 && !isValidMsid(trimmed);
+  const normalizedMsid = normalizeMsid(trimmed);
+  const showError = trimmed.length > 0 && !normalizedMsid;
   const targetPath = useMemo(() => redirectPath || pathname || "/", [pathname, redirectPath]);
 
   const handleSubmit = () => {
-    if (!isValidMsid(trimmed)) {
+    if (!normalizedMsid) {
       return;
     }
 
-    router.replace(withMsid(targetPath, trimmed));
+    router.replace(withMsid(targetPath, normalizedMsid));
   };
 
   return (
@@ -42,7 +43,10 @@ export function MetasiteIdEntry({
         alignItems: "center",
         justifyContent: "center",
         padding: 24,
-        background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 45%, #1e4764 100%)",
+        backgroundColor: "#183247",
+        backgroundImage: "linear-gradient(rgba(24, 50, 71, 0.9), rgba(24, 50, 71, 0.9)), url('/ai-team-background.png')",
+        backgroundRepeat: "repeat",
+        backgroundSize: "540px auto",
       }}
     >
       <Card>
@@ -52,6 +56,9 @@ export function MetasiteIdEntry({
               <Heading size="medium">{title}</Heading>
               <Text secondary style={{ marginTop: 8, display: "block" }}>
                 {description}
+              </Text>
+              <Text secondary style={{ marginTop: 6, display: "block" }}>
+                You can paste either the raw metasite ID or a Wix dashboard URL.
               </Text>
             </div>
 
@@ -68,12 +75,12 @@ export function MetasiteIdEntry({
                     handleSubmit();
                   }
                 }}
-                placeholder="Paste the msid value"
+                placeholder="Paste the msid or Wix dashboard URL"
                 status={showError ? "error" : undefined}
               />
               {showError && (
                 <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
-                  Enter a non-empty msid value.
+                  Enter a valid metasite ID or paste a Wix dashboard URL that contains one.
                 </Text>
               )}
             </div>

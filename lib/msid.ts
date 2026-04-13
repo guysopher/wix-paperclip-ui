@@ -1,6 +1,13 @@
+const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+
 export function normalizeMsid(value: string | null | undefined): string | null {
   const normalized = value?.trim() || "";
-  return normalized || null;
+  if (!normalized) {
+    return null;
+  }
+
+  const extracted = normalized.match(UUID_PATTERN)?.[0];
+  return extracted ?? null;
 }
 
 export function isValidMsid(value: string | null | undefined): boolean {
