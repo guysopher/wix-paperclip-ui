@@ -142,6 +142,8 @@ export const updateCompany = (companyId: string, data: Partial<Company>) =>
   request<Company>(`/companies/${companyId}`, { method: "PATCH", body: JSON.stringify(data) });
 export const deleteCompany = (companyId: string) =>
   request<{ ok: boolean }>(`/companies/${companyId}`, { method: "DELETE" });
+export const archiveCompany = (companyId: string) =>
+  request<Company>(`/companies/${companyId}/archive`, { method: "POST", body: "{}" });
 
 // Agents — create
 export const createAgent = (companyId: string, data: Record<string, unknown>) =>

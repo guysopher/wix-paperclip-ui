@@ -24,6 +24,7 @@ import {
   getGoals,
   updateCompany,
   deleteCompany,
+  archiveCompany,
   createGoal,
   deleteGoal,
   type Company,
@@ -74,7 +75,7 @@ function getDescriptionValidationError(description: string): string {
 }
 
 function CompanyContent() {
-  const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
+  const { companyId, setCompanyId, refreshCompanies } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +98,8 @@ function CompanyContent() {
   // Delete company
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteResultMessage, setDeleteResultMessage] = useState("");
 
   const load = useCallback(async () => {
     if (!companyId) { setLoading(false); return; }
@@ -153,18 +156,33 @@ function CompanyContent() {
   const handleDeleteCompany = async () => {
     if (!company) return;
     setDeleting(true);
+    setDeleteError("");
+    setDeleteResultMessage("");
     try {
       await deleteCompany(company.id);
       await refreshCompanies();
-      // Switch to another company if available
-      const remaining = companies.filter((c) => c.id !== company.id);
-      if (remaining.length > 0) {
-        setCompanyId(remaining[0].id);
-      } else {
-        setCompanyId("");
-      }
+      setCompanyId("");
+      setDeleteResultMessage("Company deleted permanently.");
       setShowDeleteModal(false);
-    } catch {
+    } catch (error) {
+      try {
+        await archiveCompany(company.id);
+        await refreshCompanies();
+        setCompanyId("");
+        setDeleteResultMessage("Hard delete failed on the backend, so the company was archived instead.");
+        setShowDeleteModal(false);
+      } catch (archiveError) {
+        const primaryMessage =
+          error instanceof Error && error.message ? error.message : "Failed to delete company.";
+        const archiveMessage =
+          archiveError instanceof Error && archiveError.message ? archiveError.message : "";
+        setDeleteError(
+          archiveMessage
+            ? `${primaryMessage} Archive fallback also failed: ${archiveMessage}`
+            : primaryMessage
+        );
+      }
+    } finally {
       setDeleting(false);
     }
   };
@@ -197,6 +215,26 @@ function CompanyContent() {
         />
         <Page.Content>
           <div className="company-content" style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 800 }}>
+            {deleteResultMessage && (
+              <Card>
+                <Card.Content>
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      background: "#effbf4",
+                      borderRadius: 8,
+                      border: "1px solid #b7ebc6",
+                      fontSize: 13,
+                      color: "#166534",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {deleteResultMessage}
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
+
             {/* Company details */}
             <Card>
               <Card.Header
@@ -419,6 +457,21 @@ function CompanyContent() {
               }}>
                 This will permanently delete <strong>{company?.name}</strong> and all its agents, tasks, goals, and conversation history. This action cannot be undone.
               </div>
+              {deleteError && (
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    background: "#fff7ed",
+                    borderRadius: 8,
+                    border: "1px solid #fdba74",
+                    fontSize: 13,
+                    color: "#9a3412",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {deleteError}
+                </div>
+              )}
             </Box>
           }
         />
