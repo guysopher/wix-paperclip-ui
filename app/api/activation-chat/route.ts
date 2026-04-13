@@ -172,9 +172,16 @@ function summarizeRuns(runs: HeartbeatRunData[], agents: AgentData[]): string {
     .join("\n");
 }
 
-function buildTriggerInstruction(trigger: ActivationChatRequest["trigger"]): string {
+function buildTriggerInstruction(
+  trigger: ActivationChatRequest["trigger"],
+  activeRunCount: number,
+  issueStatus: string,
+): string {
   switch (trigger) {
     case "backend_update":
+      if (activeRunCount === 0) {
+        return `The background run has finished and this should usually be treated as the conclusion of the assessment. Do not send another generic progress note. Unless the evidence clearly shows the work is blocked or incomplete, give the founder the practical wrap-up now: summarize the main improvements, recommend the specialist agents to hire, define the AI Team goals, and end with the exact promise: "With this team we can achieve these goals and start growing your business. Should I start working?" Current issue status: ${issueStatus}.`;
+      }
       return "There is fresh progress from the background work. Give the founder a short, useful update that sounds like a calm, trusted AI Team Lead checking in. Mention only the most relevant new findings or next move.";
     case "user_message":
       return "The founder just replied. Answer them warmly and casually using the current backend state. If their request needs the background AI Team Lead or specialist agents to act, say you'll handle it and mention what is already underway.";
@@ -252,7 +259,7 @@ Recent runs:
 ${summarizeRuns(runs, agents)}
 
 Important instruction:
-${buildTriggerInstruction(body.trigger)}
+${buildTriggerInstruction(body.trigger, activeRunCount, issue.status)}
 `;
 
     const chatMessages: OpenAI.ChatCompletionMessageParam[] = [
