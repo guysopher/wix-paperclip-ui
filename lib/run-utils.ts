@@ -5,6 +5,16 @@ export interface LogEntry {
   timestamp?: string;
 }
 
+export interface DetailedRunEvent {
+  kind: "assistant" | "thinking" | "tool_use" | "tool_result" | "system" | "raw";
+  timestamp?: string;
+  toolName?: string;
+  title?: string;
+  text?: string;
+  input?: string;
+  output?: string;
+}
+
 export function humanizeToolName(name: string): string {
   const map: Record<string, string> = {
     Bash: "Ran command", Read: "Read file", Edit: "Edited file", Write: "Wrote file",
@@ -77,6 +87,150 @@ export function parseRunLog(raw: string): LogEntry[] {
   flushTools();
   flushText();
   return entries;
+}
+
+function stringifyValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === undefined) {
+    return "";
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+export function parseDetailedRunLog(raw: string): DetailedRunEvent[] {
+  const lines = raw.split("\n").filter(Boolean);
+  const events: DetailedRunEvent[] = [];
+
+  for (const line of lines) {
+    try {
+      const outer = JSON.parse(line) as { ts?: string; stream?: string; chunk?: string };
+      const ts = outer.ts || "";
+      const chunkStr = outer.chunk ?? "";
+      let chunk: Record<string, any> | null = null;
+
+      try {
+        chunk = JSON.parse(chunkStr);
+      } catch {
+        events.push({
+          kind: "raw",
+          timestamp: ts,
+          text: chunkStr || line,
+        });
+        continue;
+      }
+
+      const type = chunk.type as string | undefined;
+
+      if (type === "assistant" && chunk.message?.content) {
+        for (const block of chunk.message.content as Array<Record<string, any>>) {
+          if (block.type === "thinking" && block.thinking) {
+            events.push({
+              kind: "thinking",
+              timestamp: ts,
+              text: block.thinking,
+            });
+            continue;
+          }
+
+          if (block.type === "text" && block.text) {
+            events.push({
+              kind: "assistant",
+              timestamp: ts,
+              text: block.text,
+            });
+            continue;
+          }
+
+          if (block.type === "tool_use" && block.name) {
+            const input = block.input ?? {};
+            const preferredInput =
+              typeof input?.command === "string"
+                ? input.command
+                : typeof input?.description === "string"
+                  ? input.description
+                  : stringifyValue(input);
+
+            events.push({
+              kind: "tool_use",
+              timestamp: ts,
+              toolName: block.name,
+              title: humanizeToolName(block.name),
+              input: preferredInput,
+            });
+          }
+        }
+        continue;
+      }
+
+      if (type === "user" && chunk.message?.content) {
+        for (const block of chunk.message.content as Array<Record<string, any>>) {
+          if (block.type === "tool_result") {
+            events.push({
+              kind: "tool_result",
+              timestamp: ts || chunk.timestamp,
+              output: stringifyValue(block.content),
+            });
+            continue;
+          }
+
+          if (block.type === "text" && block.text) {
+            events.push({
+              kind: "raw",
+              timestamp: ts || chunk.timestamp,
+              text: block.text,
+            });
+          }
+        }
+        continue;
+      }
+
+      if (type === "system") {
+        const parts = [
+          chunk.subtype,
+          chunk.hook_name,
+          chunk.output,
+          chunk.stdout,
+          chunk.stderr,
+        ].filter(Boolean);
+        events.push({
+          kind: "system",
+          timestamp: ts,
+          title: "System",
+          text: parts.join("\n"),
+        });
+        continue;
+      }
+
+      if (type === "result") {
+        events.push({
+          kind: "tool_result",
+          timestamp: ts,
+          title: "Run result",
+          output: typeof chunk.result === "string" ? chunk.result : stringifyValue(chunk.result),
+        });
+        continue;
+      }
+
+      events.push({
+        kind: "raw",
+        timestamp: ts,
+        text: chunkStr || line,
+      });
+    } catch {
+      events.push({
+        kind: "raw",
+        text: line,
+      });
+    }
+  }
+
+  return events;
 }
 
 export function parseUsage(usageJson: string | null): { cost: string; tokens: string } | null {
