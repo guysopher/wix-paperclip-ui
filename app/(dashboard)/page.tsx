@@ -26,6 +26,7 @@ import {
   Refresh,
   Users,
   Checklist,
+  Inbox,
   Promote,
   Statistics,
   Confirm,
@@ -625,39 +626,69 @@ function DashboardContent() {
         {/* Quick Actions */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 12, fontWeight: 600 }}>Quick Actions</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button
-            size="small"
-            priority="secondary"
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
+          <button
             onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}
-            prefixIcon={<Add />}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#2f6fed",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
           >
-            Create Task
-          </Button>
+            <Add size="18px" />
+            <span>Create Task</span>
+          </button>
           {ceoAgent && (
-            <Button
-              size="small"
-              priority="secondary"
+            <button
               onClick={async () => {
                 try {
                   await invokeHeartbeat(ceoAgent.id);
                   setTimeout(() => load(), 2000);
                 } catch {}
               }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "#2f6fed",
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
             >
-              Wake AI Team Lead
-            </Button>
+              <Refresh size="18px" />
+              <span>Wake AI Team Lead</span>
+            </button>
           )}
-          <Button
-            size="small"
-            priority="secondary"
+          <button
             onClick={() => window.location.href = companyPath("/inbox")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#2f6fed",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
           >
-            View Inbox {dashboard.tasks.open > 0 && `(${dashboard.tasks.open})`}
-          </Button>
-          <Button
-            size="small"
-            priority="secondary"
+            <Inbox size="18px" />
+            <span>View Inbox {dashboard.tasks.open > 0 && `(${dashboard.tasks.open})`}</span>
+          </button>
+          <button
             onClick={async () => {
               setHealthLoading(true);
               setHealthResult(null);
@@ -668,9 +699,22 @@ function DashboardContent() {
               setHealthLoading(false);
             }}
             disabled={healthLoading}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: healthLoading ? "#9fb6e8" : "#2f6fed",
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: healthLoading ? "default" : "pointer",
+            }}
           >
-            {healthLoading ? "Checking..." : "Health Check"}
-          </Button>
+            <Confirm size="18px" />
+            <span>{healthLoading ? "Checking..." : "Health Check"}</span>
+          </button>
         </div>
         </div>
 
