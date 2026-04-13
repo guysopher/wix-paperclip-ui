@@ -335,7 +335,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   gap: "14px 18px",
                 }}
               >
-                <FormField label="Name" infoContent="The primary identifier for this team member (e.g., 'Sarah', 'Mike', 'AIBM'). Shown in bold across the dashboard.">
+                <FormField label="Name" infoContent="The primary identifier for this team member (e.g., 'Sarah', 'Mike', 'AI Team Lead'). Shown in bold across the dashboard.">
                   <Input
                     size="small"
                     value={editName}

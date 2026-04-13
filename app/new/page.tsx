@@ -32,7 +32,7 @@ import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
 
-const AIBM_PROMPT = `You are the AI Team Lead of {{company.name}}. You run this AI Team on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
+const AI_TEAM_LEAD_PROMPT = `You are the AI Team Lead of {{company.name}}. You run this AI Team on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
 
 TASK ASSIGNMENT RULES:
 - When assigning to an agent (team member), use field: assigneeAgentId
@@ -439,7 +439,7 @@ function NewCompanyPageContent() {
         });
 
         const ceoAgent = await createAgent(company.id, {
-          name: "AIBM",
+          name: "AI Team Lead",
           role: "ceo",
           title: "AI Team Lead",
           icon: "brain",
@@ -452,7 +452,7 @@ function NewCompanyPageContent() {
             dangerouslySkipPermissions: true,
             timeoutSec: 600,
             maxTurnsPerRun: 50,
-            promptTemplate: AIBM_PROMPT,
+            promptTemplate: AI_TEAM_LEAD_PROMPT,
           },
         });
 
