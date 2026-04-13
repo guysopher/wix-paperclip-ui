@@ -207,7 +207,7 @@ function CompanyContent() {
     <>
       <Page>
         <Page.Header
-          title="AI Team"
+          title="Business"
           subtitle={company.name}
           actionsBar={
             <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
@@ -235,7 +235,70 @@ function CompanyContent() {
               </Card>
             )}
 
-            {/* AI Team details */}
+            {/* Goals */}
+            <Card>
+              <Card.Header
+                title="Goals"
+                subtitle="What your AI Team is working toward. Agents reference these when prioritizing work."
+                suffix={
+                  <Button size="tiny" prefixIcon={<Add />} onClick={() => setShowGoalModal(true)}>
+                    Add Goal
+                  </Button>
+                }
+              />
+              <Card.Content>
+                {goals.length === 0 ? (
+                  <div style={{ padding: "24px 0", textAlign: "center" }}>
+                    <Text secondary>No goals set yet. Add a goal to give your agents direction.</Text>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                    {goals.map((goal, i) => (
+                      <div
+                        key={goal.id}
+                        style={{
+                          display: "flex",
+                          gap: 12,
+                          alignItems: "flex-start",
+                          padding: "14px 0",
+                          borderBottom: i < goals.length - 1 ? "1px solid #f0f0f0" : "none",
+                        }}
+                      >
+                        <div style={{ fontSize: 18, marginTop: 1 }}>
+                          {goal.status === "completed" ? "✅" : goal.status === "archived" ? "📦" : "🎯"}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500 }}>{goal.title}</div>
+                          {goal.description && (
+                            <div style={{ fontSize: 13, color: "#666", marginTop: 3, lineHeight: 1.5 }}>{goal.description}</div>
+                          )}
+                          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                            {goal.level && (
+                              <span style={{ fontSize: 11, color: "#999", textTransform: "capitalize", background: "#f5f5f5", padding: "1px 8px", borderRadius: 4 }}>
+                                {goal.level}
+                              </span>
+                            )}
+                            <span style={{ fontSize: 11, color: "#999", textTransform: "capitalize", background: "#f5f5f5", padding: "1px 8px", borderRadius: 4 }}>
+                              {goal.status}
+                            </span>
+                          </div>
+                        </div>
+                        <Tooltip content="Remove this goal" placement="left">
+                          <button
+                            onClick={() => handleDeleteGoal(goal.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: 4 }}
+                          >
+                            <Delete size="18px" />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
+
+            {/* Business details */}
             <Card>
               <Card.Header
                 title="Details"
@@ -249,21 +312,6 @@ function CompanyContent() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <FormField label="AI Team name" infoContent="The name of your AI Team. Shown across the app and in agent communications.">
                     <Input size="small" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                  </FormField>
-                  <FormField label="Description JSON" infoContent="The raw company.description payload. This is the Wix-to-Paperclip mapper for this AI Team and should stay valid JSON.">
-                    <InputArea
-                      size="small"
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.target.value)}
-                      rows={10}
-                      resizable
-                      status={descriptionError ? "error" : undefined}
-                    />
-                    {descriptionError && (
-                      <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
-                        {descriptionError}
-                      </Text>
-                    )}
                   </FormField>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <FormField label="Task prefix" infoContent="Short prefix for task identifiers (e.g., AGE-1, AGE-2). Used to reference tasks across the system.">
@@ -330,66 +378,34 @@ function CompanyContent() {
               </Card.Content>
             </Card>
 
-            {/* Goals */}
+            {/* Stored record */}
             <Card>
               <Card.Header
-                title="Goals"
-                subtitle="What your AI Team is working toward. Agents reference these when prioritizing work."
+                title="Stored record"
+                subtitle="Underlying AI Team data stored in company.description."
                 suffix={
-                  <Button size="tiny" prefixIcon={<Add />} onClick={() => setShowGoalModal(true)}>
-                    Add Goal
+                  <Button size="tiny" disabled={!hasChanges || saving || Boolean(descriptionError)} onClick={handleSaveCompany}>
+                    {saving ? "Saving..." : "Save changes"}
                   </Button>
                 }
               />
               <Card.Content>
-                {goals.length === 0 ? (
-                  <div style={{ padding: "24px 0", textAlign: "center" }}>
-                    <Text secondary>No goals set yet. Add a goal to give your agents direction.</Text>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                    {goals.map((goal, i) => (
-                      <div
-                        key={goal.id}
-                        style={{
-                          display: "flex",
-                          gap: 12,
-                          alignItems: "flex-start",
-                          padding: "14px 0",
-                          borderBottom: i < goals.length - 1 ? "1px solid #f0f0f0" : "none",
-                        }}
-                      >
-                        <div style={{ fontSize: 18, marginTop: 1 }}>
-                          {goal.status === "completed" ? "✅" : goal.status === "archived" ? "📦" : "🎯"}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 500 }}>{goal.title}</div>
-                          {goal.description && (
-                            <div style={{ fontSize: 13, color: "#666", marginTop: 3, lineHeight: 1.5 }}>{goal.description}</div>
-                          )}
-                          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                            {goal.level && (
-                              <span style={{ fontSize: 11, color: "#999", textTransform: "capitalize", background: "#f5f5f5", padding: "1px 8px", borderRadius: 4 }}>
-                                {goal.level}
-                              </span>
-                            )}
-                            <span style={{ fontSize: 11, color: "#999", textTransform: "capitalize", background: "#f5f5f5", padding: "1px 8px", borderRadius: 4 }}>
-                              {goal.status}
-                            </span>
-                          </div>
-                        </div>
-                        <Tooltip content="Remove this goal" placement="left">
-                          <button
-                            onClick={() => handleDeleteGoal(goal.id)}
-                            style={{ background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: 4 }}
-                          >
-                            <Delete size="18px" />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <FormField label="Description JSON" infoContent="The raw company.description payload. This is the Wix-to-Paperclip mapper for this AI Team and should stay valid JSON.">
+                  <InputArea
+                    size="small"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    rows={12}
+                    resizable
+                    status={descriptionError ? "error" : undefined}
+                    style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontSize: 12, lineHeight: 1.5 }}
+                  />
+                  {descriptionError && (
+                    <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
+                      {descriptionError}
+                    </Text>
+                  )}
+                </FormField>
               </Card.Content>
             </Card>
             {/* Danger Zone */}
