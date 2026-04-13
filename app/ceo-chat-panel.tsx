@@ -23,6 +23,32 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   const inputRef = useRef<HTMLInputElement>(null);
   const [initialized, setInitialized] = useState(false);
 
+  const loadOpeningMessage = async (targetCompanyId: string) => {
+    const storageKey = `ceo-chat-${targetCompanyId}`;
+    try {
+      const res = await fetch("/api/ceo-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: targetCompanyId, messages: [] }),
+      });
+      const data = await res.json();
+      if (data.text) {
+        const newMessages: ChatMessage[] = [{ role: "ceo", text: data.text }];
+        setMessages(newMessages);
+        localStorage.setItem(storageKey, JSON.stringify(newMessages));
+        return;
+      }
+    } catch {
+      // Fall through to fallback opener.
+    }
+
+    const fallbackMessages: ChatMessage[] = [
+      { role: "ceo", text: "I’m your AI Team Lead and I’m ready to help. What should I focus on first?" },
+    ];
+    setMessages(fallbackMessages);
+    localStorage.setItem(storageKey, JSON.stringify(fallbackMessages));
+  };
+
   // Load messages from localStorage on mount
   useEffect(() => {
     if (!companyId || initialized) return;
@@ -41,25 +67,8 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
       }
     }
 
-      // No stored messages, get the AI Team Lead's opening message
     (async () => {
-      try {
-        const res = await fetch("/api/ceo-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId, messages: [] }),
-        });
-        const data = await res.json();
-        if (data.text) {
-          const newMessages: ChatMessage[] = [{ role: "ceo", text: data.text }];
-          setMessages(newMessages);
-          localStorage.setItem(storageKey, JSON.stringify(newMessages));
-        }
-      } catch {
-        const fallbackMessages: ChatMessage[] = [{ role: "ceo", text: "I’m your AI Team Lead and I’m ready to help. What should I focus on first?" }];
-        setMessages(fallbackMessages);
-        localStorage.setItem(storageKey, JSON.stringify(fallbackMessages));
-      }
+      await loadOpeningMessage(companyId);
       setLoading(false);
       setInitialized(true);
     })();
@@ -115,6 +124,16 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     setSending(false);
   };
 
+  const handleClearChat = async () => {
+    if (!companyId || sending) return;
+    const storageKey = `ceo-chat-${companyId}`;
+    setSending(true);
+    setMessages([]);
+    localStorage.removeItem(storageKey);
+    await loadOpeningMessage(companyId);
+    setSending(false);
+  };
+
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
@@ -135,6 +154,33 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
             {sending ? "Thinking..." : "Online"}
           </div>
         </div>
+        <button
+          onClick={handleClearChat}
+          disabled={sending}
+          title="Clear chat"
+          aria-label="Clear chat"
+          style={{
+            background: "none",
+            border: "1px solid #d9e1e8",
+            cursor: sending ? "default" : "pointer",
+            width: 30,
+            height: 30,
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 999,
+            color: "#5f6b7a",
+            opacity: sending ? 0.5 : 1,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8zm-1 10h12l1-12H5l1 12z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
         {showCloseButton && (
           <button
             onClick={onClose}
