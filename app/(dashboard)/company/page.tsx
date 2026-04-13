@@ -29,11 +29,49 @@ import {
   type Company,
   type Goal,
 } from "@/lib/api";
-import {
-  buildCompanyDescription,
-  getCompanyBusinessDescription,
-  parseCompanyDescription,
-} from "@/lib/company-metadata";
+
+function formatDescriptionForEditor(description: string): string {
+  const raw = description.trim();
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return description;
+  }
+}
+
+function normalizeDescriptionForSave(description: string): string {
+  const raw = description.trim();
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(raw));
+  } catch {
+    return description;
+  }
+}
+
+function getDescriptionValidationError(description: string): string {
+  const raw = description.trim();
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "Description must be a JSON object.";
+    }
+    return "";
+  } catch {
+    return "Description must be valid JSON.";
+  }
+}
 
 function CompanyContent() {
   const { companyId, companies, setCompanyId, refreshCompanies } = useCompany();
@@ -65,7 +103,7 @@ function CompanyContent() {
     const c = await getCompany(companyId);
     setCompany(c);
     setEditName(c.name);
-    setEditDescription(getCompanyBusinessDescription(c.description));
+    setEditDescription(formatDescriptionForEditor(c.description));
     setEditPrefix(c.issuePrefix);
     setEditMaxTokensPerHour(String(c.maxTokensPerHour ?? 0));
     setEditDisableOnDemandWakeup(c.disableOnDemandWakeup ?? false);
@@ -82,15 +120,13 @@ function CompanyContent() {
     try {
       const updated = await updateCompany(company.id, {
         name: editName,
-        description: buildCompanyDescription({
-          ...parseCompanyDescription(company.description),
-          businessDescription: editDescription,
-        }),
+        description: normalizeDescriptionForSave(editDescription),
         issuePrefix: editPrefix,
         maxTokensPerHour: parseInt(editMaxTokensPerHour) || 0,
         disableOnDemandWakeup: editDisableOnDemandWakeup,
       });
       setCompany(updated);
+      setEditDescription(formatDescriptionForEditor(updated.description));
     } catch { /* silent */ }
     setSaving(false);
   };
@@ -143,10 +179,11 @@ function CompanyContent() {
 
   const hasChanges =
     editName !== company.name ||
-    editDescription !== getCompanyBusinessDescription(company.description) ||
+    normalizeDescriptionForSave(editDescription) !== company.description ||
     editPrefix !== company.issuePrefix ||
     parseInt(editMaxTokensPerHour) !== (company.maxTokensPerHour ?? 0) ||
     editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false);
+  const descriptionError = getDescriptionValidationError(editDescription);
 
   return (
     <>
@@ -165,7 +202,7 @@ function CompanyContent() {
               <Card.Header
                 title="Details"
                 suffix={
-                  <Button size="tiny" disabled={!hasChanges || saving} onClick={handleSaveCompany}>
+                  <Button size="tiny" disabled={!hasChanges || saving || Boolean(descriptionError)} onClick={handleSaveCompany}>
                     {saving ? "Saving..." : "Save changes"}
                   </Button>
                 }
@@ -175,14 +212,20 @@ function CompanyContent() {
                   <FormField label="Company name" infoContent="The name of your AI company. Shown across the app and in agent communications.">
                     <Input size="small" value={editName} onChange={(e) => setEditName(e.target.value)} />
                   </FormField>
-                  <FormField label="Description" infoContent="What your company does. Agents use this to understand the business context when working on tasks.">
+                  <FormField label="Description JSON" infoContent="The raw company.description payload. This is the Wix-to-Paperclip mapper and should stay valid JSON.">
                     <InputArea
                       size="small"
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
-                      rows={4}
+                      rows={10}
                       resizable
+                      status={descriptionError ? "error" : undefined}
                     />
+                    {descriptionError && (
+                      <Text size="small" skin="error" style={{ marginTop: 8, display: "block" }}>
+                        {descriptionError}
+                      </Text>
+                    )}
                   </FormField>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <FormField label="Task prefix" infoContent="Short prefix for task identifiers (e.g., AGE-1, AGE-2). Used to reference tasks across the system.">
@@ -210,7 +253,7 @@ function CompanyContent() {
                 title="Activity controls"
                 subtitle="Throttle agent activity to manage costs and control when agents can be woken up."
                 suffix={
-                  <Button size="tiny" disabled={!hasChanges || saving} onClick={handleSaveCompany}>
+                  <Button size="tiny" disabled={!hasChanges || saving || Boolean(descriptionError)} onClick={handleSaveCompany}>
                     {saving ? "Saving..." : "Save changes"}
                   </Button>
                 }
