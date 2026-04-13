@@ -320,6 +320,7 @@ function NewCompanyPageContent() {
   const backendSignatureRef = useRef("");
   const chatMessagesRef = useRef<UiMessage[]>([]);
   const ceoTyping = bootstrapState === "checking" || chatSending;
+  const showRunSpinner = chatSending || backendBusy;
 
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
@@ -926,7 +927,7 @@ function NewCompanyPageContent() {
             </div>
           ))}
 
-          {chatSending && (
+          {showRunSpinner && (
             <div style={{ display: "flex", marginBottom: 12 }}>
               <div
                 style={{
@@ -956,33 +957,10 @@ function NewCompanyPageContent() {
                   boxShadow: "0 14px 34px rgba(77, 103, 128, 0.12)",
                 }}
               >
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "rgba(47,140,255,0.4)",
-                    animation: "pulse 1.4s infinite",
-                  }}
-                />
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "rgba(47,140,255,0.4)",
-                    animation: "pulse 1.4s infinite 0.2s",
-                  }}
-                />
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "rgba(47,140,255,0.4)",
-                    animation: "pulse 1.4s infinite 0.4s",
-                  }}
-                />
+                <Loader size="small" />
+                <span style={{ fontSize: 14, color: "#527089" }}>
+                  {backendBusy ? "Research still in progress..." : "Thinking..."}
+                </span>
               </div>
             </div>
           )}
