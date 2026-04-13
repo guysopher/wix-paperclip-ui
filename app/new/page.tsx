@@ -375,7 +375,7 @@ function NewCompanyPageContent() {
         });
 
         const inboxIssue = await createIssue(company.id, {
-          title: "Board Inbox",
+          title: `Kickstart Wix metasite ${msid}`,
           description: buildActivationIssueDescription({
             msid,
             siteId,
