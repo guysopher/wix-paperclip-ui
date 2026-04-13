@@ -571,7 +571,7 @@ function NewCompanyPageContent() {
     revealTimeoutRef.current = setTimeout(() => {
       setShowReadyReveal(false);
       revealTimeoutRef.current = null;
-    }, 1050);
+    }, 1550);
 
     return () => {
       if (revealTimeoutRef.current) {
@@ -742,7 +742,7 @@ function NewCompanyPageContent() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#fff",
+            background: "#f7f6f3",
             padding: 24,
           }}
         >
@@ -1030,7 +1030,7 @@ function NewCompanyPageContent() {
                 <Loader size="tiny" />
               </div>
               <span style={{ fontSize: 14, color: "#7b8c9d" }}>
-                {backendBusy ? "Research still in progress..." : "Thinking..."}
+                {backendBusy ? "Research in progress..." : "Thinking..."}
               </span>
             </div>
           )}

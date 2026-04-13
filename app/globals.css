@@ -127,7 +127,7 @@ html, body {
 }
 
 @keyframes activation-reveal-fade {
-  0%, 65% { opacity: 1; }
+  0%, 82% { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -141,7 +141,7 @@ html, body {
   }
   100% {
     opacity: 0;
-    transform: scale(14);
+    transform: scale(140);
   }
 }
 
@@ -152,17 +152,18 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: #f7f6f3;
   pointer-events: none;
-  animation: activation-reveal-fade 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: activation-reveal-fade 1.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .activation-ready-reveal-logo {
   width: 180px;
   height: 180px;
   object-fit: contain;
-  animation: activation-reveal-logo-zoom 1.05s cubic-bezier(0.18, 0.9, 0.24, 1) forwards;
+  animation: activation-reveal-logo-zoom 1.55s cubic-bezier(0.18, 0.9, 0.24, 1) forwards;
   transform-origin: center center;
+  will-change: transform, opacity;
 }
 
 /* Shimmer skeleton animation */
