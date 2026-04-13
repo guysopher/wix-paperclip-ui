@@ -941,7 +941,7 @@ function NewCompanyPageContent() {
                 }
               }}
               placeholder="Type your answer..."
-              disabled={chatSending || bootstrapState === "checking"}
+              disabled={chatSending}
               style={{
                 flex: 1,
                 border: "none",
