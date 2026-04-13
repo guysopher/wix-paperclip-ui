@@ -41,7 +41,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
       }
     }
 
-    // No stored messages, get CEO's opening message
+      // No stored messages, get the AI Team Lead's opening message
     (async () => {
       try {
         const res = await fetch("/api/ceo-chat", {
@@ -56,7 +56,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
           localStorage.setItem(storageKey, JSON.stringify(newMessages));
         }
       } catch {
-        const fallbackMessages: ChatMessage[] = [{ role: "ceo", text: "I’m here and ready to help run the business. What do you want me to focus on?" }];
+        const fallbackMessages: ChatMessage[] = [{ role: "ceo", text: "I’m your AI Team Lead and I’m ready to help. What should I focus on first?" }];
         setMessages(fallbackMessages);
         localStorage.setItem(storageKey, JSON.stringify(fallbackMessages));
       }
@@ -129,7 +129,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
       <div style={{ padding: "12px 16px", background: "white", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
         <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #3899ec, #1a4a6e)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>C</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>AI Business Manager</div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>AI Team Lead</div>
           <div style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: sending ? "#ffc107" : "#00d68f" }} />
             {sending ? "Thinking..." : "Online"}
@@ -218,7 +218,7 @@ export function CeoChatPanel({ onClose }: { onClose: () => void }) {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
-          placeholder="Ask your AI Business Manager anything..."
+          placeholder="Ask your AI Team Lead anything..."
           disabled={sending}
           style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "8px 14px", fontSize: 13, outline: "none", background: "#f7f8fa" }}
         />

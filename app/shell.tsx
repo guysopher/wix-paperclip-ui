@@ -37,7 +37,7 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
   { key: "/team", label: "Team", Icon: Users, countKey: "team" },
   { key: "/wix", label: "Wix", Icon: Code },
-  { key: "/company", label: "Company", Icon: Globe },
+  { key: "/company", label: "AI Team", Icon: Globe },
   { key: "/settings", label: "Settings", Icon: Settings },
 ];
 
@@ -171,7 +171,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </span>
           )}
         </button>
-        <Text size="small" light weight="bold">Wix AI Business Manager</Text>
+        <Text size="small" light weight="bold">Wix AI Team</Text>
         <div style={{ flex: 1 }} />
         {hasActiveCompany && (
           <button
@@ -221,8 +221,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {(currentCompany?.name || "AB").slice(0, 2).toUpperCase()}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Heading size="small" light>{currentCompany?.name || "Select Company"}</Heading>
-              <Text size="tiny" light secondary>Your Wix AI Company</Text>
+              <Heading size="small" light>{currentCompany?.name || "Select AI Team"}</Heading>
+              <Text size="tiny" light secondary>Your Wix AI Team</Text>
             </div>
             {/* Switcher icon */}
             <div style={{ display: "flex", gap: 4 }}>
@@ -251,7 +251,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               )}
               <button
                 onClick={() => router.push("/new")}
-                title="New company"
+                title="New AI Team"
                 style={{
                   width: 28, height: 28, borderRadius: 6,
                   background: "rgba(255,255,255,0.1)",
@@ -287,7 +287,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               }}
             >
               <Chat color="white" />
-              <Text size="small" light weight="bold">AI Business Manager</Text>
+              <Text size="small" light weight="bold">AI Team Lead</Text>
               {counts.chat > 0 && !chatOpen && (
                 <span style={{
                   marginLeft: "auto",

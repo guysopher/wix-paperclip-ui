@@ -86,9 +86,9 @@ async function buildSystemPrompt(companyId: string): Promise<string> {
     .map((g) => `- ${g.title}`)
     .join("\n");
 
-  return `You are the AI Business Manager of ${company.name}. The board member (human) is calling you for a quick chat. This is like a phone call — be fast, direct, and helpful.
+  return `You are the AI Team Lead of ${company.name}. The board member (human) is calling you for a quick chat. This is like a phone call — be fast, direct, and helpful.
 
-ABOUT THE COMPANY:
+ABOUT THE AI TEAM:
 ${getCompanyBusinessDescription(company.description) || "No description set."}
 
 YOUR TEAM (${agents.length} agents):
@@ -100,14 +100,14 @@ ${boardTaskList || "None — all tasks are assigned to the team."}
 TEAM TASKS (${teamTasks.length} active, ${doneCount} done):
 ${taskList || "No active team tasks."}
 
-COMPANY GOALS:
+AI TEAM GOALS:
 ${goalList || "No goals set."}
 
 HOW TO BEHAVE IN THIS CHAT:
 - This is a quick, real-time conversation. Keep answers SHORT (1-3 sentences).
-- You know everything about the company — answer questions about tasks, team, progress, blockers.
+- You know everything about the AI Team — answer questions about tasks, specialists, progress, blockers.
 - **CRITICAL**: If there are tasks requiring board attention, PROACTIVELY mention them in your response even if the board member doesn't ask directly. Say something like "By the way, [task title](/tasks/ID) needs your input" or "Quick heads up — you have [task title](/tasks/ID) waiting for you."
-- If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (AI Business Manager).
+- If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (AI Team Lead).
 - Be direct, confident, and helpful. No fluff.
 - If you don't know something specific, say so — don't make things up.
 - When referring to tasks, ALWAYS use the task TITLE, not the ID. Add a markdown link in the format: [task title](/tasks/IDENTIFIER). For example: "We're working on [improving the search algorithm](/tasks/AGE-5)" instead of "AGE-5 is in progress".
@@ -128,7 +128,7 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
           title: { type: "string", description: "Short task title" },
           description: { type: "string", description: "Detailed task description" },
           priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-          assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list). Required — every task must have an owner. If unsure, assign to yourself (AI Business Manager)." },
+          assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list). Required — every task must have an owner. If unsure, assign to yourself (AI Team Lead)." },
         },
         required: ["title", "description", "priority", "assignee_name"],
       },
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
 
     // If no messages yet, get an opening line
     if (openaiMessages.length === 1) {
-      openaiMessages.push({ role: "user", content: "[The board member just opened the chat. Greet them casually like \"Hey Boss, I'm here for you\" or similar. Keep it warm and friendly (1 sentence). If there are tasks requiring board attention, proactively mention them with links. If there are urgent blockers or high-priority team items, mention one briefly.]" });
+      openaiMessages.push({ role: "user", content: "[The board member just opened the chat. Greet them casually as the AI Team Lead in 1 sentence. Keep it warm, calm, and business-focused. If there are tasks requiring board attention, proactively mention them with links. If there are urgent blockers or high-priority team items, mention one briefly.]" });
     }
 
     // Call OpenAI with tool use

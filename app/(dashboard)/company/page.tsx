@@ -169,11 +169,11 @@ function CompanyContent() {
         await archiveCompany(company.id);
         await refreshCompanies();
         setCompanyId("");
-        setDeleteResultMessage("Hard delete failed on the backend, so the company was archived instead.");
+        setDeleteResultMessage("Hard delete failed on the backend, so the AI Team was archived instead.");
         setShowDeleteModal(false);
       } catch (archiveError) {
         const primaryMessage =
-          error instanceof Error && error.message ? error.message : "Failed to delete company.";
+          error instanceof Error && error.message ? error.message : "Failed to delete AI Team.";
         const archiveMessage =
           archiveError instanceof Error && archiveError.message ? archiveError.message : "";
         setDeleteError(
@@ -192,7 +192,7 @@ function CompanyContent() {
   }
 
   if (!company) {
-    return <Text>No company found.</Text>;
+    return <Text>No AI Team found.</Text>;
   }
 
   const hasChanges =
@@ -207,7 +207,7 @@ function CompanyContent() {
     <>
       <Page>
         <Page.Header
-          title="Company"
+          title="AI Team"
           subtitle={company.name}
           actionsBar={
             <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
@@ -235,7 +235,7 @@ function CompanyContent() {
               </Card>
             )}
 
-            {/* Company details */}
+            {/* AI Team details */}
             <Card>
               <Card.Header
                 title="Details"
@@ -247,10 +247,10 @@ function CompanyContent() {
               />
               <Card.Content>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <FormField label="Company name" infoContent="The name of your AI company. Shown across the app and in agent communications.">
+                  <FormField label="AI Team name" infoContent="The name of your AI Team. Shown across the app and in agent communications.">
                     <Input size="small" value={editName} onChange={(e) => setEditName(e.target.value)} />
                   </FormField>
-                  <FormField label="Description JSON" infoContent="The raw company.description payload. This is the Wix-to-Paperclip mapper and should stay valid JSON.">
+                  <FormField label="Description JSON" infoContent="The raw company.description payload. This is the Wix-to-Paperclip mapper for this AI Team and should stay valid JSON.">
                     <InputArea
                       size="small"
                       value={editDescription}
@@ -334,7 +334,7 @@ function CompanyContent() {
             <Card>
               <Card.Header
                 title="Goals"
-                subtitle="What your company is working toward. Agents reference these when prioritizing work."
+                subtitle="What your AI Team is working toward. Agents reference these when prioritizing work."
                 suffix={
                   <Button size="tiny" prefixIcon={<Add />} onClick={() => setShowGoalModal(true)}>
                     Add Goal
@@ -397,8 +397,8 @@ function CompanyContent() {
               <Card.Content>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#d32f2f" }}>Delete company</div>
-                    <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>Permanently remove this company and all its agents, tasks, and data.</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#d32f2f" }}>Delete AI Team</div>
+                    <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>Permanently remove this AI Team and all its agents, tasks, and data.</div>
                   </div>
                   <Button size="small" skin="destructive" onClick={() => setShowDeleteModal(true)}>
                     Delete
@@ -422,7 +422,7 @@ function CompanyContent() {
           onCloseButtonClick={() => setShowGoalModal(false)}
         >
           <Box direction="vertical" gap="12px">
-            <FormField label="Goal" required infoContent="A clear objective for your company. Agents will use this to understand priorities and make decisions.">
+            <FormField label="Goal" required infoContent="A clear objective for your AI Team. Agents will use this to understand priorities and make decisions.">
               <Input value={newGoalTitle} onChange={(e) => setNewGoalTitle(e.target.value)} placeholder="e.g., Launch the marketplace by Q2" />
             </FormField>
             <FormField label="Description" infoContent="Additional context about the goal. Why it matters and what success looks like.">
@@ -442,7 +442,7 @@ function CompanyContent() {
       <Modal isOpen={showDeleteModal} onRequestClose={() => setShowDeleteModal(false)} shouldCloseOnOverlayClick>
         <CustomModalLayout
           width="440px"
-          title="Delete company"
+          title="Delete AI Team"
           primaryButtonText={deleting ? "Deleting..." : "Delete permanently"}
           primaryButtonOnClick={handleDeleteCompany}
           primaryButtonProps={{ skin: "destructive", disabled: deleting }}

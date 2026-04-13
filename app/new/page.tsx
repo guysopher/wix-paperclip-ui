@@ -29,14 +29,14 @@ import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
 
-const AIBM_PROMPT = `You are the AI Business Manager of {{company.name}}. You run this company on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
+const AIBM_PROMPT = `You are the AI Team Lead of {{company.name}}. You run this AI Team on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
 
 TASK ASSIGNMENT RULES:
 - When assigning to an agent (team member), use field: assigneeAgentId
 - When assigning to the board (human), use field: assigneeUserId with value "local-board"
 - NEVER create a task without an assignee - every task must have an owner
 
-YOUR MISSION: Make this company succeed. Be proactive, creative, and relentless. Something meaningful must happen on every single check-in.
+YOUR MISSION: Make this AI Team succeed. Be proactive, creative, and relentless. Something meaningful must happen on every single check-in.
 
 WHAT YOU DO ON EVERY CHECK-IN:
 
@@ -53,32 +53,32 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If an existing task has no assignee, assign it to the right team member immediately
 
 3. PUSH WORK FORWARD
-   - Don't just observe - take action. Every check-in should move the company forward.
+   - Don't just observe - take action. Every check-in should move the AI Team forward.
    - If the team is waiting for direction, give it. Make decisions, don't defer them.
    - Prioritize ruthlessly: what's the ONE thing that would make the biggest impact right now?
 
 4. CREATE NEW WORK WHEN NEEDED
    - If there are no open tasks, don't report "nothing to do" - that's a failure.
-   - Think about what the company needs next: new features, improvements, bugs to fix, growth experiments, documentation, testing.
+   - Think about what the business needs next: new features, improvements, bugs to fix, growth experiments, documentation, testing.
    - Create tasks with clear descriptions and assign them to the right people.
    - Break big goals into concrete, actionable tasks.
 
 5. BUILD AND ADAPT THE TEAM
    - If work is piling up and the team can't keep up, hire new agents
-   - If a role is missing that the company needs, propose it
+   - If a specialist role is missing, propose it
    - If someone is consistently failing, flag it to the board with a recommendation
-   - The org structure should evolve as the company grows
+   - The AI Team structure should evolve as the business grows
 
 6. MANAGE THE WIX BUSINESS
    - You and your team operate entirely within the Wix ecosystem
    - Use the Wix and Paperclip tools available to you to understand the business, manage its site, and move the business forward
    - Manage products, content, bookings, contacts, CMS, blog, SEO, orders, and site settings through Wix when relevant
-   - Keep the company description, goals, and business context up to date
+   - Keep the AI Team record, goals, and business context up to date
 
 7. ACTIVATION MODE
    - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying
    - Your first visible reply in a new activation thread is a founder-facing introduction, not an internal task report
-   - Do the research and company updates first, then reply to the founder conversationally
+   - Do the research and AI Team updates first, then reply to the founder conversationally
    - Your first reply should introduce yourself, mention what you learned about the business, suggest a practical plan, and ask what the founder wants help with first
    - Do not ask for the metasite ID again if it is already provided in the task or comments
    - If you cannot retrieve business knowledge, say so clearly and ask for the basics in a human way
@@ -181,11 +181,11 @@ function buildActivationIssueDescription(args: {
   });
 
   const lines = [
-    `Kickstart the new company for the Wix Metasite ${args.msid}`,
+    `Kickstart the new AI Team for the Wix Metasite ${args.msid}`,
     "",
     "This is your first activation task for this Wix business.",
     "",
-    "Use WixMCP to research this metasite, populate the company metadata, and define the best initial operating plan for the business.",
+    "Use WixMCP to research this metasite, populate the AI Team record, and define the best initial operating plan for the business.",
     "",
     "Known context:",
     `- Wix metasite ID: ${args.msid}`,
@@ -204,9 +204,9 @@ function buildActivationIssueDescription(args: {
   lines.push("");
   lines.push("Your objectives:");
   lines.push("- Fetch as much verified information as you can about this Wix business.");
-  lines.push("- Populate all verified details in company.description as JSON.");
-  lines.push("- Update the company name and any other company properties you see fit based on what you learn.");
-  lines.push("- Recommend the best initial company goals and the best first agent team for this specific business.");
+  lines.push("- Populate all verified details in company.description as JSON for this AI Team.");
+  lines.push("- Update the AI Team name and any other AI Team properties you see fit based on what you learn.");
+  lines.push("- Recommend the best initial AI Team goals and the best first agent team for this specific business.");
   lines.push("");
   lines.push("Treat company.description as the source-of-truth JSON mapper between Wix and Paperclip.");
   lines.push("- Preserve the existing JSON structure.");
@@ -248,24 +248,24 @@ function buildActivationIssueDescription(args: {
   lines.push("");
   lines.push("Once you retrieve the data:");
   lines.push("- Update company.description JSON with the verified Wix mapping and business summary.");
-  lines.push("- Update the company name to the best verified business name.");
-  lines.push("- Recommend the best initial goals for this company.");
+  lines.push("- Update the AI Team name to the best verified business name.");
+  lines.push("- Recommend the best initial goals for this AI Team.");
   lines.push("- Recommend the best first specialist agents to hire for this exact business.");
   lines.push("- For each recommended agent, explain the role, the scope of ownership, and the expected business outcome.");
   lines.push("- Focus on practical, high-impact recommendations grounded in the actual site you found.");
   lines.push("");
-  lines.push("Current company.description JSON:");
+  lines.push("Current AI Team record JSON (company.description):");
   lines.push(metadataJson);
   lines.push("");
   lines.push("Important: separate internal work from founder-facing communication.");
-  lines.push("- Internally, you should do the research, update the company, and think through the team and goals.");
+  lines.push("- Internally, you should do the research, update the AI Team, and think through the team and goals.");
   lines.push("- Externally, your first visible reply must feel like a personal conversation with the founder.");
   lines.push("- Do not paste your research notes back as a report.");
   lines.push("- Do not use headings like 'Kickstart complete', 'Business', 'Site URL', 'Key findings', or 'Next steps'.");
   lines.push("- Do not mention metadata population, JSON, or task completion.");
   lines.push("");
   lines.push("Your first visible reply to the founder should sound like this:");
-  lines.push("- Start with a warm hello and say you are their Wix AI Business Manager.");
+  lines.push("- Start with a warm hello and say you are their Wix AI Team Lead.");
   lines.push("- Mention the business name naturally if you found it.");
   lines.push("- Say one positive thing about the business or site.");
   lines.push("- Mention 2 to 4 concrete improvements you already spotted, phrased as things you can help with.");
@@ -280,7 +280,7 @@ function buildActivationIssueDescription(args: {
   lines.push("- Ask a direct closing question like 'What do you think about this plan?'");
   lines.push("");
   lines.push("Your first visible reply must:");
-  lines.push("- Introduce yourself as the Wix AI Business Manager.");
+  lines.push("- Introduce yourself as the Wix AI Team Lead.");
   lines.push("- Mention one or two concrete things you learned about the business.");
   lines.push("- Ask what they want help with first or whether they want you to start with your recommended plan.");
   lines.push("- Offer to recommend the best first actions if helpful.");
@@ -426,10 +426,10 @@ function NewCompanyPageContent() {
         const ceoAgent = await createAgent(company.id, {
           name: "AIBM",
           role: "ceo",
-          title: "AI Business Manager",
+          title: "AI Team Lead",
           icon: "brain",
           capabilities:
-            "Strategic planning, delegation, company oversight, stakeholder communication, business analysis, Wix operations",
+            "Strategic planning, delegation, AI team oversight, stakeholder communication, business analysis, Wix operations",
           adapterType: "claude_local",
           adapterConfig: {
             model: "claude-opus-4-6",
@@ -442,7 +442,7 @@ function NewCompanyPageContent() {
         });
 
         const inboxIssue = await createIssue(company.id, {
-          title: `Kickstart Wix metasite ${msid}`,
+          title: `Kickstart AI Team for Wix metasite ${msid}`,
           description: buildActivationIssueDescription({
             msid,
             siteId,
@@ -658,7 +658,7 @@ function NewCompanyPageContent() {
     return (
       <MetasiteIdEntry
         redirectPath="/new"
-        description="Enter the Wix metasite ID you want to activate. The AI Business Manager will use it to open the right Wix business context."
+        description="Enter the Wix metasite ID you want to activate. The AI Team Lead will use it to open the right Wix business context."
         title="Enter the Wix metasite ID"
       />
     );
@@ -710,7 +710,7 @@ function NewCompanyPageContent() {
               Activation could not start
             </div>
             <div style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(255,255,255,0.82)", marginBottom: 20 }}>
-              {error || "The AI Business Manager setup failed before the conversation could begin."}
+              {error || "The AI Team setup failed before the conversation could begin."}
             </div>
             <Button onClick={handleRetry}>Try again</Button>
           </div>
@@ -759,7 +759,7 @@ function NewCompanyPageContent() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 16, color: "white" }}>
-              Activate your AI Business Manager
+              Set up your AI Team
             </div>
             <div
               style={{

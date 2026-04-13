@@ -325,9 +325,9 @@ function DashboardContent() {
               }}>
                 <span style={{ color: "white", fontSize: 30, fontWeight: 700 }}>C</span>
               </div>
-              <Heading size="medium">Welcome to Wix AI Business Manager</Heading>
+              <Heading size="medium">Welcome to Wix AI Team</Heading>
               <Text secondary style={{ marginTop: 8, display: "block" }}>
-                {companies.length > 0 ? "Select a company to get started, or create a new one." : "Create your first company to get started."}
+                {companies.length > 0 ? "Select an AI Team to get started, or create a new one." : "Create your first AI Team to get started."}
               </Text>
             </div>
 
@@ -366,7 +366,7 @@ function DashboardContent() {
             )}
 
             <Button prefixIcon={<Add />} onClick={() => router.push("/new")}>
-              New company
+              New AI Team
             </Button>
           </Box>
         </Page.Content>
@@ -645,7 +645,7 @@ function DashboardContent() {
                 } catch {}
               }}
             >
-              Wake AI Business Manager
+              Wake AI Team Lead
             </Button>
           )}
           <Button
@@ -1275,19 +1275,19 @@ function DashboardContent() {
     <Modal isOpen={showLearnMore} onRequestClose={() => setShowLearnMore(false)} shouldCloseOnOverlayClick>
       <CustomModalLayout
         width="640px"
-        title="How your AI company works"
+        title="How your AI Team works"
         onCloseButtonClick={() => setShowLearnMore(false)}
         primaryButtonText="Got it"
         primaryButtonOnClick={() => setShowLearnMore(false)}
       >
         <div style={{ fontSize: 14, lineHeight: 1.7, color: "#333" }}>
           <p style={{ marginTop: 0 }}>
-            <strong>You are running a company staffed entirely by AI agents.</strong> Each team member is an autonomous AI that can read code, write code, create tasks, communicate with other agents, and report back to you.
+            <strong>You are running an AI Team staffed entirely by AI agents.</strong> Each specialist can create tasks, communicate with other agents, and report back to you.
           </p>
 
           <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>🏢 Your Team</h3>
           <p>
-            Your company has a real org chart — an AI Business Manager, managers, engineers, and QA. Each agent has a role description that defines how they think and work. The AI Business Manager coordinates everyone and reports directly to you.
+            Your AI Team has a real operating structure — an AI Team Lead plus specialist agents for the areas of support your business needs. Each agent has a role description that defines how they think and work. The AI Team Lead coordinates everyone and reports directly to you.
           </p>
 
           <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>⏰ How They Work</h3>
@@ -1295,9 +1295,9 @@ function DashboardContent() {
             Agents work in <strong>check-ins</strong> (called heartbeats). During each check-in, an agent wakes up, reads their inbox, reviews tasks, does work, and goes back to sleep. You can set how often each agent checks in, or wake them up manually anytime.
           </p>
 
-          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>💬 Talking to the AI Business Manager</h3>
+          <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>💬 Talking to the AI Team Lead</h3>
           <p>
-            The chat panel on the right is your direct line to the AI Business Manager. Send a message and the AI Business Manager will wake up, read it, take action, coordinate the team, and reply.
+            The chat panel on the right is your direct line to the AI Team Lead. Send a message and the AI Team Lead will wake up, read it, coordinate the specialists, and reply.
           </p>
 
           <h3 style={{ fontSize: 15, marginBottom: 6, color: "#162d3d" }}>📋 Tasks &amp; Inbox</h3>
