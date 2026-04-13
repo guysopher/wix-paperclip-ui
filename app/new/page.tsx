@@ -120,6 +120,47 @@ interface UiMessage {
   text: string;
 }
 
+function AiTeamLogo({ size = 120 }: { size?: number }) {
+  const stroke = Math.max(2.5, size / 34);
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <g stroke="#1f2329" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M60 12v9" />
+        <circle cx="60" cy="27" r="4.5" />
+        <path d="M60 31.5v8.5" />
+        <path d="M48 45c0-4.4 3.6-8 8-8h8c4.4 0 8 3.6 8 8v16c0 4.4-3.6 8-8 8h-8c-4.4 0-8-3.6-8-8V45Z" />
+        <path d="M53 48h14c2.2 0 4 1.8 4 4v13H49V52c0-2.2 1.8-4 4-4Z" />
+        <path d="M45 50h-3.5c-1.9 0-3.5 1.6-3.5 3.5v8c0 1.9 1.6 3.5 3.5 3.5H45" />
+        <path d="M75 50h3.5c1.9 0 3.5 1.6 3.5 3.5v8c0 1.9-1.6 3.5-3.5 3.5H75" />
+        <path d="M53 69l-4 18c0 3.3 5 6 11 6s11-2.7 11-6l-4-18H53Z" />
+        <path d="M53 87c1.6 2.6 4.2 4 7 4s5.4-1.4 7-4" />
+        <path d="M54 93c1.1 2.1 3.3 3.3 6 3.3s4.9-1.2 6-3.3" />
+        <path d="M49 74l-9 7" />
+        <path d="M71 74l9 7" />
+        <path d="M38 63l-9-8" />
+        <path d="M82 63l9-8" />
+        <path d="M36 57c-6-5-8.3-14.1-5.9-22.1 4.8 1.2 8.3 5.6 8.3 10.8 0 4.5-1 8.4-2.4 11.3Z" />
+        <path d="M84 57c6-5 8.3-14.1 5.9-22.1-4.8 1.2-8.3 5.6-8.3 10.8 0 4.5 1 8.4 2.4 11.3Z" />
+        <path d="M27 35c4.3 0 7.8 3.5 7.8 7.8 0 4-2 7-5.1 9.3-3.3-1.9-6.7-5.5-8.2-10.6 1.3-4 3.3-6.5 5.5-6.5Z" />
+        <path d="M93 35c-4.3 0-7.8 3.5-7.8 7.8 0 4 2 7 5.1 9.3 3.3-1.9 6.7-5.5 8.2-10.6-1.3-4-3.3-6.5-5.5-6.5Z" />
+        <path d="M46 86c-3.8 1.9-6.7 5.1-8.1 9.4" />
+        <path d="M74 86c3.8 1.9 6.7 5.1 8.1 9.4" />
+        <path d="M60 8l-4-4" />
+        <path d="M60 8l4-4" />
+        <path d="M52 20l-4-4" />
+        <path d="M68 20l4-4" />
+      </g>
+    </svg>
+  );
+}
+
 type ActivationChatTrigger = "initial_open" | "backend_update" | "user_message";
 
 function isHiddenSystemComment(body: string): boolean {
@@ -674,10 +715,38 @@ function NewCompanyPageContent() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "linear-gradient(135deg, #0f1e2d 0%, #162d3d 40%, #1a3a52 100%)",
+            background: "linear-gradient(180deg, #f5fbff 0%, #edf6ff 50%, #f9fcf6 100%)",
+            padding: 24,
           }}
         >
-          <Loader size="large" />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 18,
+              padding: "28px 32px",
+              borderRadius: 28,
+              background: "rgba(255,255,255,0.78)",
+              border: "1px solid rgba(159,196,224,0.5)",
+              boxShadow: "0 18px 50px rgba(71, 112, 145, 0.12)",
+              backdropFilter: "blur(18px)",
+            }}
+          >
+            <AiTeamLogo size={132} />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#16324a" }}>
+                Setting up your AI Team
+              </div>
+              <div style={{ marginTop: 8, fontSize: 15, lineHeight: 1.6, color: "#637c90", maxWidth: 360 }}>
+                Your AI Team Lead is getting the workspace ready and connecting the first business context.
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#7b8c9d" }}>
+              <Loader size="small" color="grey" />
+              <span style={{ fontSize: 14 }}>Loading…</span>
+            </div>
+          </div>
         </div>
       </WixDesignSystemProvider>
     );
