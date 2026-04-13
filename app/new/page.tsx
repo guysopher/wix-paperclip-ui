@@ -144,9 +144,13 @@ function buildActivationIssueDescription(args: {
   });
 
   const lines = [
+    `Kickstart the new company for the Wix Metasite ${args.msid}`,
+    "",
     "This is your first activation task for this Wix business.",
     "",
-    "Research brief:",
+    "Use WixMCP to research this metasite, populate the company metadata, and define the best initial operating plan for the business.",
+    "",
+    "Known context:",
     `- Wix metasite ID: ${args.msid}`,
   ];
 
@@ -161,12 +165,57 @@ function buildActivationIssueDescription(args: {
   }
 
   lines.push("");
-  lines.push("What you need to do:");
-  lines.push("- Use the Wix access available to you through the backend to research this metasite before you reply.");
-  lines.push("- Treat the company description as the source-of-truth JSON mapper between Wix and Paperclip.");
-  lines.push("- Preserve the existing JSON shape in company.description and fill in any missing Wix binding details you can verify, such as siteId, siteName, siteUrl, auth hints, tokens, and other useful data.");
-  lines.push("- Also fill in businessDescription with a concise factual summary of the business once you know enough.");
-  lines.push("- If you cannot retrieve something, leave the existing fields intact and say what is missing.");
+  lines.push("Your objectives:");
+  lines.push("- Fetch as much verified information as you can about this Wix business.");
+  lines.push("- Populate all verified details in company.description as JSON.");
+  lines.push("- Update the company name and any other company properties you see fit based on what you learn.");
+  lines.push("- Recommend the best initial company goals and the best first agent team for this specific business.");
+  lines.push("");
+  lines.push("Treat company.description as the source-of-truth JSON mapper between Wix and Paperclip.");
+  lines.push("- Preserve the existing JSON structure.");
+  lines.push("- Fill in any missing wixBinding details you can verify, including siteId, siteName, siteUrl, auth hints, tokens, and any other useful mapped data.");
+  lines.push("- Fill in businessDescription with a concise factual summary of the business.");
+  lines.push("- If you cannot retrieve something, keep existing values intact and explicitly record what is missing or blocked.");
+  lines.push("");
+  lines.push("Use WixMCP in this order:");
+  lines.push("1. Profile Service discovery");
+  lines.push("   - Call profile-service__get_profile_labels to discover relevant label groups.");
+  lines.push("   - Then call profile-service__get_profile_fields_by_label for the most relevant Wix business labels, especially Stores, Bookings, Blog, SEO WIZ, CX-Contacts, Premium, Restaurants, Wix Events, Pricing Plans, Members area, and Marketing.");
+  lines.push("   - Use the discovered profile_id field names to decide which site-level signals are worth checking for this metasite.");
+  lines.push("2. Site-level profile values");
+  lines.push("   - Call profile-service__get_site_profile with meta_site_id set to this metasite ID and fields set to the relevant profile_id values you discovered.");
+  lines.push("   - Use this to determine what business solution the site uses and what business capabilities are active.");
+  lines.push("   - Useful example profile_id values to try after discovery include stores_valid_sites, bookings_valid_sites, blog_live_ready_sites, business_premium_sites, sites_with_selling_intent, seo_didnt_complete_checklist, and add_contact_manually.");
+  lines.push("   - Use the returned values to determine whether the site is a valid Stores site, a valid Bookings site, a live Blog site, a premium business site, a site with selling intent, a site with CRM/contact activity, or a site with SEO setup activity.");
+  lines.push("3. Site structure and visible content");
+  lines.push("   - Call document-management__list-pages with metaSiteId to inspect the pages on the site.");
+  lines.push("   - Then call document-management__get-components-on-page for the homepage and other high-signal pages to inspect titles, rich text, buttons, and other visible content.");
+  lines.push("   - Use this to infer the business name, offer, audience, brand language, navigation structure, and whether the site looks more like stores, bookings, restaurant, events, content/blog, membership, or something else.");
+  lines.push("4. Internal service fallback if higher-level WixMCP tools fail");
+  lines.push("   - If Profile Service or Document Management is blocked, use fire-console__search_services to find relevant internal site/metasite/site-properties services.");
+  lines.push("   - Then use fire-console__get_method_schema to inspect read methods.");
+  lines.push("   - Then use fire-console__invoke_rpc only for read-only methods to fetch metasite or site-properties data.");
+  lines.push("   - Prefer services related to site-properties, metasite, editor URLs, site profile, or other read-only business metadata.");
+  lines.push("   - Concrete fallback artifact families already discovered include com.wixpress.site.properties.site-properties, com.wixpress.siteproperties.site-properties-service, com.wixpress.site-properties-public-web, and com.wixpress.ecom.ecom-site-properties.");
+  lines.push("5. Record access failures clearly");
+  lines.push("   - If a WixMCP tool returns permission denied, invalid argument, missing access, or reauthorization errors, say exactly which tool failed and continue with other tools.");
+  lines.push("   - Do not claim uncertainty if you actually have partial verified evidence from other tools.");
+  lines.push("");
+  lines.push("For each information category, fetch and fill what you can:");
+  lines.push("- Business identity: business name, brand name, legal/business description, site name, site URL, site ID, metasite ID.");
+  lines.push("- Site classification: site type, primary Wix business solution, whether it is stores/bookings/blog/events/restaurants/memberships/other, and whether it has selling intent.");
+  lines.push("- Business offer: products, services, appointments, events, memberships, or other offers visible from the site structure and profile signals.");
+  lines.push("- Audience and positioning: who the business serves, geography if visible, value proposition, tone, and brand positioning inferred from live content.");
+  lines.push("- Operational capabilities: contacts/CRM, SEO activity, premium status, blog presence, commerce readiness, bookings readiness, and any other verified product activations.");
+  lines.push("- Mapping data: any verified auth hints, tokens, or machine-usable identifiers available through the tools.");
+  lines.push("");
+  lines.push("Once you retrieve the data:");
+  lines.push("- Update company.description JSON with the verified Wix mapping and business summary.");
+  lines.push("- Update the company name to the best verified business name.");
+  lines.push("- Recommend the best initial goals for this company.");
+  lines.push("- Recommend the best first specialist agents to hire for this exact business.");
+  lines.push("- For each recommended agent, explain the role, the scope of ownership, and the expected business outcome.");
+  lines.push("- Focus on practical, high-impact recommendations grounded in the actual site you found.");
   lines.push("");
   lines.push("Current company.description JSON:");
   lines.push(metadataJson);
