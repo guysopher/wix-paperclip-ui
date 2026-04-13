@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Loader, Text } from "@wix/design-system";
 import { WixDesignSystemProvider } from "@wix/design-system";
@@ -1218,13 +1217,12 @@ function NewCompanyPageContent() {
             padding: 24,
           }}
         >
-          <Image
-            src="/ai-team-logo.png?v=2"
+          <img
+            src="/ai-team-logo.png"
             alt="AI Team logo"
             width={180}
             height={180}
             style={{ width: 180, height: 180, objectFit: "contain" }}
-            priority
           />
         </div>
       </WixDesignSystemProvider>
@@ -1283,13 +1281,12 @@ function NewCompanyPageContent() {
       >
         {showReadyReveal && (
           <div className="activation-ready-reveal">
-            <Image
+            <img
               className="activation-ready-reveal-logo"
-              src="/ai-team-logo.png?v=2"
+              src="/ai-team-logo.png"
               alt="AI Team logo"
               width={180}
               height={180}
-              priority
             />
           </div>
         )}
