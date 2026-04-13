@@ -20,7 +20,12 @@ export function DashboardGate({ children }: { children: React.ReactNode }) {
 
   if (companyLookupStatus === "missing-msid") {
     return (
-      <MetasiteIdEntry description="Paste the Wix metasite ID you want this business manager to operate on." />
+      <MetasiteIdEntry
+        title="Open or create your Wix site"
+        description="Open an existing Wix business by pasting its metasite ID or manage URL."
+        createNewSitePath="/new?mode=new_site"
+        createNewSiteDescription="Start from scratch and let the AI Team Lead kick off the first site build."
+      />
     );
   }
 
