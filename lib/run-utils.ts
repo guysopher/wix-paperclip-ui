@@ -125,6 +125,15 @@ export function parseDetailedRunLog(raw: string): DetailedRunEvent[] {
         continue;
       }
 
+      if (!chunk) {
+        events.push({
+          kind: "raw",
+          timestamp: ts,
+          text: chunkStr || line,
+        });
+        continue;
+      }
+
       const type = chunk.type as string | undefined;
 
       if (type === "assistant" && chunk.message?.content) {
