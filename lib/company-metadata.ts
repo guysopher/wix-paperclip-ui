@@ -168,9 +168,19 @@ export function getCompanyActivation(description: string | null | undefined): Ac
 
 function normalizeWixBinding(raw: Record<string, unknown>): WixBindingMetadata | undefined {
   const bindingSource = isRecord(raw.wixBinding) ? raw.wixBinding : raw;
+  const metaSiteId =
+    getString(bindingSource.metaSiteId) ||
+    getString(raw.metaSiteId) ||
+    getString(bindingSource.siteId) ||
+    getString(raw.siteId);
+  const siteId =
+    getString(bindingSource.siteId) ||
+    getString(raw.siteId) ||
+    getString(bindingSource.metaSiteId) ||
+    getString(raw.metaSiteId);
   const binding: WixBindingMetadata = {
-    metaSiteId: getString(bindingSource.metaSiteId) || getString(raw.metaSiteId),
-    siteId: getString(bindingSource.siteId) || getString(raw.siteId),
+    metaSiteId,
+    siteId,
     siteName: getString(bindingSource.siteName) || getString(raw.siteName),
     siteUrl: getString(bindingSource.siteUrl) || getString(raw.siteUrl),
     activationIssueId:

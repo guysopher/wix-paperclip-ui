@@ -829,9 +829,11 @@ function NewCompanyPageContent() {
             currentPicasso?.error !== nextActivation.picassoBridge?.error;
 
           if (stageChanged || bridgeChanged) {
+            const nextMetaSiteId = nextBridgeJob.result?.siteId || undefined;
             await updateActivationState({
               wixBinding: {
-                siteId: nextBridgeJob.result?.siteId || undefined,
+                metaSiteId: nextMetaSiteId,
+                siteId: nextMetaSiteId,
                 siteUrl: nextBridgeJob.result?.siteUrl || undefined,
               },
               activation: nextActivation,
