@@ -27,6 +27,7 @@ import {
 import {
   type ActivationMetadata,
   type ActivationMode,
+  type WixBindingMetadata,
   buildCompanyDescription,
   findCompanyByMsid,
   getCompanyActivation,
@@ -36,7 +37,7 @@ import {
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
 import { useMsid } from "@/lib/msid-client";
-import { withMsid } from "@/lib/msid";
+import { withMsid, withWorkspaceContext } from "@/lib/msid";
 
 const HIDDEN_SYSTEM_PREFIX = "[System context - not visible to user]";
 const POLL_INTERVAL_MS = 3000;
@@ -49,6 +50,7 @@ interface ActivationSession {
   companyName: string;
   companyDescription: string;
   workspaceContextId: string;
+  workspaceContextType: "msid" | "companyId";
 }
 
 interface UiMessage {
@@ -141,6 +143,13 @@ function appendUiMessage(
       ...next,
     },
   ];
+}
+
+function getWorkspacePath(path: string, session: ActivationSession): string {
+  return withWorkspaceContext(path, {
+    msid: session.workspaceContextType === "msid" ? session.workspaceContextId : null,
+    companyId: session.workspaceContextType === "companyId" ? session.workspaceContextId : null,
+  });
 }
 
 function buildActivationIssueDescription(args: {
@@ -568,6 +577,7 @@ function NewCompanyPageContent() {
             },
           }),
           workspaceContextId: msid as string,
+          workspaceContextType: "msid",
         });
         setBackendBusy(initialRuns.some((run) => ["queued", "running"].includes(run.status)));
         backendSignatureRef.current = buildActivationSignature(initialComments, initialRuns, null);
@@ -702,7 +712,7 @@ function NewCompanyPageContent() {
 
       const data = (await response.json()) as NewSiteActivationResponse;
       setError("");
-      router.push(withMsid("/", data.activationSession.workspaceContextId));
+      router.push(getWorkspacePath("/", data.activationSession));
     } catch (activationError) {
       setError(
         activationError instanceof Error
@@ -717,6 +727,7 @@ function NewCompanyPageContent() {
   const updateActivationState = useCallback(async (args: {
     name?: string;
     businessDescription?: string;
+    wixBinding?: Partial<WixBindingMetadata>;
     activation: ActivationMetadata;
     issueTitle?: string;
     issueDescription?: string;
@@ -727,6 +738,7 @@ function NewCompanyPageContent() {
 
     const nextDescription = mergeCompanyDescription(activationSession.companyDescription, {
       businessDescription: args.businessDescription,
+      wixBinding: args.wixBinding,
       extra: {
         activation: args.activation,
       },
@@ -818,6 +830,10 @@ function NewCompanyPageContent() {
 
           if (stageChanged || bridgeChanged) {
             await updateActivationState({
+              wixBinding: {
+                siteId: nextBridgeJob.result?.siteId || undefined,
+                siteUrl: nextBridgeJob.result?.siteUrl || undefined,
+              },
               activation: nextActivation,
             });
           }
@@ -971,7 +987,7 @@ function NewCompanyPageContent() {
     if (!activationSession) {
       return;
     }
-    router.push(withMsid("/", activationSession.workspaceContextId));
+    router.push(getWorkspacePath("/", activationSession));
   };
 
   const handleRetry = () => {

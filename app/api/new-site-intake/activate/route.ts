@@ -694,7 +694,6 @@ export async function POST(request: NextRequest) {
       version: 1,
       businessDescription: summary.businessDescription,
       wixBinding: {
-        metaSiteId: company.id,
         activationIssueId: boardIssue.id,
       },
       extra: {
@@ -761,6 +760,7 @@ export async function POST(request: NextRequest) {
         companyName: updatedCompany.name,
         companyDescription: updatedCompany.description,
         workspaceContextId: updatedCompany.id,
+        workspaceContextType: "companyId",
       },
       bridgeJob,
       backendSignature,

@@ -6,15 +6,19 @@ import { useRouter } from "next/navigation";
 import { useCompany } from "../providers";
 import { Shell } from "../shell";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
-import { withMsid } from "@/lib/msid";
+import { withWorkspaceContext } from "@/lib/msid";
 
 export function DashboardGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { companyLookupStatus, msid } = useCompany();
 
   useEffect(() => {
-    if (companyLookupStatus === "company-missing" && msid) {
-      router.replace(withMsid("/new", msid));
+    if (companyLookupStatus === "company-missing") {
+      router.replace(
+        withWorkspaceContext("/new", {
+          msid,
+        }),
+      );
     }
   }, [companyLookupStatus, msid, router]);
 

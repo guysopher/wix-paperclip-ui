@@ -292,15 +292,9 @@ export function mergeCompanyDescription(
 
 export function findCompanyByMsid(companies: Company[], msid: string): Company | null {
   const activeCompanies = companies.filter((company) => company.status !== "archived");
-  const exactMetaMatch =
+  return (
     activeCompanies.find(
       (company) => parseCompanyDescription(company.description).wixBinding?.metaSiteId === msid,
-    ) ||
-    null;
-
-  if (exactMetaMatch) {
-    return exactMetaMatch;
-  }
-
-  return activeCompanies.find((company) => company.id === msid) || null;
+    ) || null
+  );
 }

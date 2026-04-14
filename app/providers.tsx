@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { WixDesignSystemProvider } from "@wix/design-system";
 import {
   getCompanies,
+  getCompany,
   getMyIssues,
   getIssuesAssignedToMe,
   getIssues,
@@ -11,9 +12,9 @@ import {
   getAgents,
   type Company,
 } from "@/lib/api";
-import { findCompanyByMsid } from "@/lib/company-metadata";
-import { useMsid } from "@/lib/msid-client";
-import { normalizeMsid, withMsid } from "@/lib/msid";
+import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
+import { useWorkspaceContext } from "@/lib/msid-client";
+import { normalizeCompanyId, normalizeMsid, withWorkspaceContext } from "@/lib/msid";
 
 export interface BadgeCounts {
   inbox: number;      // unread needs-reply
@@ -38,6 +39,7 @@ interface CompanyContextValue {
   companyId: string;
   companies: Company[];
   msid: string | null;
+  workspaceCompanyId: string | null;
   companyLookupStatus: CompanyLookupStatus;
   setCompanyId: (id: string) => void;
   companyPath: (path: string) => string;
@@ -51,6 +53,7 @@ const CompanyContext = createContext<CompanyContextValue>({
   companyId: "",
   companies: [],
   msid: null,
+  workspaceCompanyId: null,
   companyLookupStatus: "loading",
   setCompanyId: () => {},
   companyPath: (path) => path,
@@ -63,7 +66,7 @@ const CompanyContext = createContext<CompanyContextValue>({
 export const useCompany = () => useContext(CompanyContext);
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const msid = useMsid();
+  const { msid, companyId: workspaceCompanyId } = useWorkspaceContext();
   const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
@@ -74,8 +77,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const loadCompanies = useCallback(async () => {
     const normalizedMsid = normalizeMsid(msid);
+    const normalizedCompanyId = normalizeCompanyId(workspaceCompanyId);
 
-    if (!normalizedMsid) {
+    if (!normalizedMsid && !normalizedCompanyId) {
       setCompanies([]);
       setSelectedCompanyId("");
       setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
@@ -85,11 +89,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     setCompanyLookupStatus("loading");
     try {
-      const allCompanies = await getCompanies();
-      const company = findCompanyByMsid(allCompanies, normalizedMsid);
+      let company: Company | null = null;
+
+      if (normalizedMsid) {
+        const allCompanies = await getCompanies();
+        company = findCompanyByMsid(allCompanies, normalizedMsid);
+      } else if (normalizedCompanyId) {
+        const fetchedCompany = await getCompany(normalizedCompanyId);
+        company = fetchedCompany.status === "archived" ? null : fetchedCompany;
+      }
 
       if (!company) {
-        throw new Error("Company not found for metasite");
+        throw new Error("Company not found for workspace context");
       }
 
       setCompanies([company]);
@@ -101,12 +112,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
       setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
       setCompanyLookupStatus("company-missing");
     }
-  }, [msid]);
+  }, [msid, workspaceCompanyId]);
 
   const handleSetCompanyId = useCallback((id: string) => {
     setSelectedCompanyId(id);
   }, []);
-  const companyPath = useCallback((path: string) => withMsid(path, msid), [msid]);
+  const companyPath = useCallback((path: string) => {
+    const selectedCompany = companies.find((company) => company.id === selectedCompanyId) || null;
+    const lockedMsid = selectedCompany
+      ? getCompanyWixBinding(selectedCompany.description)?.metaSiteId || null
+      : null;
+
+    return withWorkspaceContext(path, {
+      msid: lockedMsid || msid,
+      companyId: lockedMsid ? null : workspaceCompanyId || selectedCompanyId,
+    });
+  }, [companies, msid, selectedCompanyId, workspaceCompanyId]);
 
   useEffect(() => {
     loadCompanies();
@@ -152,7 +173,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [companyLookupStatus, refresh]);
 
   return (
-    <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, msid, companyLookupStatus, setCompanyId: handleSetCompanyId, companyPath, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>
+    <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, msid, workspaceCompanyId, companyLookupStatus, setCompanyId: handleSetCompanyId, companyPath, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>
       <BadgeCountsContext.Provider value={counts}>
         <WixDesignSystemProvider>{children}</WixDesignSystemProvider>
       </BadgeCountsContext.Provider>
