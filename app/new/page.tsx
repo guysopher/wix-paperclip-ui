@@ -36,6 +36,7 @@ import {
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
+import { AI_TEAM_LEAD_MAX_TURNS } from "@/lib/agent-templates";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid, withWorkspaceContext } from "@/lib/msid";
 
@@ -530,7 +531,7 @@ function NewCompanyPageContent() {
             heartbeatIntervalSec: 1200,
             dangerouslySkipPermissions: true,
             timeoutSec: 600,
-            maxTurnsPerRun: 50,
+            maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
             promptTemplate: AI_TEAM_LEAD_PROMPT,
           },
         });

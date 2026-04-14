@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
+import { AI_TEAM_LEAD_MAX_TURNS } from "@/lib/agent-templates";
 import { buildCompanyDescription } from "@/lib/company-metadata";
 
 const client = new OpenAI();
@@ -572,7 +573,7 @@ export async function POST(request: NextRequest) {
           heartbeatIntervalSec: 1200,
           dangerouslySkipPermissions: true,
           timeoutSec: 600,
-          maxTurnsPerRun: 50,
+          maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
           promptTemplate: AI_TEAM_LEAD_PROMPT,
         },
       }),

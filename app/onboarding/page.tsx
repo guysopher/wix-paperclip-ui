@@ -35,7 +35,11 @@ import { IconPicker } from "@/components/icon-picker";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { useMsidPath } from "@/lib/msid-client";
 import { buildCompanyDescription, mergeCompanyDescription } from "@/lib/company-metadata";
-import { renderSiteLeadHiringBlueprint, SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
+import {
+  AI_TEAM_LEAD_MAX_TURNS,
+  renderSiteLeadHiringBlueprint,
+  SPECIALIST_AGENT_MAX_TURNS,
+} from "@/lib/agent-templates";
 
 // --- Hardcoded Wix sites ---
 interface WixSite {
@@ -390,7 +394,7 @@ function OnboardingFlow() {
           model: "claude-opus-4-6",
           dangerouslySkipPermissions: true,
           timeoutSec: 600,
-          maxTurnsPerRun: 50,
+          maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
           heartbeatIntervalSec: 1200,
           promptTemplate: onboardingPrompt,
         },

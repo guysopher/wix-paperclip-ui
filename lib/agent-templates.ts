@@ -162,6 +162,7 @@ export function renderAgentTemplateShowcase(): string {
 }
 
 export const SPECIALIST_AGENT_MAX_TURNS = 200;
+export const AI_TEAM_LEAD_MAX_TURNS = 200;
 
 export function renderSiteLeadHiringBlueprint(): string {
   return `Use this Site Lead as the default website owner for every company that has a site to build, improve, or relaunch.
