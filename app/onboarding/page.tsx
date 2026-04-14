@@ -154,6 +154,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - Every company should have a Site Lead once site work matters
    - When hiring a Site Lead, use the standard Site Lead template below as the baseline and tailor it to the business
    - Do not create hire approvals or wait for permission to staff the company
+   - Historical approval records may still exist in older company data. Treat them as historical unless their current status is explicitly pending.
+   - Never say hires are waiting on approval unless you have verified there is a currently pending approval object right now
 
 6. THINK STRATEGICALLY
    - Keep the company mission and goals in mind at all times

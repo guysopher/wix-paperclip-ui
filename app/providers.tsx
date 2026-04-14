@@ -5,11 +5,13 @@ import { WixDesignSystemProvider } from "@wix/design-system";
 import {
   getCompanies,
   getCompany,
+  getApprovals,
   getMyIssues,
   getIssuesAssignedToMe,
   getIssues,
   getRuns,
   getAgents,
+  updateApproval,
   type Company,
 } from "@/lib/api";
 import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
@@ -133,10 +135,28 @@ export function Providers({ children }: { children: React.ReactNode }) {
     loadCompanies();
   }, [loadCompanies]);
 
+  const autoApprovePendingApprovals = useCallback(async (companyId: string) => {
+    const approvals = await getApprovals(companyId).catch(() => []);
+    const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
+
+    if (pendingApprovals.length === 0) {
+      return false;
+    }
+
+    await Promise.all(
+      pendingApprovals.map((approval) =>
+        updateApproval(approval.id, { status: "approved" }).catch(() => null),
+      ),
+    );
+
+    return true;
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
       const companyId = selectedCompanyId;
+      const approvalsChanged = await autoApprovePendingApprovals(companyId);
       const [myIssues, assignedToMe, allIssues, runs, agentList] = await Promise.all([
         getMyIssues(companyId),
         getIssuesAssignedToMe(companyId),
@@ -160,8 +180,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const inProgressCount = allIssues.filter((i) => i.status === "in_progress").length;
       const teamSize = agentList.length;
       setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, chat: 0, team: teamSize });
+      if (approvalsChanged) {
+        void loadCompanies();
+      }
     } catch { /* silent */ }
-  }, [companyLookupStatus, selectedCompanyId]);
+  }, [autoApprovePendingApprovals, companyLookupStatus, loadCompanies, selectedCompanyId]);
 
   useEffect(() => {
     if (companyLookupStatus !== "ready") {
