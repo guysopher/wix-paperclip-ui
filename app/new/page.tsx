@@ -7,9 +7,8 @@ import { WixDesignSystemProvider } from "@wix/design-system";
 import { Send } from "@wix/wix-ui-icons-common";
 import {
   archiveCompany,
-  createAgent,
-  createPicassoBridgeJob,
   createCompany,
+  createAgent,
   createIssue,
   deleteCompany,
   getPicassoBridgeJob,
@@ -35,84 +34,9 @@ import {
   mergeCompanyDescription,
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
+import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid } from "@/lib/msid";
-
-const AI_TEAM_LEAD_PROMPT = `You are the AI Team Lead of {{company.name}}. You run this AI Team on behalf of the board (the human operator). The board assigns tasks to you directly, and you can assign tasks back to them when you need their input.
-
-TASK ASSIGNMENT RULES:
-- When assigning to an agent (team member), use field: assigneeAgentId
-- When assigning to the board (human), use field: assigneeUserId with value "local-board"
-- NEVER create a task without an assignee - every task must have an owner
-
-YOUR MISSION: Make this AI Team succeed. Be proactive, creative, and relentless. Something meaningful must happen on every single check-in.
-
-WHAT YOU DO ON EVERY CHECK-IN:
-
-1. CHECK TASKS ASSIGNED TO YOU
-   - Review any tasks assigned to you - the board (human operator) assigns tasks directly to you
-   - The board's word is final. Prioritize their requests above all else.
-   - When you need the board's input or approval, create a task with assigneeUserId "local-board" - this puts it in their inbox.
-
-2. REVIEW ALL OPEN TASKS
-   - Check every task's status: is it progressing? blocked? stale?
-   - If a task is blocked, find the blocker and resolve it (reassign, break it down, or do it yourself)
-   - If a task is stale (no activity), ping the assignee or reassign to someone who can move it
-   - NEVER create a task without an assignee - every task must have an owner. If unsure, assign to yourself.
-   - If an existing task has no assignee, assign it to the right team member immediately
-
-3. PUSH WORK FORWARD
-   - Don't just observe - take action. Every check-in should move the AI Team forward.
-   - If the team is waiting for direction, give it. Make decisions, don't defer them.
-   - Prioritize ruthlessly: what's the ONE thing that would make the biggest impact right now?
-
-4. CREATE NEW WORK WHEN NEEDED
-   - If there are no open tasks, don't report "nothing to do" - that's a failure.
-   - Think about what the business needs next: new features, improvements, bugs to fix, growth experiments, documentation, testing.
-   - Create tasks with clear descriptions and assign them to the right people.
-   - Break big goals into concrete, actionable tasks.
-
-5. BUILD AND ADAPT THE TEAM
-   - If work is piling up and the team can't keep up, hire new agents
-   - If a specialist role is missing, propose it
-   - If someone is consistently failing, flag it to the board with a recommendation
-   - The AI Team structure should evolve as the business grows
-
-6. MANAGE THE WIX BUSINESS
-   - You and your team operate entirely within the Wix ecosystem
-   - Use the Wix and Paperclip tools available to you to understand the business, manage its site, and move the business forward
-   - Manage products, content, bookings, contacts, CMS, blog, SEO, orders, and site settings through Wix when relevant
-   - Keep the AI Team record, goals, and business context up to date
-
-7. ACTIVATION MODE
-   - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying
-   - Your first visible reply in a new activation thread is a founder-facing introduction, not an internal task report
-   - Do the research and AI Team updates first, then reply to the founder conversationally
-   - Your first reply should introduce yourself, mention what you learned about the business, suggest a practical plan, and ask what the founder wants help with first
-   - Do not ask for the metasite ID again if it is already provided in the task or comments
-   - If you cannot retrieve business knowledge, say so clearly and ask for the basics in a human way
-   - If it helps, mention a small starter team of specialist agents you could bring in for this specific business, but only as part of the conversation
-   - Never post a structured audit dump to the founder with headings like "Kickstart complete", "Business", "Site URL", "Key findings", or "Next steps"
-   - Never tell the founder that you populated metadata, completed the task, or updated the company description
-   - Sound like a smart operator pitching a concrete plan, not like a system status report
-   - Keep the first activation reply under 220 words unless the founder asked for detail
-
-8. REPORT TO THE BOARD
-   - After every check-in, leave a clear summary of what you did
-   - Highlight: what was accomplished, what's in progress, what's blocked, what you need from the board
-   - Be transparent about problems - don't hide bad news
-
-HOW YOU COMMUNICATE:
-Write like you're in a casual chat - short, direct, friendly. Think Slack or iMessage, not a corporate memo. Short paragraphs (1-3 sentences max). Casual but professional tone. Be concise. Ask follow-up questions when you need the board's input.
-For activation replies, prefer natural language over labels and headings. You may use a short bullet list for 2-4 specific recommendations, but the message should still read like a conversation.
-
-YOUR PERSONALITY:
-You are direct, decisive, and action-oriented. You think in outcomes, not process. You take ownership - if something is broken, you fix it or find someone who can. You're optimistic but realistic. You never say "nothing to do" - there's always something that can be improved.
-
-RUN SUMMARY AND GOAL TRACKING:
-At the end of every run, the very last thing you output - no exceptions:
-RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically worked on>", "description": "<1-2 sentences, what was done and the outcome>", "goalProgress": [{"goalId": "<goal-id>", "progress": <0-100>, "comment": "<brief status update>"}]}
-`;
 
 const HIDDEN_SYSTEM_PREFIX = "[System context - not visible to user]";
 const POLL_INTERVAL_MS = 3000;
@@ -135,10 +59,22 @@ interface UiMessage {
 
 type ActivationChatTrigger = "initial_open" | "backend_update" | "user_message";
 
-interface NewSiteInterviewDraft {
-  businessName: string;
-  businessDescription: string;
-  siteSpecifics: string;
+interface ActivationChatResponse {
+  text?: string;
+}
+
+type NewSiteConversationStatus = "gathering" | "ready_to_activate" | "activate_now";
+
+interface NewSiteIntakeResponse {
+  text?: string;
+  conversationStatus?: NewSiteConversationStatus;
+  transcript?: UiMessage[];
+}
+
+interface NewSiteActivationResponse {
+  activationSession: ActivationSession;
+  bridgeJob: PicassoBridgeJob | null;
+  backendSignature: string;
 }
 
 function isHiddenSystemComment(body: string): boolean {
@@ -333,64 +269,6 @@ function buildActivationIssueDescription(args: {
   return lines.join("\n");
 }
 
-function buildNewSiteIssueDescription(args: {
-  companyName: string;
-  interview: NewSiteInterviewDraft;
-  picassoJobId?: string;
-  picassoStatus?: string;
-  buildError?: string;
-}): string {
-  const lines = [
-    `Create a brand new Wix site for ${args.interview.businessName || args.companyName || "this business"}.`,
-    "",
-    "This activation flow started without an existing Wix metasite.",
-    "The founder is creating a new business site from scratch through the Picasso bridge.",
-    "",
-    "Founder inputs:",
-    `- Business name: ${args.interview.businessName || "Not captured yet"}`,
-    `- Business description: ${args.interview.businessDescription || "Not captured yet"}`,
-    `- Specific site requests: ${args.interview.siteSpecifics || "Not captured yet"}`,
-    "",
-    "Current build state:",
-    `- Picasso job ID: ${args.picassoJobId || "Not started"}`,
-    `- Picasso status: ${args.picassoStatus || "Not started"}`,
-  ];
-
-  if (args.buildError) {
-    lines.push(`- Build error: ${args.buildError}`);
-  }
-
-  lines.push("");
-  lines.push("Your job as the AI Team Lead is to stay founder-facing and strategic while the first version of the site is being created.");
-  lines.push("- Keep the founder engaged with clear next steps.");
-  lines.push("- Suggest practical ways the AI Team can help the business beyond the initial site build.");
-  lines.push("- Do not ask for the same intake details again unless something is actually missing.");
-
-  return lines.join("\n");
-}
-
-function buildNewSiteBridgePrompt(interview: NewSiteInterviewDraft): string {
-  const lines = [
-    `Create a new Wix business site for ${interview.businessName}.`,
-    "",
-    `Business overview: ${interview.businessDescription}.`,
-    "",
-    "Core expectations:",
-    "- Create a polished first version of the site that feels credible and launchable.",
-    "- Include a strong homepage and any obvious core sections needed for this business.",
-    "- Make the structure, copy direction, and calls to action fit the business type.",
-  ];
-
-  if (interview.siteSpecifics) {
-    lines.push(`- Specific founder requests: ${interview.siteSpecifics}.`);
-  }
-
-  lines.push("");
-  lines.push("Prioritize clarity, credibility, and conversion over flashy design.");
-
-  return lines.join("\n");
-}
-
 function getDraftCompanyName(siteName: string, msid: string): string {
   if (siteName) {
     return siteName;
@@ -425,6 +303,9 @@ function NewCompanyPageContent() {
   const [showReadyReveal, setShowReadyReveal] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [bridgeJob, setBridgeJob] = useState<PicassoBridgeJob | null>(null);
+  const [newSiteConversationStatus, setNewSiteConversationStatus] =
+    useState<NewSiteConversationStatus>("gathering");
+  const [startingNewSite, setStartingNewSite] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -432,42 +313,58 @@ function NewCompanyPageContent() {
   const inputRef = useRef<HTMLInputElement>(null);
   const backendSignatureRef = useRef("");
   const chatMessagesRef = useRef<UiMessage[]>([]);
-  const ceoTyping = bootstrapState === "checking" || chatSending;
+  const ceoTyping = bootstrapState === "checking" || chatSending || startingNewSite;
   const effectiveActivationMode = msid ? "existing_site" : activationModeSelection;
   const activationMetadata = activationSession
     ? getCompanyActivation(activationSession.companyDescription)
     : undefined;
   const interviewStage = activationMetadata?.newSiteInterview?.stage || "business_name";
   const bridgeStatus = activationMetadata?.picassoBridge?.status || bridgeJob?.status || "not_started";
-  const isNewSiteFlow = activationSession?.mode === "new_site";
+  const isNewSiteSelected = effectiveActivationMode === "new_site";
+  const isDraftNewSiteFlow = isNewSiteSelected && !activationSession;
+  const isNewSiteFlow = isNewSiteSelected;
   const buildInProgress =
-    isNewSiteFlow && (bridgeStatus === "queued" || bridgeStatus === "running");
+    Boolean(activationSession?.mode === "new_site" && (bridgeStatus === "queued" || bridgeStatus === "running"));
   const showBackendProgress =
     activationSession?.mode === "existing_site" ? backendBusy : buildInProgress;
-  const showRunSpinner = chatSending || showBackendProgress;
+  const showRunSpinner = chatSending || showBackendProgress || startingNewSite;
   const headerStatusText = chatSending
     ? "Thinking..."
-    : isNewSiteFlow
-      ? bridgeStatus === "queued" || bridgeStatus === "running"
-        ? "Building the first site version"
-        : interviewStage === "building" || interviewStage === "complete"
-          ? "Planning the next moves"
+    : startingNewSite
+      ? "Starting the first site build"
+      : isDraftNewSiteFlow
+        ? newSiteConversationStatus === "ready_to_activate"
+          ? "Ready to start the first build"
           : "Collecting business details"
-      : backendBusy
-        ? "Reviewing the business and preparing next steps"
-        : "Ready to help";
-  const headerDescriptionText = isNewSiteFlow
-    ? bridgeStatus === "queued" || bridgeStatus === "running"
-      ? "Your AI Team Lead is building the first site version and lining up practical next steps for the business."
-      : interviewStage === "building" || interviewStage === "complete"
-        ? "Your AI Team Lead is turning the business brief into a first site version and mapping the smartest next actions."
-        : "Your AI Team Lead is gathering the business basics so the first site version starts from a clean brief."
-    : "Your AI Team Lead is already reviewing the business and lining up practical recommendations.";
-  const spinnerLabel = chatSending
-    ? "Thinking..."
-    : isNewSiteFlow
-      ? "Building the first site version..."
-      : "Research in progress...";
+        : isNewSiteFlow
+          ? bridgeStatus === "queued" || bridgeStatus === "running"
+            ? "Building the first site version"
+            : interviewStage === "building" || interviewStage === "complete"
+              ? "Planning the next moves"
+              : "Collecting business details"
+          : backendBusy
+            ? "Reviewing the business and preparing next steps"
+            : "Ready to help";
+  const headerDescriptionText = startingNewSite
+    ? "Your AI Team Lead is turning the full conversation into a site brief, creating the workspace, and kicking off the first build."
+    : isDraftNewSiteFlow
+      ? newSiteConversationStatus === "ready_to_activate"
+        ? "Your AI Team Lead has enough context to brief the first version and is waiting for your go-ahead."
+        : "Your AI Team Lead is learning about the business through the conversation so the first version starts from a strong brief."
+      : isNewSiteFlow
+        ? bridgeStatus === "queued" || bridgeStatus === "running"
+          ? "Your AI Team Lead is building the first site version and lining up practical next steps for the business."
+          : interviewStage === "building" || interviewStage === "complete"
+            ? "Your AI Team Lead is turning the business brief into a first site version and mapping the smartest next actions."
+            : "Your AI Team Lead is gathering the business basics so the first site version starts from a clean brief."
+        : "Your AI Team Lead is already reviewing the business and lining up practical recommendations.";
+  const spinnerLabel = startingNewSite
+    ? "Starting the first site version..."
+    : chatSending
+      ? "Thinking..."
+      : isNewSiteFlow
+        ? "Building the first site version..."
+        : "Research in progress...";
 
   useEffect(() => {
     setActivationModeSelection(selectedMode);
@@ -519,6 +416,8 @@ function NewCompanyPageContent() {
     setError("");
     setShowReadyReveal(false);
     setBridgeJob(null);
+    setNewSiteConversationStatus("gathering");
+    setStartingNewSite(false);
     backendSignatureRef.current = "";
     if (revealTimeoutRef.current) {
       clearTimeout(revealTimeoutRef.current);
@@ -535,83 +434,68 @@ function NewCompanyPageContent() {
       return;
     }
 
+    if (effectiveActivationMode === "new_site") {
+      setBootstrapState("ready");
+      return;
+    }
+
     const startActivationSession = async () => {
-      if (effectiveActivationMode === "existing_site") {
-        try {
-          const companies = await getCompanies();
-          const legacyCompanyIdMatch = companies.find((company) => company.id === msid) || null;
-          const legacyMappedMsid = legacyCompanyIdMatch
-            ? getCompanyWixBinding(legacyCompanyIdMatch.description)?.metaSiteId || ""
-            : "";
+      try {
+        const companies = await getCompanies();
+        const legacyCompanyIdMatch = companies.find((company) => company.id === msid) || null;
+        const legacyMappedMsid = legacyCompanyIdMatch
+          ? getCompanyWixBinding(legacyCompanyIdMatch.description)?.metaSiteId || ""
+          : "";
 
-          if (
-            !cancelled &&
-            legacyMappedMsid &&
-            legacyMappedMsid !== msid
-          ) {
-            router.replace(withMsid("/new", legacyMappedMsid));
-            return;
-          }
-
-          const existingCompany = findCompanyByMsid(companies, msid as string);
-          if (!cancelled && existingCompany) {
-            if (siteId || siteName || siteUrl) {
-              await updateCompany(existingCompany.id, {
-                description: mergeCompanyDescription(existingCompany.description, {
-                  wixBinding: {
-                    metaSiteId: msid as string,
-                    siteId: siteId || undefined,
-                    siteName: siteName || undefined,
-                    siteUrl: siteUrl || undefined,
-                  },
-                }),
-              }).catch(() => undefined);
-            }
-            setRequestedCompanyExists(true);
-            router.replace(withMsid("/", msid as string));
-            return;
-          }
-        } catch {
-          // Fall through to activation setup.
+        if (
+          !cancelled &&
+          legacyMappedMsid &&
+          legacyMappedMsid !== msid
+        ) {
+          router.replace(withMsid("/new", legacyMappedMsid));
+          return;
         }
+
+        const existingCompany = findCompanyByMsid(companies, msid as string);
+        if (!cancelled && existingCompany) {
+          if (siteId || siteName || siteUrl) {
+            await updateCompany(existingCompany.id, {
+              description: mergeCompanyDescription(existingCompany.description, {
+                wixBinding: {
+                  metaSiteId: msid as string,
+                  siteId: siteId || undefined,
+                  siteName: siteName || undefined,
+                  siteUrl: siteUrl || undefined,
+                },
+              }),
+            }).catch(() => undefined);
+          }
+          setRequestedCompanyExists(true);
+          router.replace(withMsid("/", msid as string));
+          return;
+        }
+      } catch {
+        // Fall through to activation setup.
       }
 
       try {
         const company = await createCompany({
-          name:
-            effectiveActivationMode === "existing_site"
-              ? getDraftCompanyName(siteName, msid as string)
-              : "New Business",
-          description:
-            effectiveActivationMode === "existing_site"
-              ? buildCompanyDescription({
-                  version: 1,
-                  businessDescription: "",
-                  wixBinding: {
-                    metaSiteId: msid as string,
-                    siteId: siteId || undefined,
-                    siteName: siteName || undefined,
-                    siteUrl: siteUrl || undefined,
-                  },
-                  extra: {
-                    activation: {
-                      mode: "existing_site",
-                    },
-                  },
-                })
-              : buildCompanyDescription({
-                  version: 1,
-                  businessDescription: "",
-                  extra: {
-                    activation: {
-                      mode: "new_site",
-                      newSiteInterview: {
-                        stage: "business_name",
-                        startedAt: new Date().toISOString(),
-                      },
-                    },
-                  },
-                }),
+          name: getDraftCompanyName(siteName, msid as string),
+          description: buildCompanyDescription({
+            version: 1,
+            businessDescription: "",
+            wixBinding: {
+              metaSiteId: msid as string,
+              siteId: siteId || undefined,
+              siteName: siteName || undefined,
+              siteUrl: siteUrl || undefined,
+            },
+            extra: {
+              activation: {
+                mode: "existing_site",
+              },
+            },
+          }),
         });
 
         const ceoAgent = await createAgent(company.id, {
@@ -633,26 +517,13 @@ function NewCompanyPageContent() {
         });
 
         const inboxIssue = await createIssue(company.id, {
-          title:
-            effectiveActivationMode === "existing_site"
-              ? `Kickstart AI Team for Wix metasite ${msid}`
-              : "Create a new Wix site from scratch",
-          description:
-            effectiveActivationMode === "existing_site"
-              ? buildActivationIssueDescription({
-                  msid: msid as string,
-                  siteId,
-                  siteName,
-                  siteUrl,
-                })
-              : buildNewSiteIssueDescription({
-                  companyName: company.name,
-                  interview: {
-                    businessName: "",
-                    businessDescription: "",
-                    siteSpecifics: "",
-                  },
-                }),
+          title: `Kickstart AI Team for Wix metasite ${msid}`,
+          description: buildActivationIssueDescription({
+            msid: msid as string,
+            siteId,
+            siteName,
+            siteUrl,
+          }),
           priority: "high",
           assigneeAgentId: ceoAgent.id,
         });
@@ -666,9 +537,7 @@ function NewCompanyPageContent() {
         }).catch(() => undefined);
 
         try {
-          if (effectiveActivationMode === "existing_site") {
-            await invokeHeartbeat(ceoAgent.id);
-          }
+          await invokeHeartbeat(ceoAgent.id);
         } catch {
           // Non-critical. Polling will still show any response that appears.
         }
@@ -693,8 +562,7 @@ function NewCompanyPageContent() {
               activationIssueId: inboxIssue.id,
             },
           }),
-          workspaceContextId:
-            effectiveActivationMode === "existing_site" ? (msid as string) : company.id,
+          workspaceContextId: msid as string,
         });
         setBackendBusy(initialRuns.some((run) => ["queued", "running"].includes(run.status)));
         backendSignatureRef.current = buildActivationSignature(initialComments, initialRuns, null);
@@ -718,9 +586,9 @@ function NewCompanyPageContent() {
   const requestActivationReply = useCallback(async (
     nextMessages: UiMessage[],
     trigger: ActivationChatTrigger,
-  ) => {
+  ): Promise<ActivationChatResponse | null> => {
     if (!activationSession) {
-      return;
+      return null;
     }
 
     setChatSending(true);
@@ -742,21 +610,106 @@ function NewCompanyPageContent() {
         const payload = await response.json().catch(() => ({ error: "Activation chat failed" }));
         throw new Error(payload.error || "Activation chat failed");
       }
-      const data = await response.json();
+      const data = (await response.json()) as ActivationChatResponse;
       if (data.text) {
         setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
       }
       setError("");
+      return data;
     } catch (replyError) {
       setError(
         replyError instanceof Error
           ? replyError.message
           : "Failed to get a reply from the AI Team Lead.",
       );
+      return null;
     } finally {
       setChatSending(false);
     }
   }, [activationSession]);
+
+  const requestNewSiteIntakeReply = useCallback(async (
+    nextMessages: UiMessage[],
+    trigger: "initial_open" | "user_message",
+  ): Promise<NewSiteIntakeResponse | null> => {
+    setChatSending(true);
+    try {
+      const response = await fetch("/api/new-site-intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trigger,
+          messages: nextMessages.map((message) => ({
+            role: message.role,
+            text: message.text,
+          })),
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "New site intake failed" }));
+        throw new Error(payload.error || "New site intake failed");
+      }
+      const data = (await response.json()) as NewSiteIntakeResponse;
+      const transcript = data.text
+        ? appendUiMessage(nextMessages, { role: "ceo", text: data.text })
+        : nextMessages;
+      if (data.text) {
+        setChatMessages(transcript);
+      }
+      setNewSiteConversationStatus(data.conversationStatus || "gathering");
+      setError("");
+      return {
+        ...data,
+        transcript,
+      };
+    } catch (replyError) {
+      setError(
+        replyError instanceof Error
+          ? replyError.message
+          : "Failed to get a reply from the AI Team Lead.",
+      );
+      return null;
+    } finally {
+      setChatSending(false);
+    }
+  }, []);
+
+  const activateNewSiteConversation = useCallback(async (messages: UiMessage[]) => {
+    setStartingNewSite(true);
+    try {
+      const response = await fetch("/api/new-site-intake/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: messages.map((message) => ({
+            role: message.role,
+            text: message.text,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ error: "Failed to activate new site" }));
+        throw new Error(payload.error || "Failed to activate new site");
+      }
+
+      const data = (await response.json()) as NewSiteActivationResponse;
+      setActivationSession(data.activationSession);
+      setBridgeJob(data.bridgeJob);
+      setBackendBusy(Boolean(data.bridgeJob && ["queued", "running"].includes(data.bridgeJob.status)));
+      backendSignatureRef.current = data.backendSignature || "";
+      setNewSiteConversationStatus("activate_now");
+      setError("");
+    } catch (activationError) {
+      setError(
+        activationError instanceof Error
+          ? activationError.message
+          : "Failed to start the first site build.",
+      );
+    } finally {
+      setStartingNewSite(false);
+    }
+  }, []);
 
   const updateActivationState = useCallback(async (args: {
     name?: string;
@@ -861,25 +814,8 @@ function NewCompanyPageContent() {
             currentPicasso?.error !== nextActivation.picassoBridge?.error;
 
           if (stageChanged || bridgeChanged) {
-            const draft: NewSiteInterviewDraft = {
-              businessName: currentActivation?.newSiteInterview?.businessName || activationSession.companyName,
-              businessDescription:
-                currentActivation?.newSiteInterview?.businessDescription || "",
-              siteSpecifics: currentActivation?.newSiteInterview?.siteSpecifics || "",
-            };
-
             await updateActivationState({
-              name: draft.businessName || activationSession.companyName,
-              businessDescription: draft.businessDescription || undefined,
               activation: nextActivation,
-              issueTitle: `Create new Wix site for ${draft.businessName || activationSession.companyName}`,
-              issueDescription: buildNewSiteIssueDescription({
-                companyName: activationSession.companyName,
-                interview: draft,
-                picassoJobId: nextBridgeJob.id,
-                picassoStatus: nextBridgeJob.status,
-                buildError: nextBridgeJob.error || undefined,
-              }),
             });
           }
         }
@@ -925,7 +861,7 @@ function NewCompanyPageContent() {
   }, [activationSession, requestActivationReply, updateActivationState]);
 
   useEffect(() => {
-    if (!activationSession || bootstrapState !== "ready") {
+    if (bootstrapState !== "ready" || (!activationSession && !isDraftNewSiteFlow)) {
       return;
     }
 
@@ -944,7 +880,7 @@ function NewCompanyPageContent() {
         revealTimeoutRef.current = null;
       }
     };
-  }, [activationSession, bootstrapState]);
+  }, [activationSession, bootstrapState, isDraftNewSiteFlow]);
 
   useEffect(() => {
     const el = messagesEndRef.current;
@@ -954,21 +890,39 @@ function NewCompanyPageContent() {
   }, [chatMessages, ceoTyping]);
 
   useEffect(() => {
-    if (!ceoTyping && activationSession) {
+    if (!ceoTyping && (activationSession || isDraftNewSiteFlow)) {
       inputRef.current?.focus();
     }
-  }, [activationSession, ceoTyping]);
+  }, [activationSession, ceoTyping, isDraftNewSiteFlow]);
 
   useEffect(() => {
-    if (!activationSession || chatMessages.length > 0) {
+    if (chatMessages.length > 0 || bootstrapState !== "ready") {
       return;
     }
 
-    void requestActivationReply([], "initial_open");
-  }, [activationSession, chatMessages.length, requestActivationReply]);
+    if (activationSession) {
+      void requestActivationReply([], "initial_open");
+      return;
+    }
+
+    if (isDraftNewSiteFlow) {
+      void requestNewSiteIntakeReply([], "initial_open");
+    }
+  }, [
+    activationSession,
+    bootstrapState,
+    chatMessages.length,
+    isDraftNewSiteFlow,
+    requestActivationReply,
+    requestNewSiteIntakeReply,
+  ]);
 
   const handleSend = async () => {
-    if (!inputValue.trim() || chatSending || !activationSession) {
+    if (!inputValue.trim() || chatSending || startingNewSite) {
+      return;
+    }
+
+    if (!activationSession && !isDraftNewSiteFlow) {
       return;
     }
 
@@ -979,166 +933,25 @@ function NewCompanyPageContent() {
       text: userText,
     });
     setChatMessages(nextMessages);
-    if (activationSession.mode === "existing_site") {
+
+    if (isDraftNewSiteFlow) {
+      const reply = await requestNewSiteIntakeReply(nextMessages, "user_message");
+      if (reply?.conversationStatus === "activate_now") {
+        await activateNewSiteConversation(reply.transcript || nextMessages);
+      }
+      return;
+    }
+
+    if (activationSession?.mode === "existing_site") {
       setBackendBusy(true);
     }
 
     try {
-      await postComment(activationSession.inboxIssueId, userText);
+      await postComment(activationSession!.inboxIssueId, userText);
       await getComments(activationSession.inboxIssueId).catch(() => [] as Comment[]);
 
-      if (activationSession.mode === "new_site") {
-        const currentActivation = getCompanyActivation(activationSession.companyDescription);
-        const currentInterview = currentActivation?.newSiteInterview || {
-          stage: "business_name" as const,
-          startedAt: new Date().toISOString(),
-        };
-        const currentDraft: NewSiteInterviewDraft = {
-          businessName: currentInterview.businessName || activationSession.companyName || "",
-          businessDescription: currentInterview.businessDescription || "",
-          siteSpecifics: currentInterview.siteSpecifics || "",
-        };
-        const nextActivation: ActivationMetadata = {
-          mode: "new_site",
-          newSiteInterview: {
-            ...currentInterview,
-          },
-          picassoBridge: currentActivation?.picassoBridge,
-        };
-
-        switch (currentInterview.stage) {
-          case "business_name": {
-            const businessName = userText;
-            currentDraft.businessName = businessName;
-            nextActivation.newSiteInterview = {
-              ...nextActivation.newSiteInterview,
-              businessName,
-              stage: "business_description",
-              startedAt: currentInterview.startedAt || new Date().toISOString(),
-            };
-
-            await updateActivationState({
-              name: businessName,
-              activation: nextActivation,
-              issueTitle: `Create new Wix site for ${businessName}`,
-              issueDescription: buildNewSiteIssueDescription({
-                companyName: businessName,
-                interview: currentDraft,
-              }),
-            });
-            break;
-          }
-          case "business_description": {
-            currentDraft.businessDescription = userText;
-            nextActivation.newSiteInterview = {
-              ...nextActivation.newSiteInterview,
-              businessDescription: userText,
-              stage: "site_specifics",
-            };
-
-            await updateActivationState({
-              name: currentDraft.businessName || activationSession.companyName,
-              businessDescription: userText,
-              activation: nextActivation,
-              issueTitle: `Create new Wix site for ${currentDraft.businessName || activationSession.companyName}`,
-              issueDescription: buildNewSiteIssueDescription({
-                companyName: currentDraft.businessName || activationSession.companyName,
-                interview: currentDraft,
-              }),
-            });
-            break;
-          }
-          case "site_specifics": {
-            const requestedAt = new Date().toISOString();
-            currentDraft.siteSpecifics = userText;
-            let nextPicassoBridge: ActivationMetadata["picassoBridge"] = {
-              status: "queued",
-              requestedAt,
-              updatedAt: requestedAt,
-            };
-
-            try {
-              const bridgeResponse = await createPicassoBridgeJob({
-                mode: "create_site",
-                prompt: buildNewSiteBridgePrompt(currentDraft),
-                designer: "none",
-                companyId: activationSession.companyId,
-                issueId: activationSession.inboxIssueId,
-                requestedBy: "paperclip-ui",
-                metadata: {
-                  businessName: currentDraft.businessName,
-                },
-              });
-
-              nextPicassoBridge = {
-                jobId: bridgeResponse.jobId,
-                status: bridgeResponse.status,
-                requestedAt,
-                updatedAt: requestedAt,
-              };
-
-              setBridgeJob({
-                id: bridgeResponse.jobId,
-                mode: "create_site",
-                status: bridgeResponse.status,
-                prompt: buildNewSiteBridgePrompt(currentDraft),
-                designer: "none",
-                companyId: activationSession.companyId,
-                issueId: activationSession.inboxIssueId,
-                requestedBy: "paperclip-ui",
-                createdAt: requestedAt,
-                updatedAt: requestedAt,
-              });
-              setBackendBusy(true);
-            } catch (bridgeError) {
-              nextPicassoBridge = {
-                status: "failed",
-                requestedAt,
-                updatedAt: requestedAt,
-                error:
-                  bridgeError instanceof Error
-                    ? bridgeError.message
-                    : "Failed to start the Picasso bridge job.",
-              };
-              setBackendBusy(false);
-            }
-
-            nextActivation.newSiteInterview = {
-              ...nextActivation.newSiteInterview,
-              siteSpecifics: userText,
-              stage: "building",
-              completedAt: requestedAt,
-            };
-            nextActivation.picassoBridge = nextPicassoBridge;
-
-            await updateActivationState({
-              name: currentDraft.businessName || activationSession.companyName,
-              businessDescription: currentDraft.businessDescription || undefined,
-              activation: nextActivation,
-              issueTitle: `Create new Wix site for ${currentDraft.businessName || activationSession.companyName}`,
-              issueDescription: buildNewSiteIssueDescription({
-                companyName: currentDraft.businessName || activationSession.companyName,
-                interview: currentDraft,
-                picassoJobId: nextPicassoBridge?.jobId,
-                picassoStatus: nextPicassoBridge?.status,
-                buildError: nextPicassoBridge?.error,
-              }),
-            });
-            break;
-          }
-          case "building":
-          case "complete":
-            break;
-          default:
-            break;
-        }
-
-        void requestActivationReply(nextMessages, "user_message");
-        return;
-      }
-
       try {
-        await invokeHeartbeat(activationSession.ceoAgent.id);
+        await invokeHeartbeat(activationSession!.ceoAgent.id);
       } catch {
         // Non-critical.
       }
@@ -1197,7 +1010,7 @@ function NewCompanyPageContent() {
       <MetasiteIdEntry
         redirectPath="/new"
         description="Open an existing Wix business by pasting its metasite ID or manage URL."
-        createNewSiteDescription="Start from scratch. The AI Team Lead will interview you briefly, then kick off the first site build through Picasso."
+        createNewSiteDescription="Start from scratch. The AI Team Lead will talk through the business with you first, then start the first build only when you say to."
         onCreateNewSite={() => setActivationModeSelection("new_site")}
         title="Open or create your Wix site"
       />
@@ -1229,7 +1042,7 @@ function NewCompanyPageContent() {
     );
   }
 
-  if (!activationSession) {
+  if (!activationSession && !isDraftNewSiteFlow) {
     return (
       <WixDesignSystemProvider>
         <div
@@ -1386,27 +1199,27 @@ function NewCompanyPageContent() {
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: chatSending ? "#ffb020" : showBackendProgress ? "#4d9bff" : "#28c76f",
-                    boxShadow: chatSending
+                    background: chatSending || startingNewSite ? "#ffb020" : showBackendProgress ? "#4d9bff" : "#28c76f",
+                    boxShadow: chatSending || startingNewSite
                       ? "0 0 0 4px rgba(255,176,32,0.14)"
                       : showBackendProgress
                         ? "0 0 0 4px rgba(77,155,255,0.14)"
                         : "0 0 0 4px rgba(40,199,111,0.14)",
                   }}
                 />
-                {chatSending
-                  ? "Thinking..."
-                  : headerStatusText}
+                {headerStatusText}
               </div>
               <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6a8092", marginTop: 8 }}>
                 {headerDescriptionText}
               </div>
             </div>
-            <div style={{ flexShrink: 0 }}>
-              <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
-                Open workspace
-              </Button>
-            </div>
+            {activationSession && (
+              <div style={{ flexShrink: 0 }}>
+                <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
+                  Open workspace
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1540,8 +1353,8 @@ function NewCompanyPageContent() {
                   void handleSend();
                 }
               }}
-              placeholder="Type your answer..."
-              disabled={chatSending}
+              placeholder="Type your message..."
+              disabled={ceoTyping}
               style={{
                 flex: 1,
                 border: "none",
@@ -1563,14 +1376,14 @@ function NewCompanyPageContent() {
                 borderRadius: "50%",
                 border: "none",
                 background:
-                  inputValue.trim() && !chatSending
+                  inputValue.trim() && !ceoTyping
                     ? "linear-gradient(135deg, #2f8cff 0%, #54a7ff 100%)"
                     : "#dfe9f2",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                cursor: inputValue.trim() && !chatSending ? "pointer" : "default",
+                cursor: inputValue.trim() && !ceoTyping ? "pointer" : "default",
                 flexShrink: 0,
                 transition: "background 0.2s",
               }}
@@ -1580,7 +1393,9 @@ function NewCompanyPageContent() {
           </div>
           <div style={{ paddingTop: 10, textAlign: "center" }}>
             <Text size="small" style={{ color: "#698094" }}>
-              This activation chat is live. Refreshing the page starts a fresh draft session.
+              {isDraftNewSiteFlow
+                ? "This stays a draft conversation until you explicitly tell the AI Team Lead to start the first build."
+                : "This activation chat is live. Refreshing the page starts a fresh draft session."}
             </Text>
           </div>
         </div>
