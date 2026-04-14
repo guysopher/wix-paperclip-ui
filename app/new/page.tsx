@@ -337,6 +337,11 @@ function NewCompanyPageContent() {
     newSiteConversationStatus === "ready_to_activate" &&
     !chatSending &&
     !startingNewSite;
+  const isExistingSiteInterviewFlow = activationSession?.mode === "existing_site";
+  const canHireExistingSiteTeam =
+    Boolean(isExistingSiteInterviewFlow) &&
+    !backendBusy &&
+    !chatSending;
   const buildInProgress =
     Boolean(activationSession?.mode === "new_site" && (bridgeStatus === "queued" || bridgeStatus === "running"));
   const showBackendProgress =
@@ -1271,7 +1276,40 @@ function NewCompanyPageContent() {
                 )}
               </div>
             )}
-            {activationSession && (
+            {isExistingSiteInterviewFlow && (
+              <div
+                style={{
+                  flexShrink: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                  gap: 6,
+                }}
+              >
+                <Button
+                  size="small"
+                  skin="premium"
+                  disabled={!canHireExistingSiteTeam}
+                  onClick={handleOpenWorkspace}
+                >
+                  Hire the Team
+                </Button>
+                {!canHireExistingSiteTeam && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#7b8c9d",
+                      maxWidth: 180,
+                      textAlign: "right",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    The AI Team Lead needs to finish the research and present the plan first.
+                  </div>
+                )}
+              </div>
+            )}
+            {activationSession && activationSession.mode !== "existing_site" && (
               <div style={{ flexShrink: 0 }}>
                 <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
                   Open workspace
