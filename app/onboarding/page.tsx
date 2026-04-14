@@ -37,7 +37,7 @@ import { useMsidPath } from "@/lib/msid-client";
 import { buildCompanyDescription, mergeCompanyDescription } from "@/lib/company-metadata";
 import {
   AI_TEAM_LEAD_MAX_TURNS,
-  renderSiteLeadHiringBlueprint,
+  renderCanonicalHiringBlueprintLibrary,
   SPECIALIST_AGENT_MAX_TURNS,
 } from "@/lib/agent-templates";
 
@@ -142,7 +142,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If someone is consistently failing, flag it to the board with a recommendation
    - The org structure should evolve as the company grows
    - When hiring a new agent, write their COMPLETE definition:
-     * Name: Use the role label shown in the UI, not a human first name. Examples: "Site Lead", "Brand Lead", "Growth Lead", "Commerce Lead". This is shown in bold.
+     * Name: Use the role label shown in the UI, not a human first name. Examples: "Site Lead", "Brand Lead", "Growth Lead", "eCommerce Lead". This is shown in bold.
      * Title: Their job description (e.g., "Senior Marketing Manager", "Lead DevOps Engineer", "Content Strategist"). This appears below the name in smaller text.
      * IMPORTANT: Use ROLE NAMES for the name field, not person names. Good: "Site Lead" / "Site Experience Lead". Bad: "Sarah" / "Senior Marketing Manager".
      * Clear role description (promptTemplate) that defines their responsibilities, how they work, and their personality — tailored to this specific company and its needs
@@ -152,7 +152,20 @@ WHAT YOU DO ON EVERY CHECK-IN:
      * Who they report to in the org chart
      * Their specific capabilities relevant to the company's domain
    - Every company should have a Site Lead once site work matters
-   - When hiring a Site Lead, use the standard Site Lead template below as the baseline and tailor it to the business
+   - Use the canonical role template library below when hiring these roles and tailor the chosen template to the business:
+     - Site Lead
+     - CRM & Lifecycle Manager
+     - Analytics & Growth Manager
+     - Content & SEO Manager
+     - Catalog & Merchandising Manager
+     - Inventory & Fulfillment Manager
+     - Retention & Promotions Manager
+     - Bookings Operations Manager
+     - Customer Inbox Manager
+     - Automation Architect
+     - Brand Lead
+     - eCommerce Lead
+     - Growth Lead
    - Do not create hire approvals or wait for permission to staff the company
    - Historical approval records may still exist in older company data. Treat them as historical unless their current status is explicitly pending.
    - Never say hires are waiting on approval unless you have verified there is a currently pending approval object right now
@@ -182,8 +195,8 @@ Example: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO age
 
 GOAL PROGRESS: After every run, assess each active company goal's progress (0-100%). Be realistic and specific about what's blocking or advancing each goal. Only include goals you're actively working on. Progress should reflect actual work done, not aspirations.
 
-STANDARD SITE LEAD TEMPLATE:
-${renderSiteLeadHiringBlueprint()}`;
+CANONICAL ROLE TEMPLATE LIBRARY:
+${renderCanonicalHiringBlueprintLibrary()}`;
 
 // --- Step 1: Site Selection ---
 

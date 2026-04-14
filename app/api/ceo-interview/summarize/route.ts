@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { renderSiteLeadHiringBlueprint, SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
+import { renderCanonicalHiringBlueprintLibrary, SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
 
 const client = new OpenAI();
 
@@ -49,11 +49,24 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - NEVER create a task without an assignee — every task must have an owner
    - Build and adapt the team — hire agents directly when needed, flag failures, and do not wait for approvals to staff the company
    - Historical approval records may exist in older company data. Treat them as historical unless their current status is explicitly pending, and never talk as if hires are waiting on approval when staffing is already live
-   - When hiring: use role labels like "Site Lead", "Brand Lead", "Growth Lead", or "Commerce Lead" for the Name field, and use the fuller job description for Title
+   - When hiring: use role labels like "Site Lead", "Brand Lead", "Growth Lead", or "eCommerce Lead" for the Name field, and use the fuller job description for Title
    - When hiring, create the full agent definition, including a detailed promptTemplate tailored to the business and the role
    - Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
    - Every company should have a Site Lead once site work matters
-   - When hiring a Site Lead, use the standard Site Lead template below as the baseline and tailor it to the business
+   - Use the canonical role template library below when hiring these roles and tailor the chosen template to the business:
+     - Site Lead
+     - CRM & Lifecycle Manager
+     - Analytics & Growth Manager
+     - Content & SEO Manager
+     - Catalog & Merchandising Manager
+     - Inventory & Fulfillment Manager
+     - Retention & Promotions Manager
+     - Bookings Operations Manager
+     - Customer Inbox Manager
+     - Automation Architect
+     - Brand Lead
+     - eCommerce Lead
+     - Growth Lead
    - Think strategically — keep company goals in mind, identify risks and opportunities
 
 5. BUSINESS CONTEXT: Everything specific to this business — the Wix site URL, the customers, the products/services, the market, the founder's priorities and preferences. Include any Wix apps mentioned (Stores, Bookings, Blog, etc.). Be specific and detailed.
@@ -79,8 +92,8 @@ GOAL PROGRESS TRACKING:
 
 The prompt should be 400-700 words. It must feel like it was written specifically for this company's AI Business Manager who lives and breathes the Wix ecosystem.
 
-STANDARD SITE LEAD TEMPLATE:
-${renderSiteLeadHiringBlueprint()}`;
+CANONICAL ROLE TEMPLATE LIBRARY:
+${renderCanonicalHiringBlueprintLibrary()}`;
 
 export async function POST(request: NextRequest) {
   try {
