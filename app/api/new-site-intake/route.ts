@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
 const client = new OpenAI();
+const FIXED_OPENING_MESSAGE = `Hey!
+
+I'm Wix AI Team Lead,
+I can help you set up a new business and site with a team of agents I'll hire just for your business.
+They can build and maintain your site, manage your business, SEO and more
+
+But first, tell me about the business you want to create, what is it about?`;
 
 type IntakeTrigger = "initial_open" | "user_message";
 
@@ -86,6 +93,13 @@ export async function POST(request: NextRequest) {
     const messages = body.messages || [];
     const trigger = body.trigger || "user_message";
 
+    if (trigger === "initial_open" && messages.length === 0) {
+      return NextResponse.json({
+        text: FIXED_OPENING_MESSAGE,
+        conversationStatus: "gathering" as const,
+      });
+    }
+
     const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
       { role: "system", content: buildIntakeSystemPrompt(trigger) },
     ];
@@ -94,13 +108,6 @@ export async function POST(request: NextRequest) {
       openaiMessages.push({
         role: message.role === "user" ? "user" : "assistant",
         content: message.text,
-      });
-    }
-
-    if (messages.length === 0) {
-      openaiMessages.push({
-        role: "user",
-        content: "[Start the founder conversation now.]",
       });
     }
 
