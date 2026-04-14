@@ -29,15 +29,23 @@ interface KickoffTask {
   description: string;
 }
 
+interface StarterAgentPlan {
+  role: string;
+  goal: string;
+  expectedResult: string;
+}
+
 interface IntakeSummary {
   companyName: string;
   businessDescription: string;
   siteProposal: string;
   teamHiringPlan: string;
   managementPlan: string;
+  starterTeam: StarterAgentPlan[];
   siteSpecifics: string;
   firstBuildBrief: string;
   goals: string[];
+  expectedResults: string[];
   kickoffTasks: KickoffTask[];
 }
 
@@ -87,6 +95,37 @@ function toKickoffTasks(value: unknown): KickoffTask[] {
     .slice(0, 4);
 }
 
+function toStarterTeam(value: unknown): StarterAgentPlan[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const role = typeof (entry as { role?: unknown }).role === "string"
+        ? (entry as { role: string }).role.trim()
+        : "";
+      const goal = typeof (entry as { goal?: unknown }).goal === "string"
+        ? (entry as { goal: string }).goal.trim()
+        : "";
+      const expectedResult = typeof (entry as { expectedResult?: unknown }).expectedResult === "string"
+        ? (entry as { expectedResult: string }).expectedResult.trim()
+        : "";
+
+      if (!role || !goal || !expectedResult) {
+        return null;
+      }
+
+      return { role, goal, expectedResult };
+    })
+    .filter((agent): agent is StarterAgentPlan => Boolean(agent))
+    .slice(0, 4);
+}
+
 async function summarizeTranscript(messages: IntakeMessage[]): Promise<IntakeSummary> {
   const transcript = buildTranscript(messages);
   const response = await client.chat.completions.create({
@@ -104,9 +143,17 @@ Use the full transcript as the source of truth and return ONLY valid JSON in thi
   "siteProposal": "what the first site version should be and why",
   "teamHiringPlan": "which starter team should be hired first and how they would help",
   "managementPlan": "how the AI Team Lead should begin managing and growing the business after kickoff",
+  "starterTeam": [
+    {
+      "role": "string",
+      "goal": "string",
+      "expectedResult": "string"
+    }
+  ],
   "siteSpecifics": "all notable requests for the site, tone, pages, features, priorities, and constraints",
   "firstBuildBrief": "a concise but rich brief for building the first version of the site",
   "goals": ["goal 1", "goal 2"],
+  "expectedResults": ["result 1", "result 2"],
   "kickoffTasks": [
     { "title": "string", "description": "string" }
   ]
@@ -116,7 +163,10 @@ Rules:
 - Capture the founder's actual business and audience, not generic placeholders.
 - Fold in everything meaningful the founder shared during the conversation.
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
+- The center of gravity is the AI team plan, not a solo site-build pitch.
+- "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
 - Goals should be practical and outcome-focused. Return 1 to 3.
+- "expectedResults" should describe the concrete business results the founder should expect from the first phase. Return 2 to 4.
 - Kickoff tasks should be the first concrete tasks the AI Team Lead should take on immediately after approval. Return 2 to 4 tasks.
 - At least one task should cover launching the first site version.
 - At least one task should cover building the starter team.
@@ -147,6 +197,7 @@ Rules:
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
+  const starterTeam = toStarterTeam(parsed.starterTeam);
   const siteSpecifics =
     parsed.siteSpecifics?.trim() ||
     "No additional site-specific requirements were captured.";
@@ -154,6 +205,7 @@ Rules:
     parsed.firstBuildBrief?.trim() ||
     `${siteProposal}\n\nRequirements and priorities:\n${siteSpecifics}`;
   const goals = toStringArray(parsed.goals);
+  const expectedResults = toStringArray(parsed.expectedResults);
   const kickoffTasks = toKickoffTasks(parsed.kickoffTasks);
 
   return {
@@ -162,6 +214,25 @@ Rules:
     siteProposal,
     teamHiringPlan,
     managementPlan,
+    starterTeam: starterTeam.length > 0
+      ? starterTeam
+      : [
+          {
+            role: "Site Launch Lead",
+            goal: `Ship the first strong version of ${companyName}`,
+            expectedResult: "A credible first site version that clearly explains the offer and moves visitors toward the next step.",
+          },
+          {
+            role: "Brand and Conversion Lead",
+            goal: "Clarify the message, voice, and calls to action",
+            expectedResult: "Sharper positioning, stronger copy, and a clearer path from interest to inquiry or purchase.",
+          },
+          {
+            role: "Growth and Operations Lead",
+            goal: `Set the first growth and operating rhythm for ${companyName}`,
+            expectedResult: "A concrete plan for audience testing, early traction, and the next operational priorities after launch.",
+          },
+        ],
     siteSpecifics,
     firstBuildBrief,
     goals: goals.length > 0
@@ -170,6 +241,13 @@ Rules:
           `Launch the first strong version of ${companyName}`,
           `Put the right starter team in place for ${companyName}`,
           `Start managing growth and operations for ${companyName}`,
+        ],
+    expectedResults: expectedResults.length > 0
+      ? expectedResults
+      : [
+          "A clear first-market version of the business site is live or in active launch.",
+          "The founder has a starter AI team with defined ownership across launch, messaging, and growth.",
+          "The business has an immediate next-phase plan for traction, optimization, and ongoing management.",
         ],
     kickoffTasks: kickoffTasks.length > 0
       ? kickoffTasks
@@ -192,6 +270,15 @@ Rules:
 
 function buildBoardIssueDescription(summary: IntakeSummary, messages: IntakeMessage[]): string {
   const transcript = buildTranscript(messages);
+  const starterTeam = summary.starterTeam
+    .map((agent) => `- ${agent.role}: Goal: ${agent.goal} | Expected result: ${agent.expectedResult}`)
+    .join("\n");
+  const expectedResults = summary.expectedResults
+    .map((result) => `- ${result}`)
+    .join("\n");
+  const teamGoals = summary.goals
+    .map((goal) => `- ${goal}`)
+    .join("\n");
 
   return [
     `The founder approved the AI Team Lead proposal for ${summary.companyName}.`,
@@ -204,6 +291,15 @@ function buildBoardIssueDescription(summary: IntakeSummary, messages: IntakeMess
     "",
     "Approved team hiring plan:",
     summary.teamHiringPlan,
+    "",
+    "Approved starter agent team:",
+    starterTeam,
+    "",
+    "Approved team goals:",
+    teamGoals,
+    "",
+    "Expected first-phase results:",
+    expectedResults,
     "",
     "Approved management plan:",
     summary.managementPlan,

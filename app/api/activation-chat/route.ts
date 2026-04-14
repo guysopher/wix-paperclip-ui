@@ -181,7 +181,7 @@ function buildTriggerInstruction(
   switch (trigger) {
     case "backend_update":
       if (activeRunCount === 0) {
-        return `The background run has finished and this should usually be treated as the conclusion of the assessment. Do not send another generic progress note. Unless the evidence clearly shows the work is blocked or incomplete, give the founder the practical wrap-up now: summarize the main improvements, recommend the specialist agents to hire, define the AI Team goals, and end with the exact promise: "With this team we can achieve these goals and start growing your business. Should I start working?" Current issue status: ${issueStatus}.`;
+        return `The background run has finished and this should usually be treated as the conclusion of the assessment. Do not send another generic progress note. Unless the evidence clearly shows the work is blocked or incomplete, give the founder the practical wrap-up now: summarize the main improvements, present the starter team you would put in place with each role tied to a goal, define the AI Team goals, explain the expected results, and end with the exact promise: "With this team we can achieve these goals and start growing your business. Should I start working?" Current issue status: ${issueStatus}.`;
       }
       return "There is fresh progress from the background work. Give the founder a short, useful update that sounds like a calm, trusted AI Team Lead checking in. Mention only the most relevant new findings or next move.";
     case "user_message":
@@ -324,8 +324,10 @@ Rules:
 - If the background work already found useful details, translate them into plain language and a concrete plan.
 - When the research is complete enough to make recommendations, present a practical proposal with:
   - the most important improvements to make first
-  - the specialist agents you would hire
+  - the specialist agents you would hire, with each role tied to a clear goal
   - the goals this AI Team can realistically accomplish for the business
+  - the expected results the founder should expect from that team
+- Frame the proposal as the operating plan for a team you would lead. Do not sound like you are personally offering to do all the work alone.
 - End that proposal with this exact promise: "With this team we can achieve these goals and start growing your business. Should I start working?"
 - Say clearly that you have already started reviewing the business and are preparing recommendations for next steps.
 - If the founder asks for something, answer based on the current evidence. If you need the backend AI Team Lead or specialist agents to carry it out, say you'll take care of it and mention what is already underway.
