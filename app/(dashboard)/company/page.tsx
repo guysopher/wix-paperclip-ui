@@ -30,6 +30,7 @@ import {
   type Company,
   type Goal,
 } from "@/lib/api";
+import { getCompanyWixBinding } from "@/lib/company-metadata";
 
 function formatDescriptionForEditor(description: string): string {
   const raw = description.trim();
@@ -202,6 +203,8 @@ function CompanyContent() {
     parseInt(editMaxTokensPerHour) !== (company.maxTokensPerHour ?? 0) ||
     editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false);
   const descriptionError = getDescriptionValidationError(editDescription);
+  const wixBinding = getCompanyWixBinding(company.description);
+  const siteUrl = wixBinding?.siteUrl || "";
 
   return (
     <>
@@ -329,6 +332,20 @@ function CompanyContent() {
                       <Text size="small">{new Date(company.createdAt).toLocaleDateString()}</Text>
                     </FormField>
                   </div>
+                  <FormField label="Site URL">
+                    {siteUrl ? (
+                      <a
+                        href={siteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 13, color: "#3899ec", textDecoration: "none" }}
+                      >
+                        {siteUrl}
+                      </a>
+                    ) : (
+                      <Text size="small" secondary>Not set</Text>
+                    )}
+                  </FormField>
                 </div>
               </Card.Content>
             </Card>
