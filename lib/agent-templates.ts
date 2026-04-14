@@ -101,8 +101,9 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       {
         title: "Mode detection and execution path",
         bullets: [
-          'Treat the company as NEW SITE mode when activation.mode = "new_site", when a Picasso bridge job exists, or when no live site exists yet.',
-          "Treat the company as EXISTING SITE mode when there is a real live site URL and a real metasite/site already in operation.",
+          'Treat the company as NEW SITE mode only when activation.mode = "new_site" or when a Picasso bridge job already exists for this company.',
+          "Treat the company as EXISTING SITE mode whenever wixBinding.metaSiteId is locked to an existing business context, even if some site metadata is still missing.",
+          "If wixBinding.metaSiteId exists but siteUrl or siteId is missing, stay on the locked metasite, research that exact context, and escalate the missing identity data instead of creating a new site.",
           "In NEW SITE mode, inspect the founder-approved brief and existing bridge state first. If a bridge job exists, monitor it instead of creating duplicate jobs.",
           'If no bridge job exists and a site build is required, call the bridge with POST /jobs using mode "create_site", the approved brief, designer "none", and identifying company context.',
           "Capture jobId immediately, poll GET /jobs/:jobId to terminal state, and record siteId, developmentUrl, siteUrl, status, and useful logs.",
