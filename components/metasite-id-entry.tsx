@@ -3,14 +3,17 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button, Card, Heading, Input, Text } from "@wix/design-system";
-import { isValidMsid, normalizeMsid, withMsid } from "@/lib/msid";
+import { type Company } from "@/lib/api";
+import { isValidMsid, normalizeMsid, withCompanyId, withMsid } from "@/lib/msid";
 
 interface Props {
   description?: string;
   createNewSiteDescription?: string;
   createNewSitePath?: string;
+  existingCompanies?: Company[];
   initialValue?: string | null;
   onCreateNewSite?: () => void;
+  onSelectExistingCompany?: (companyId: string) => void;
   redirectPath?: string;
   title?: string;
 }
@@ -19,8 +22,10 @@ export function MetasiteIdEntry({
   description = "This UI needs an msid value to know which Wix business context to open.",
   createNewSiteDescription = "Start from scratch and let the AI Team Lead interview you briefly before kicking off the first site build.",
   createNewSitePath,
+  existingCompanies = [],
   initialValue,
   onCreateNewSite,
+  onSelectExistingCompany,
   redirectPath,
   title = "Enter an msid",
 }: Props) {
@@ -32,6 +37,13 @@ export function MetasiteIdEntry({
   const normalizedMsid = normalizeMsid(trimmed);
   const showError = trimmed.length > 0 && !normalizedMsid;
   const targetPath = useMemo(() => redirectPath || pathname || "/", [pathname, redirectPath]);
+  const visibleCompanies = useMemo(
+    () =>
+      existingCompanies
+        .filter((company) => company.status !== "archived")
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [existingCompanies],
+  );
 
   const handleSubmit = () => {
     if (!normalizedMsid) {
@@ -50,6 +62,15 @@ export function MetasiteIdEntry({
     if (createNewSitePath) {
       router.push(createNewSitePath);
     }
+  };
+
+  const handleSelectExistingCompany = (companyId: string) => {
+    if (onSelectExistingCompany) {
+      onSelectExistingCompany(companyId);
+      return;
+    }
+
+    router.push(withCompanyId("/", companyId));
   };
 
   return (
@@ -149,6 +170,90 @@ export function MetasiteIdEntry({
                   background: "linear-gradient(90deg, rgba(208,220,234,0) 0%, rgba(208,220,234,1) 50%, rgba(208,220,234,0) 100%)",
                 }}
               />
+
+              {visibleCompanies.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      padding: 18,
+                      borderRadius: 18,
+                      background: "rgba(244, 248, 252, 0.92)",
+                      border: "1px solid #dfe8f2",
+                    }}
+                  >
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#17324a" }}>
+                      Open an existing AI Team
+                    </div>
+                    <Text secondary style={{ fontSize: 14, lineHeight: 1.6 }}>
+                      Pick one of the workspaces that already exists in Paperclip.
+                    </Text>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {visibleCompanies.map((company) => (
+                        <button
+                          key={company.id}
+                          onClick={() => handleSelectExistingCompany(company.id)}
+                          style={{
+                            width: "100%",
+                            border: "1px solid #dfe8f2",
+                            borderRadius: 14,
+                            background: "white",
+                            padding: "14px 16px",
+                            textAlign: "left",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 14,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: "#17324a",
+                                marginBottom: 4,
+                              }}
+                            >
+                              {company.name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: "#6b7c93",
+                                wordBreak: "break-all",
+                              }}
+                            >
+                              {company.id}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: "#2f6fed",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Open
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      height: 1,
+                      background:
+                        "linear-gradient(90deg, rgba(208,220,234,0) 0%, rgba(208,220,234,1) 50%, rgba(208,220,234,0) 100%)",
+                    }}
+                  />
+                </>
+              )}
 
               <div
                 style={{

@@ -6,7 +6,7 @@ import { Shell } from "../shell";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 
 export function DashboardGate({ children }: { children: React.ReactNode }) {
-  const { companyLookupStatus, msid } = useCompany();
+  const { companies, companyLookupStatus, msid } = useCompany();
 
   if (companyLookupStatus === "missing-msid") {
     return (
@@ -15,6 +15,7 @@ export function DashboardGate({ children }: { children: React.ReactNode }) {
         description="Open an existing Wix business by pasting its metasite ID or manage URL."
         createNewSitePath="/new?mode=new_site"
         createNewSiteDescription="Start from scratch and let the AI Team Lead kick off the first site build."
+        existingCompanies={companies}
       />
     );
   }
@@ -26,6 +27,7 @@ export function DashboardGate({ children }: { children: React.ReactNode }) {
         description="This metasite is not currently mapped to an AI Team workspace. Continue will explicitly start or reconnect a workspace for this exact metasite instead of silently creating one."
         createNewSitePath="/new?mode=new_site"
         createNewSiteDescription="Use this only if you want a brand new site build. It should not be used to recover an existing Wix business context."
+        existingCompanies={companies}
         initialValue={msid}
         redirectPath="/new"
       />

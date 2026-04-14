@@ -80,9 +80,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const loadCompanies = useCallback(async () => {
     const normalizedMsid = normalizeMsid(msid);
     const normalizedCompanyId = normalizeCompanyId(workspaceCompanyId);
+    let fallbackCompanies: Company[] = [];
 
     if (!normalizedMsid && !normalizedCompanyId) {
-      setCompanies([]);
+      const allCompanies = await getCompanies().catch(() => [] as Company[]);
+      fallbackCompanies = allCompanies.filter((company) => company.status !== "archived");
+      setCompanies(fallbackCompanies);
       setSelectedCompanyId("");
       setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
       setCompanyLookupStatus("missing-msid");
@@ -91,25 +94,31 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     setCompanyLookupStatus("loading");
     try {
+      const allCompanies = await getCompanies().catch(() => [] as Company[]);
+      const activeCompanies = allCompanies.filter((company) => company.status !== "archived");
+      fallbackCompanies = activeCompanies;
       let company: Company | null = null;
 
       if (normalizedMsid) {
-        const allCompanies = await getCompanies();
-        company = findCompanyByMsid(allCompanies, normalizedMsid);
+        company = findCompanyByMsid(activeCompanies, normalizedMsid);
       } else if (normalizedCompanyId) {
         const fetchedCompany = await getCompany(normalizedCompanyId);
         company = fetchedCompany.status === "archived" ? null : fetchedCompany;
       }
 
       if (!company) {
+        setCompanies(activeCompanies);
+        setSelectedCompanyId("");
+        setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
+        setCompanyLookupStatus("company-missing");
         throw new Error("Company not found for workspace context");
       }
 
-      setCompanies([company]);
+      setCompanies(activeCompanies.length > 0 ? activeCompanies : [company]);
       setSelectedCompanyId(company.id);
       setCompanyLookupStatus("ready");
     } catch {
-      setCompanies([]);
+      setCompanies(fallbackCompanies);
       setSelectedCompanyId("");
       setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
       setCompanyLookupStatus("company-missing");
