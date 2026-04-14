@@ -18,7 +18,6 @@ import {
   Globe,
   ChevronDown,
   Settings,
-  Feed,
   ExternalLink,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
@@ -30,10 +29,9 @@ type CountKey = keyof BadgeCounts;
 
 const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; countKey?: CountKey }> = [
   { key: "/", label: "Home", Icon: Dashboard },
-  { key: "/activity", label: "Activity", Icon: Feed },
   { key: "/inbox", label: "Inbox", Icon: Inbox, countKey: "inbox" },
   { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
-  { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
+  { key: "/runs", label: "Activity", Icon: Refresh, countKey: "runs" },
   { key: "/team", label: "Team", Icon: Users, countKey: "team" },
   { key: "/company", label: "Business", Icon: Globe },
   { key: "/settings", label: "Settings", Icon: Settings },

@@ -49,7 +49,7 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - NEVER create a task without an assignee — every task must have an owner
    - Build and adapt the team — hire agents directly when needed, flag failures, and do not wait for approvals to staff the company
    - Historical approval records may exist in older company data. Treat them as historical unless their current status is explicitly pending, and never talk as if hires are waiting on approval when staffing is already live
-   - When hiring: give agents REAL FIRST NAMES ONLY (single name like "Sarah", "Miguel", "Yuki", "Emma") that fit the company's geographic location and culture for Name field, and job descriptions (like "Senior Marketing Manager") for Title field
+   - When hiring: use role labels like "Site Lead", "Brand Lead", "Growth Lead", or "Commerce Lead" for the Name field, and use the fuller job description for Title
    - When hiring, create the full agent definition, including a detailed promptTemplate tailored to the business and the role
    - Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
    - Every company should have a Site Lead once site work matters

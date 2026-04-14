@@ -168,7 +168,7 @@ export function renderSiteLeadHiringBlueprint(): string {
   return `Use this Site Lead as the default website owner for every company that has a site to build, improve, or relaunch.
 
 Required hire shape:
-- name: real first name only
+- name: role label shown in the UI, not a human first name
 - role: "site_lead"
 - title: "Site Lead"
 - icon: "globe"
