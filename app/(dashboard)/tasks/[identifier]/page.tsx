@@ -62,6 +62,10 @@ const PRIORITY_SKINS: Record<
   low: "neutral",
 };
 
+function normalizeMarkdownText(value: string): string {
+  return value.replace(/\\n/g, "\n");
+}
+
 function TaskDetailContent({ identifier }: { identifier: string }) {
   const { companyId, companyPath } = useCompany();
   const [issue, setIssue] = useState<Issue | null>(null);
@@ -272,7 +276,7 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
                     }}
                   >
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {issue.description}
+                      {normalizeMarkdownText(issue.description)}
                     </ReactMarkdown>
                   </div>
                 </>
@@ -372,7 +376,7 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
                           }}
                         >
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {c.body}
+                            {normalizeMarkdownText(c.body)}
                           </ReactMarkdown>
                         </div>
                       </div>
