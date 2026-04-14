@@ -14,6 +14,8 @@ import { Refresh, Inbox as InboxIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "../../providers";
+import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
+import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import {
   getAgents,
   getMyIssues,
@@ -50,7 +52,15 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TAB_KEYS = ["all", "needs-reply", "sent", "active", "done", "archived"];
 
-function DescriptionBlock({ description }: { description: string }) {
+function DescriptionBlock({
+  description,
+  companyPath,
+  issuesByIdentifier,
+}: {
+  description: string;
+  companyPath: (path: string) => string;
+  issuesByIdentifier: Record<string, Issue>;
+}) {
   const [expanded, setExpanded] = React.useState(false);
   const isLong = description.length > 300;
   const preview = isLong && !expanded ? description.slice(0, 300) + "…" : description;
@@ -68,7 +78,24 @@ function DescriptionBlock({ description }: { description: string }) {
       </div>
       <div style={{ padding: "12px 16px" }}>
         <div className="timeline-markdown" style={{ fontSize: 13, color: "#444", lineHeight: 1.65 }}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({ href, node: _node, ...props }) => {
+                const taskIdentifier = extractTaskIdentifierFromHref(href);
+                const linkedIssue = taskIdentifier ? issuesByIdentifier[taskIdentifier] : null;
+                const workspaceHref = ensureWorkspaceHref(href, companyPath);
+
+                if (!workspaceHref || !linkedIssue) {
+                  return <a {...props} href={workspaceHref || href} />;
+                }
+
+                return <TaskLinkWithPreview {...props} href={workspaceHref} issue={linkedIssue} />;
+              },
+            }}
+          >
+            {preview}
+          </ReactMarkdown>
         </div>
         {isLong && (
           <button
@@ -113,6 +140,10 @@ function InboxContent() {
   const [composeTo, setComposeTo] = useState<string>("ceo");
   const [composeText, setComposeText] = useState("");
   const [composeSending, setComposeSending] = useState(false);
+  const issuesByIdentifier = issues.reduce<Record<string, Issue>>((acc, issue) => {
+    acc[issue.identifier] = issue;
+    return acc;
+  }, {});
 
   const handleCompose = async () => {
     if (!composeText.trim() || !companyId) return;
@@ -430,9 +461,13 @@ function InboxContent() {
                       Unarchive
                     </button>
                   )}
-                  <a href={companyPath(`/tasks/${selected.identifier}`)} style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, textDecoration: "none", color: "#666", display: "inline-flex", alignItems: "center" }}>
+                  <TaskLinkWithPreview
+                    href={companyPath(`/tasks/${selected.identifier}`)}
+                    issue={selected}
+                    style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, textDecoration: "none", color: "#666", display: "inline-flex", alignItems: "center" }}
+                  >
                     Open task
-                  </a>
+                  </TaskLinkWithPreview>
                 </div>
               </div>
             </div>
@@ -441,7 +476,11 @@ function InboxContent() {
             <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
               {/* Description block — shown inline in the thread, not in the header */}
               {selected.description && selected.title !== "Board Inbox" && (
-                <DescriptionBlock description={selected.description} />
+                <DescriptionBlock
+                  description={selected.description}
+                  companyPath={companyPath}
+                  issuesByIdentifier={issuesByIdentifier}
+                />
               )}
               {loadingComments ? (
                 <Box align="center" padding="24px"><Loader size="small" /></Box>
@@ -504,7 +543,24 @@ function InboxContent() {
                             boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
                           }}>
                             <div className="timeline-markdown">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{c.body}</ReactMarkdown>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  a: ({ href, node: _node, ...props }) => {
+                                    const taskIdentifier = extractTaskIdentifierFromHref(href);
+                                    const linkedIssue = taskIdentifier ? issuesByIdentifier[taskIdentifier] : null;
+                                    const workspaceHref = ensureWorkspaceHref(href, companyPath);
+
+                                    if (!workspaceHref || !linkedIssue) {
+                                      return <a {...props} href={workspaceHref || href} />;
+                                    }
+
+                                    return <TaskLinkWithPreview {...props} href={workspaceHref} issue={linkedIssue} />;
+                                  },
+                                }}
+                              >
+                                {c.body}
+                              </ReactMarkdown>
                             </div>
                           </div>
                         </div>

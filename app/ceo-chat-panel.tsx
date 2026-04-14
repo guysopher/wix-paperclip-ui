@@ -7,6 +7,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "./providers";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
+import { getIssues, type Issue } from "@/lib/api";
+import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
 
 interface ChatMessage {
   role: "ceo" | "user";
@@ -20,6 +22,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [issuesByIdentifier, setIssuesByIdentifier] = useState<Record<string, Issue>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [initialized, setInitialized] = useState(false);
@@ -81,6 +84,40 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     const storageKey = `ceo-chat-${companyId}`;
     localStorage.setItem(storageKey, JSON.stringify(messages));
   }, [messages, companyId]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setIssuesByIdentifier({});
+      return;
+    }
+
+    let cancelled = false;
+
+    void getIssues(companyId)
+      .then((issues) => {
+        if (cancelled) {
+          return;
+        }
+
+        setIssuesByIdentifier(
+          issues
+            .filter((issue) => issue.title !== "Board Inbox")
+            .reduce<Record<string, Issue>>((acc, issue) => {
+              acc[issue.identifier] = issue;
+              return acc;
+            }, {}),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIssuesByIdentifier({});
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, messages.length]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -216,12 +253,28 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
-                            a: ({ href, ...props }) => (
-                              <a
-                                {...props}
-                                href={ensureWorkspaceHref(href, companyPath)}
-                              />
-                            ),
+                            a: ({ href, node: _node, ...props }) => {
+                              const workspaceHref = ensureWorkspaceHref(href, companyPath);
+                              const taskIdentifier = extractTaskIdentifierFromHref(workspaceHref);
+                              const linkedIssue = taskIdentifier ? issuesByIdentifier[taskIdentifier] : null;
+
+                              if (!workspaceHref) {
+                                return <a {...props} />;
+                              }
+
+                              if (!linkedIssue) {
+                                return <a {...props} href={workspaceHref} />;
+                              }
+
+                              return (
+                                <TaskLinkWithPreview
+                                  {...props}
+                                  href={workspaceHref}
+                                  issue={linkedIssue}
+                                  style={{ color: "#3899ec", textDecoration: "none" }}
+                                />
+                              );
+                            },
                           }}
                         >
                           {m.text}
@@ -238,9 +291,10 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                 <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 10, paddingLeft: 4 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     {m.actions.map((action, j) => (
-                      <a
+                      <TaskLinkWithPreview
                         key={j}
                         href={companyPath(action.identifier ? `/tasks/${action.identifier}` : "/tasks")}
+                        issue={action.identifier ? issuesByIdentifier[action.identifier] || null : null}
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "6px 12px", background: "#f0f5ff", border: "1px solid #d0e0ff",
@@ -249,7 +303,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                       >
                         <span style={{ color: "#3899ec", fontWeight: 600 }}>{action.identifier || "Task"}</span>
                         <span>{action.title}</span>
-                      </a>
+                      </TaskLinkWithPreview>
                     ))}
                   </div>
                 </div>

@@ -17,6 +17,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "../../../providers";
 import { Breadcrumbs } from "../../../components/breadcrumbs";
+import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
+import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import {
   getIssues,
   getAgents,
@@ -69,6 +71,7 @@ function normalizeMarkdownText(value: string): string {
 function TaskDetailContent({ identifier }: { identifier: string }) {
   const { companyId, companyPath } = useCompany();
   const [issue, setIssue] = useState<Issue | null>(null);
+  const [issuesByIdentifier, setIssuesByIdentifier] = useState<Record<string, Issue>>({});
   const [agents, setAgents] = useState<Agent[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +95,12 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
     ]);
     const found = issueData.find(
       (i: Issue) => i.identifier === identifier
+    );
+    setIssuesByIdentifier(
+      issueData.reduce<Record<string, Issue>>((acc, nextIssue) => {
+        acc[nextIssue.identifier] = nextIssue;
+        return acc;
+      }, {}),
     );
     setIssue(found || null);
     setAgents(agentData);
@@ -275,7 +284,22 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
                       color: "#32536a",
                     }}
                   >
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        a: ({ href, node: _node, ...props }) => {
+                          const taskIdentifier = extractTaskIdentifierFromHref(href);
+                          const linkedIssue = taskIdentifier ? issuesByIdentifier[taskIdentifier] : null;
+                          const workspaceHref = ensureWorkspaceHref(href, companyPath);
+
+                          if (!workspaceHref || !linkedIssue) {
+                            return <a {...props} href={workspaceHref || href} />;
+                          }
+
+                          return <TaskLinkWithPreview {...props} href={workspaceHref} issue={linkedIssue} />;
+                        },
+                      }}
+                    >
                       {normalizeMarkdownText(issue.description)}
                     </ReactMarkdown>
                   </div>
@@ -375,7 +399,22 @@ function TaskDetailContent({ identifier }: { identifier: string }) {
                             wordBreak: "break-word",
                           }}
                         >
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              a: ({ href, node: _node, ...props }) => {
+                                const taskIdentifier = extractTaskIdentifierFromHref(href);
+                                const linkedIssue = taskIdentifier ? issuesByIdentifier[taskIdentifier] : null;
+                                const workspaceHref = ensureWorkspaceHref(href, companyPath);
+
+                                if (!workspaceHref || !linkedIssue) {
+                                  return <a {...props} href={workspaceHref || href} />;
+                                }
+
+                                return <TaskLinkWithPreview {...props} href={workspaceHref} issue={linkedIssue} />;
+                              },
+                            }}
+                          >
                             {normalizeMarkdownText(c.body)}
                           </ReactMarkdown>
                         </div>

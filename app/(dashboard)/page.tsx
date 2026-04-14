@@ -35,6 +35,7 @@ import {
 } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
+import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import {
   getDashboard,
   getAgents,
@@ -1193,9 +1194,11 @@ function DashboardContent() {
                         .map((l: string) => l.replace(/^#+\s*/, "").replace(/^\*+/, "").trim())
                         .filter((l: string) => l.length > 10 && !l.startsWith("---") && !l.startsWith("|"))[0] || "";
                       return (
-                        <a
+                        <TaskLinkWithPreview
                           key={issue.id}
                           href={companyPath(`/tasks/${issue.identifier}`)}
+                          issue={issue}
+                          block
                           style={{
                             display: "flex",
                             gap: 12,
@@ -1231,7 +1234,7 @@ function DashboardContent() {
                               <span>{assignee?.name || "Unassigned"}</span>
                             </div>
                           </div>
-                        </a>
+                        </TaskLinkWithPreview>
                       );
                     })}
                     {doneIssues.length > 5 && (
@@ -1285,9 +1288,11 @@ function DashboardContent() {
                       backlog: "Backlog", todo: "To Do", in_progress: "In Progress", blocked: "Blocked",
                     };
                     return (
-                      <a
+                      <TaskLinkWithPreview
                         key={issue.id}
                         href={companyPath(`/tasks/${issue.identifier}`)}
+                        issue={issue}
+                        block
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
                       >
                         <div style={{ flex: 1 }}>
@@ -1299,7 +1304,7 @@ function DashboardContent() {
                         <Badge size="tiny" skin={statusSkin[issue.status] || "general"}>
                           {statusLabel[issue.status] || issue.status}
                         </Badge>
-                      </a>
+                      </TaskLinkWithPreview>
                     );
                   })
                 )}

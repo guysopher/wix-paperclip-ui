@@ -23,6 +23,7 @@ import {
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
+import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import {
   getIssues,
   getAgents,
@@ -197,14 +198,26 @@ function TasksContent() {
     {
       title: "ID",
       render: (row: Issue) => (
-        <Text size="small" secondary style={{ fontFamily: "monospace" }}>{row.identifier || `#${row.number}`}</Text>
+        <TaskLinkWithPreview
+          href={companyPath(`/tasks/${row.identifier}`)}
+          issue={row}
+          style={{ color: "#3899ec", textDecoration: "none", fontFamily: "monospace", fontSize: 13 }}
+        >
+          {row.identifier || `#${row.number}`}
+        </TaskLinkWithPreview>
       ),
       width: "10%",
     },
     {
       title: "Task",
       render: (row: Issue) => (
-        <Text size="small">{row.title}</Text>
+        <TaskLinkWithPreview
+          href={companyPath(`/tasks/${row.identifier}`)}
+          issue={row}
+          style={{ color: "#162d3d", textDecoration: "none", fontSize: 14 }}
+        >
+          {row.title}
+        </TaskLinkWithPreview>
       ),
       width: "30%",
     },
@@ -261,7 +274,13 @@ function TasksContent() {
     {
       title: "",
       render: (row: Issue) => (
-        <a href={companyPath(`/tasks/${row.identifier}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>View</a>
+        <TaskLinkWithPreview
+          href={companyPath(`/tasks/${row.identifier}`)}
+          issue={row}
+          style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}
+        >
+          View
+        </TaskLinkWithPreview>
       ),
       width: "10%",
     },
