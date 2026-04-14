@@ -37,6 +37,20 @@ async function bridgeRequest<T>(path: string, options?: RequestInit): Promise<T>
 // Health
 export const runHealthCheck = () =>
   fetch("/api/health", { method: "POST" }).then((r) => r.json());
+export const runCompanyHealthCheck = (companyId: string) =>
+  fetch("/api/health", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId }),
+  }).then((r) => r.json());
+export const restartPaperclipServer = () =>
+  fetch("/api/health/restart", { method: "POST" }).then(async (r) => {
+    const data = await r.json().catch(() => ({ error: r.statusText }));
+    if (!r.ok) {
+      throw new Error(data.error || r.statusText);
+    }
+    return data as { ok: boolean; message: string };
+  });
 
 // Companies
 export const getCompanies = () => request<Company[]>("/companies");

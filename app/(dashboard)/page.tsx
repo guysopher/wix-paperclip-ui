@@ -45,7 +45,8 @@ import {
   resumeAgent,
   getRuns,
   createIssue,
-  runHealthCheck,
+  runCompanyHealthCheck,
+  restartPaperclipServer,
   getCompany,
   type Company,
   type Dashboard,
@@ -88,6 +89,15 @@ const FEED_STATUS_LABELS: Record<string, string> = {
 };
 const FEED_SOURCE_LABELS: Record<string, string> = {
   on_demand: "Manual", scheduled: "Scheduled", mention: "Mentioned", assignment: "Assigned",
+};
+
+type DashboardHealthResult = {
+  status: string;
+  companyId?: string | null;
+  checkedAt?: string;
+  checks: Array<{ name: string; status: string; detail?: string }>;
+  actions: string[];
+  controls?: { restartAvailable?: boolean };
 };
 
 
@@ -145,8 +155,9 @@ function DashboardContent() {
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
 
   // Health check
-  const [healthResult, setHealthResult] = useState<{ status: string; checks: Array<{ name: string; status: string; detail?: string }>; actions: string[] } | null>(null);
+  const [healthResult, setHealthResult] = useState<DashboardHealthResult | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [restartingServer, setRestartingServer] = useState(false);
 
   const load = async () => {
     if (!companyId) { setLoading(false); return; }
@@ -479,13 +490,59 @@ function DashboardContent() {
                 subtitle="Run diagnostics and fix stale runs"
                 disabled={healthLoading}
                 onClick={async () => {
+                  if (!companyId) return;
                   setHealthLoading(true);
                   setHealthResult(null);
                   try {
-                    const result = await runHealthCheck();
+                    const result = await runCompanyHealthCheck(companyId);
                     setHealthResult(result);
-                  } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [] }); }
+                  } catch {
+                    setHealthResult({
+                      status: "error",
+                      checks: [{ name: "api", status: "error", detail: "Health check failed" }],
+                      actions: [],
+                      controls: { restartAvailable: false },
+                    });
+                  }
                   setHealthLoading(false);
+                }}
+              />
+              <PopoverMenu.MenuItem
+                text={restartingServer ? "Restarting Paperclip..." : "Restart Paperclip"}
+                subtitle="Calls the configured Paperclip restart hook"
+                disabled={restartingServer}
+                onClick={async () => {
+                  setRestartingServer(true);
+                  try {
+                    const result = await restartPaperclipServer();
+                    setHealthResult({
+                      status: "repaired",
+                      checks: [
+                        {
+                          name: "restart",
+                          status: "repaired",
+                          detail: result.message || "Restart request sent",
+                        },
+                      ],
+                      actions: ["Restart request sent to Paperclip server"],
+                      controls: { restartAvailable: true },
+                    });
+                  } catch (error) {
+                    setHealthResult({
+                      status: "error",
+                      checks: [
+                        {
+                          name: "restart",
+                          status: "error",
+                          detail:
+                            error instanceof Error ? error.message : "Restart failed",
+                        },
+                      ],
+                      actions: [],
+                      controls: { restartAvailable: false },
+                    });
+                  }
+                  setRestartingServer(false);
                 }}
               />
               <PopoverMenu.MenuItem
@@ -557,12 +614,44 @@ function DashboardContent() {
             padding: "14px 20px",
             borderRadius: 8,
             marginBottom: 20,
-            background: healthResult.status === "healthy" ? "#f0faf0" : healthResult.status === "repaired" ? "#fff8e1" : "#fff5f5",
-            border: `1px solid ${healthResult.status === "healthy" ? "#c8e6c9" : healthResult.status === "repaired" ? "#ffe082" : "#ffcdd2"}`,
+            background:
+              healthResult.status === "healthy"
+                ? "#f0faf0"
+                : healthResult.status === "repaired"
+                  ? "#fff8e1"
+                  : healthResult.status === "warning"
+                    ? "#fff8e1"
+                    : "#fff5f5",
+            border: `1px solid ${
+              healthResult.status === "healthy"
+                ? "#c8e6c9"
+                : healthResult.status === "repaired"
+                  ? "#ffe082"
+                  : healthResult.status === "warning"
+                    ? "#ffe082"
+                    : "#ffcdd2"
+            }`,
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: healthResult.status === "healthy" ? "#2e7d32" : healthResult.status === "repaired" ? "#f57f17" : "#c62828" }}>
-                {healthResult.status === "healthy" ? "All systems healthy" : healthResult.status === "repaired" ? "Issues found and repaired" : "Problems detected"}
+              <div style={{
+                fontWeight: 600,
+                fontSize: 14,
+                color:
+                  healthResult.status === "healthy"
+                    ? "#2e7d32"
+                    : healthResult.status === "repaired"
+                      ? "#f57f17"
+                      : healthResult.status === "warning"
+                        ? "#f57f17"
+                        : "#c62828",
+              }}>
+                {healthResult.status === "healthy"
+                  ? "All systems healthy"
+                  : healthResult.status === "repaired"
+                    ? "Issues found and repaired"
+                    : healthResult.status === "warning"
+                      ? "Attention needed"
+                      : "Problems detected"}
               </div>
               <button onClick={() => setHealthResult(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: 16 }}>x</button>
             </div>
@@ -578,6 +667,95 @@ function DashboardContent() {
                 Actions taken: {healthResult.actions.join(", ")}
               </div>
             )}
+            <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={async () => {
+                  if (!companyId || healthLoading) return;
+                  setHealthLoading(true);
+                  try {
+                    const result = await runCompanyHealthCheck(companyId);
+                    setHealthResult(result);
+                  } catch {
+                    setHealthResult({
+                      status: "error",
+                      checks: [{ name: "api", status: "error", detail: "Health check failed" }],
+                      actions: [],
+                      controls: { restartAvailable: false },
+                    });
+                  }
+                  setHealthLoading(false);
+                }}
+                disabled={healthLoading}
+                style={{
+                  border: "1px solid #d6d6d6",
+                  background: "white",
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: healthLoading ? "default" : "pointer",
+                  color: "#2f6fed",
+                }}
+              >
+                {healthLoading ? "Checking..." : "Run again"}
+              </button>
+              {healthResult.controls?.restartAvailable && (
+                <button
+                  onClick={async () => {
+                    if (restartingServer) return;
+                    setRestartingServer(true);
+                    try {
+                      const result = await restartPaperclipServer();
+                      setHealthResult({
+                        status: "repaired",
+                        checks: [
+                          ...healthResult.checks,
+                          {
+                            name: "restart",
+                            status: "repaired",
+                            detail: result.message || "Restart request sent",
+                          },
+                        ],
+                        actions: [
+                          ...healthResult.actions,
+                          "Restart request sent to Paperclip server",
+                        ],
+                        controls: { restartAvailable: true },
+                      });
+                    } catch (error) {
+                      setHealthResult({
+                        status: "error",
+                        checks: [
+                          ...healthResult.checks,
+                          {
+                            name: "restart",
+                            status: "error",
+                            detail:
+                              error instanceof Error ? error.message : "Restart failed",
+                          },
+                        ],
+                        actions: healthResult.actions,
+                        controls: { restartAvailable: true },
+                      });
+                    }
+                    setRestartingServer(false);
+                  }}
+                  disabled={restartingServer}
+                  style={{
+                    border: "1px solid #d6d6d6",
+                    background: "white",
+                    borderRadius: 6,
+                    padding: "6px 10px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: restartingServer ? "default" : "pointer",
+                    color: "#c62828",
+                  }}
+                >
+                  {restartingServer ? "Restarting..." : "Restart Paperclip"}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -690,12 +868,13 @@ function DashboardContent() {
           </button>
           <button
             onClick={async () => {
+              if (!companyId) return;
               setHealthLoading(true);
               setHealthResult(null);
               try {
-                const result = await runHealthCheck();
+                const result = await runCompanyHealthCheck(companyId);
                 setHealthResult(result);
-              } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [] }); }
+              } catch { setHealthResult({ status: "error", checks: [{ name: "api", status: "error", detail: "Health check failed" }], actions: [], controls: { restartAvailable: false } }); }
               setHealthLoading(false);
             }}
             disabled={healthLoading}
