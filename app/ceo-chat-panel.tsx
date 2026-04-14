@@ -6,6 +6,7 @@ import { Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "./providers";
+import { ensureWorkspaceHref } from "@/lib/workspace-links";
 
 interface ChatMessage {
   role: "ceo" | "user";
@@ -212,7 +213,19 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                   >
                     {isAgent ? (
                       <div className="timeline-markdown">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ href, ...props }) => (
+                              <a
+                                {...props}
+                                href={ensureWorkspaceHref(href, companyPath)}
+                              />
+                            ),
+                          }}
+                        >
+                          {m.text}
+                        </ReactMarkdown>
                       </div>
                     ) : (
                       <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
