@@ -22,7 +22,7 @@ interface IntakeRequest {
   messages?: IntakeMessage[];
 }
 
-type ConversationStatus = "gathering" | "ready_to_activate" | "activate_now";
+type ConversationStatus = "gathering" | "ready_to_activate";
 
 function normalizeJsonText(raw: string): string {
   return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -31,7 +31,7 @@ function normalizeJsonText(raw: string): string {
 function extractConversationStatus(raw: string): ConversationStatus {
   const normalized = normalizeJsonText(raw);
   const match = normalized.match(
-    /"conversationStatus"\s*:\s*"(gathering|ready_to_activate|activate_now)"/,
+    /"conversationStatus"\s*:\s*"(gathering|ready_to_activate)"/,
   );
 
   if (!match) {
@@ -40,30 +40,6 @@ function extractConversationStatus(raw: string): ConversationStatus {
 
   return match[1] as ConversationStatus;
 }
-
-function hasExplicitApproval(messages: IntakeMessage[]): boolean {
-  const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.text.trim().toLowerCase();
-  if (!latestUserMessage) {
-    return false;
-  }
-
-  return [
-    "go",
-    "go ahead",
-    "go for it",
-    "start",
-    "yes",
-    "yes, go",
-    "yes go",
-    "do it",
-    "let's do it",
-    "lets do it",
-    "make it happen",
-    "hire you",
-    "move forward",
-  ].includes(latestUserMessage);
-}
-
 function buildIntakeSystemPrompt(trigger: IntakeTrigger): string {
   const openingInstruction =
     trigger === "initial_open"
@@ -105,8 +81,9 @@ Rules:
 - When making that proposal, frame it as a team plan you would lead, not as work you personally would do alone.
 - The proposal should feel like a real operating plan for the business, not a freelancer pitch and not just a site summary.
 - When useful, you may use a short bullet list with at most 4 items to make the proposal clearer.
-- After presenting that proposal, ask for explicit permission to get started.
-- If the founder already gave explicit permission to get started, acknowledge it briefly and stop there. Do not keep interviewing them.
+- After presenting that proposal, tell the founder to use the "Hire the Team" button when they want to move forward.
+- Do not ask the founder to type "yes", "go", or any other approval command.
+- Once the proposal is ready, stay in proposal mode until the UI button is used.
 
 What you need to understand before asking to start:
 - what the business is
@@ -125,13 +102,12 @@ function buildStatusPrompt(messages: IntakeMessage[]): string {
 
 Return ONLY valid JSON in this shape:
 {
-  "conversationStatus": "gathering" | "ready_to_activate" | "activate_now"
+  "conversationStatus": "gathering" | "ready_to_activate"
 }
 
 Classification rules:
 - "gathering": there is not yet enough business context to confidently brief the first version of the site.
-- "ready_to_activate": there is enough context to make a concrete proposal, but the founder has not explicitly approved starting the work yet.
-- "activate_now": there is enough context to start, and the founder has explicitly approved starting the work in context. This must be based on a clear approval such as "yes", "go ahead", "start", "build it", "let's do it", "hire you", or equivalent in context of approving the proposal. Do not use "activate_now" for a generic "yes" to some other question.
+- "ready_to_activate": there is enough context to make a concrete proposal and the interview is complete. Once the conversation has reached that point, keep returning "ready_to_activate".
 
 Use the full conversation, but weigh the latest founder message heavily.
 
@@ -180,9 +156,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     const raw = statusResponse.choices[0]?.message?.content || "{}";
-    const conversationStatus = hasExplicitApproval(messages)
-      ? "activate_now"
-      : extractConversationStatus(raw);
+    const conversationStatus = extractConversationStatus(raw);
 
     return NextResponse.json({
       text: response.choices[0]?.message?.content || "",

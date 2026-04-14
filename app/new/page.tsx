@@ -323,6 +323,11 @@ function NewCompanyPageContent() {
   const isNewSiteSelected = effectiveActivationMode === "new_site";
   const isDraftNewSiteFlow = isNewSiteSelected && !activationSession;
   const isNewSiteFlow = isNewSiteSelected;
+  const canHireTeam =
+    isDraftNewSiteFlow &&
+    newSiteConversationStatus === "ready_to_activate" &&
+    !chatSending &&
+    !startingNewSite;
   const buildInProgress =
     Boolean(activationSession?.mode === "new_site" && (bridgeStatus === "queued" || bridgeStatus === "running"));
   const showBackendProgress =
@@ -655,7 +660,7 @@ function NewCompanyPageContent() {
       const transcript = replyText
         ? appendUiMessage(nextMessages, { role: "ceo", text: replyText })
         : nextMessages;
-      if (replyText && data.conversationStatus !== "activate_now") {
+      if (replyText) {
         setChatMessages(transcript);
       }
       setNewSiteConversationStatus(data.conversationStatus || "gathering");
@@ -696,7 +701,6 @@ function NewCompanyPageContent() {
       }
 
       const data = (await response.json()) as NewSiteActivationResponse;
-      setNewSiteConversationStatus("activate_now");
       setError("");
       router.push(withMsid("/", data.activationSession.workspaceContextId));
     } catch (activationError) {
@@ -934,10 +938,7 @@ function NewCompanyPageContent() {
     setChatMessages(nextMessages);
 
     if (isDraftNewSiteFlow) {
-      const reply = await requestNewSiteIntakeReply(nextMessages, "user_message");
-      if (reply?.conversationStatus === "activate_now") {
-        await activateNewSiteConversation(reply.transcript || nextMessages);
-      }
+      await requestNewSiteIntakeReply(nextMessages, "user_message");
       return;
     }
 
@@ -1217,6 +1218,20 @@ function NewCompanyPageContent() {
                 {headerDescriptionText}
               </div>
             </div>
+            {isDraftNewSiteFlow && (
+              <div style={{ flexShrink: 0 }}>
+                <Button
+                  size="small"
+                  skin="premium"
+                  disabled={!canHireTeam}
+                  onClick={() => {
+                    void activateNewSiteConversation(chatMessagesRef.current);
+                  }}
+                >
+                  Hire the Team
+                </Button>
+              </div>
+            )}
             {activationSession && (
               <div style={{ flexShrink: 0 }}>
                 <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
