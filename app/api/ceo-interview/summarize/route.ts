@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { renderSiteLeadHiringBlueprint, SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
 
 const client = new OpenAI();
 
@@ -49,6 +50,9 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - Build and adapt the team — hire agents directly when needed, flag failures, and do not wait for approvals to staff the company
    - When hiring: give agents REAL FIRST NAMES ONLY (single name like "Sarah", "Miguel", "Yuki", "Emma") that fit the company's geographic location and culture for Name field, and job descriptions (like "Senior Marketing Manager") for Title field
    - When hiring, create the full agent definition, including a detailed promptTemplate tailored to the business and the role
+   - Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
+   - Every company should have a Site Lead once site work matters
+   - When hiring a Site Lead, use the standard Site Lead template below as the baseline and tailor it to the business
    - Think strategically — keep company goals in mind, identify risks and opportunities
 
 5. BUSINESS CONTEXT: Everything specific to this business — the Wix site URL, the customers, the products/services, the market, the founder's priorities and preferences. Include any Wix apps mentioned (Stores, Bookings, Blog, etc.). Be specific and detailed.
@@ -72,7 +76,10 @@ GOAL PROGRESS TRACKING:
 - Progress should reflect actual work done, not aspirations
 - Comment should be specific: what was done, what's next, what's blocking"
 
-The prompt should be 400-700 words. It must feel like it was written specifically for this company's AI Business Manager who lives and breathes the Wix ecosystem.`;
+The prompt should be 400-700 words. It must feel like it was written specifically for this company's AI Business Manager who lives and breathes the Wix ecosystem.
+
+STANDARD SITE LEAD TEMPLATE:
+${renderSiteLeadHiringBlueprint()}`;
 
 export async function POST(request: NextRequest) {
   try {

@@ -35,6 +35,7 @@ import { IconPicker } from "@/components/icon-picker";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { useMsidPath } from "@/lib/msid-client";
 import { buildCompanyDescription, mergeCompanyDescription } from "@/lib/company-metadata";
+import { renderSiteLeadHiringBlueprint, SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
 
 // --- Hardcoded Wix sites ---
 interface WixSite {
@@ -143,8 +144,11 @@ WHAT YOU DO ON EVERY CHECK-IN:
      * Clear role description (promptTemplate) that defines their responsibilities, how they work, and their personality — tailored to this specific company and its needs
      * The right seniority level (opus for strategic roles, sonnet for execution roles)
      * Appropriate check-in schedule based on workload
+     * Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
      * Who they report to in the org chart
      * Their specific capabilities relevant to the company's domain
+   - Every company should have a Site Lead once site work matters
+   - When hiring a Site Lead, use the standard Site Lead template below as the baseline and tailor it to the business
    - Do not create hire approvals or wait for permission to staff the company
 
 6. THINK STRATEGICALLY
@@ -170,7 +174,10 @@ RUN_SUMMARY: {"title": "<verb-first, max 10 words, name what you specifically wo
 
 Example: RUN_SUMMARY: {"title": "Assigned content tasks to Marketing and SEO agents", "description": "Reviewed 4 open tasks and delegated 3 to the right owners. One task was blocked and escalated to the board.", "goalProgress": [{"goalId": "goal-abc123", "progress": 45, "comment": "Marketing tasks in progress, SEO audit complete"}]}
 
-GOAL PROGRESS: After every run, assess each active company goal's progress (0-100%). Be realistic and specific about what's blocking or advancing each goal. Only include goals you're actively working on. Progress should reflect actual work done, not aspirations.`;
+GOAL PROGRESS: After every run, assess each active company goal's progress (0-100%). Be realistic and specific about what's blocking or advancing each goal. Only include goals you're actively working on. Progress should reflect actual work done, not aspirations.
+
+STANDARD SITE LEAD TEMPLATE:
+${renderSiteLeadHiringBlueprint()}`;
 
 // --- Step 1: Site Selection ---
 

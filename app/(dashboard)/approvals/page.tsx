@@ -31,6 +31,7 @@ import {
   type Agent,
   type Approval,
 } from "@/lib/api";
+import { SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
 
 const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
   pending: "warning",
@@ -264,7 +265,7 @@ function ApprovalsContent() {
           model: oldConfig.model || "claude-sonnet-4-6",
           heartbeatIntervalSec: oldConfig.heartbeatIntervalSec || 600,
           timeoutSec: oldConfig.timeoutSec || 600,
-          maxTurnsPerRun: oldConfig.maxTurnsPerRun || 50,
+          maxTurnsPerRun: oldConfig.maxTurnsPerRun || SPECIALIST_AGENT_MAX_TURNS,
           dangerouslySkipPermissions: true,
           ...(promptTemplate ? { promptTemplate } : {}),
         },
