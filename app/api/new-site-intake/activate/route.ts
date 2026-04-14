@@ -49,6 +49,40 @@ interface IntakeSummary {
   kickoffTasks: KickoffTask[];
 }
 
+function normalizeJsonText(raw: string): string {
+  return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+}
+
+function extractJsonObject(raw: string): string {
+  const normalized = normalizeJsonText(raw);
+  const start = normalized.indexOf("{");
+  const end = normalized.lastIndexOf("}");
+
+  if (start === -1 || end === -1 || end <= start) {
+    return normalized;
+  }
+
+  return normalized.slice(start, end + 1);
+}
+
+function tryParseJson<T>(raw: string): T | null {
+  const candidates = [normalizeJsonText(raw), extractJsonObject(raw)];
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    try {
+      return JSON.parse(candidate) as T;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  return null;
+}
+
 function buildTranscript(messages: IntakeMessage[]): string {
   return messages
     .map((message) => `${message.role === "user" ? "Founder" : "AI Team Lead"}: ${message.text}`)
@@ -126,8 +160,68 @@ function toStarterTeam(value: unknown): StarterAgentPlan[] {
     .slice(0, 4);
 }
 
+async function parseJsonWithRepair<T>(raw: string, schemaDescription: string): Promise<T> {
+  const direct = tryParseJson<T>(raw);
+  if (direct) {
+    return direct;
+  }
+
+  const repairResponse = await client.chat.completions.create({
+    model: "gpt-5.4",
+    max_completion_tokens: 1600,
+    messages: [
+      {
+        role: "system",
+        content: `You repair malformed JSON.
+
+Return only valid JSON.
+Preserve the original meaning and values as much as possible.
+Do not add commentary or markdown fences.
+Do not omit required keys.
+
+Schema:
+${schemaDescription}`,
+      },
+      {
+        role: "user",
+        content: raw,
+      },
+    ],
+  });
+
+  const repaired = repairResponse.choices[0]?.message?.content || "";
+  const parsed = tryParseJson<T>(repaired);
+
+  if (!parsed) {
+    throw new Error("Failed to parse activation summary JSON");
+  }
+
+  return parsed;
+}
+
 async function summarizeTranscript(messages: IntakeMessage[]): Promise<IntakeSummary> {
   const transcript = buildTranscript(messages);
+  const schemaDescription = `{
+  "companyName": "string",
+  "businessDescription": "string",
+  "siteProposal": "string",
+  "teamHiringPlan": "string",
+  "managementPlan": "string",
+  "starterTeam": [
+    {
+      "role": "string",
+      "goal": "string",
+      "expectedResult": "string"
+    }
+  ],
+  "siteSpecifics": "string",
+  "firstBuildBrief": "string",
+  "goals": ["string"],
+  "expectedResults": ["string"],
+  "kickoffTasks": [
+    { "title": "string", "description": "string" }
+  ]
+}`;
   const response = await client.chat.completions.create({
     model: "gpt-5.4",
     max_completion_tokens: 1200,
@@ -181,8 +275,7 @@ Rules:
   });
 
   const raw = response.choices[0]?.message?.content || "{}";
-  const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  const parsed = JSON.parse(cleaned) as Partial<IntakeSummary>;
+  const parsed = await parseJsonWithRepair<Partial<IntakeSummary>>(raw, schemaDescription);
 
   const companyName = parsed.companyName?.trim() || "New Business";
   const businessDescription =

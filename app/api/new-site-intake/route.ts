@@ -24,6 +24,46 @@ interface IntakeRequest {
 
 type ConversationStatus = "gathering" | "ready_to_activate" | "activate_now";
 
+function normalizeJsonText(raw: string): string {
+  return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+}
+
+function extractConversationStatus(raw: string): ConversationStatus {
+  const normalized = normalizeJsonText(raw);
+  const match = normalized.match(
+    /"conversationStatus"\s*:\s*"(gathering|ready_to_activate|activate_now)"/,
+  );
+
+  if (!match) {
+    return "gathering";
+  }
+
+  return match[1] as ConversationStatus;
+}
+
+function hasExplicitApproval(messages: IntakeMessage[]): boolean {
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.text.trim().toLowerCase();
+  if (!latestUserMessage) {
+    return false;
+  }
+
+  return [
+    "go",
+    "go ahead",
+    "go for it",
+    "start",
+    "yes",
+    "yes, go",
+    "yes go",
+    "do it",
+    "let's do it",
+    "lets do it",
+    "make it happen",
+    "hire you",
+    "move forward",
+  ].includes(latestUserMessage);
+}
+
 function buildIntakeSystemPrompt(trigger: IntakeTrigger): string {
   const openingInstruction =
     trigger === "initial_open"
@@ -140,12 +180,9 @@ export async function POST(request: NextRequest) {
     ]);
 
     const raw = statusResponse.choices[0]?.message?.content || "{}";
-    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(cleaned) as { conversationStatus?: ConversationStatus };
-    const conversationStatus =
-      parsed.conversationStatus === "ready_to_activate" || parsed.conversationStatus === "activate_now"
-        ? parsed.conversationStatus
-        : "gathering";
+    const conversationStatus = hasExplicitApproval(messages)
+      ? "activate_now"
+      : extractConversationStatus(raw);
 
     return NextResponse.json({
       text: response.choices[0]?.message?.content || "",
