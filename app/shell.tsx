@@ -19,10 +19,12 @@ import {
   ChevronDown,
   Settings,
   Feed,
+  ExternalLink,
 } from "@wix/wix-ui-icons-common";
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
 import { CreateCompanyWizard } from "./create-company-wizard";
+import { getCompanyWixBinding } from "@/lib/company-metadata";
 
 type CountKey = keyof BadgeCounts;
 
@@ -102,6 +104,34 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const currentCompany = companies.find((c) => c.id === companyId);
   const hasActiveCompany = Boolean(currentCompany);
+  const wixBinding = currentCompany ? getCompanyWixBinding(currentCompany.description) : undefined;
+  const liveSiteUrl = wixBinding?.siteUrl || "";
+  const metaSiteId = wixBinding?.metaSiteId || "";
+  const businessManagerUrl = metaSiteId ? `https://manage.wix.com/dashboard/${metaSiteId}` : "";
+  const editorUrl = metaSiteId ? `https://www.wix.com/editor/${metaSiteId}` : "";
+
+  const externalNavLink = (label: string, href: string) => (
+    <a
+      key={label}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 9,
+        padding: "9px 12px",
+        borderRadius: 6,
+        color: "#b0b0b0",
+        textDecoration: "none",
+      }}
+    >
+      <ExternalLink color="#b0b0b0" size="16px" />
+      <Text size="small" light>
+        {label}
+      </Text>
+    </a>
+  );
 
   useEffect(() => {
     const syncIsMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -261,6 +291,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {NAV_ITEMS.map(navButton)}
         </div>
         <div style={{ flexGrow: 1 }} />
+        {(liveSiteUrl || metaSiteId) && (
+          <div style={{ padding: "0 12px 8px" }}>
+            <Divider skin="light" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 10 }}>
+              {liveSiteUrl && externalNavLink("Live Site", liveSiteUrl)}
+              {metaSiteId && externalNavLink("Business Manager", businessManagerUrl)}
+              {metaSiteId && externalNavLink("Editor", editorUrl)}
+            </div>
+          </div>
+        )}
 
         {hasActiveCompany && isMobile && (
           <div style={{ padding: "8px 12px" }}>
