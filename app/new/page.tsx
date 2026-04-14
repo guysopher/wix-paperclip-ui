@@ -944,16 +944,21 @@ function NewCompanyPageContent() {
       return;
     }
 
-    if (activationSession?.mode === "existing_site") {
+    const liveActivationSession = activationSession;
+    if (!liveActivationSession) {
+      return;
+    }
+
+    if (liveActivationSession.mode === "existing_site") {
       setBackendBusy(true);
     }
 
     try {
-      await postComment(activationSession!.inboxIssueId, userText);
-      await getComments(activationSession.inboxIssueId).catch(() => [] as Comment[]);
+      await postComment(liveActivationSession.inboxIssueId, userText);
+      await getComments(liveActivationSession.inboxIssueId).catch(() => [] as Comment[]);
 
       try {
-        await invokeHeartbeat(activationSession!.ceoAgent.id);
+        await invokeHeartbeat(liveActivationSession.ceoAgent.id);
       } catch {
         // Non-critical.
       }
