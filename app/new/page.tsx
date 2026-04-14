@@ -326,40 +326,40 @@ function NewCompanyPageContent() {
   const buildInProgress =
     Boolean(activationSession?.mode === "new_site" && (bridgeStatus === "queued" || bridgeStatus === "running"));
   const showBackendProgress =
-    activationSession?.mode === "existing_site" ? backendBusy : buildInProgress;
+    activationSession?.mode === "existing_site" ? backendBusy : false;
   const showRunSpinner = chatSending || showBackendProgress || startingNewSite;
   const headerStatusText = chatSending
     ? "Thinking..."
     : startingNewSite
-      ? "Starting the first site build"
+      ? "Hiring your AI Team"
       : isDraftNewSiteFlow
         ? newSiteConversationStatus === "ready_to_activate"
-          ? "Ready to start the first build"
-          : "Collecting business details"
+          ? "Proposal ready for approval"
+          : "Understanding the business"
         : isNewSiteFlow
           ? bridgeStatus === "queued" || bridgeStatus === "running"
-            ? "Building the first site version"
+            ? "Team kickoff in progress"
             : interviewStage === "building" || interviewStage === "complete"
-              ? "Planning the next moves"
-              : "Collecting business details"
+              ? "Kickoff approved"
+              : "Kickoff approved"
           : backendBusy
-            ? "Reviewing the business and preparing next steps"
+            ? "Researching the business and shaping a plan"
             : "Ready to help";
   const headerDescriptionText = startingNewSite
-    ? "Your AI Team Lead is turning the full conversation into a site brief, creating the workspace, and kicking off the first build."
+    ? "Your AI Team Lead is turning the approved proposal into a real workspace, creating the first goals and tasks, and kicking off the team."
     : isDraftNewSiteFlow
       ? newSiteConversationStatus === "ready_to_activate"
-        ? "Your AI Team Lead has enough context to brief the first version and is waiting for your go-ahead."
-        : "Your AI Team Lead is learning about the business through the conversation so the first version starts from a strong brief."
+        ? "Your AI Team Lead has enough context to make a concrete proposal and is waiting for your approval before doing any work."
+        : "Your AI Team Lead is interviewing you like a studio lead would, so the proposal is grounded in the actual business."
       : isNewSiteFlow
         ? bridgeStatus === "queued" || bridgeStatus === "running"
-          ? "Your AI Team Lead is building the first site version and lining up practical next steps for the business."
+          ? "Your AI Team Lead has kicked off the first approved work and is coordinating the team around it."
           : interviewStage === "building" || interviewStage === "complete"
-            ? "Your AI Team Lead is turning the business brief into a first site version and mapping the smartest next actions."
-            : "Your AI Team Lead is gathering the business basics so the first site version starts from a clean brief."
-        : "Your AI Team Lead is already reviewing the business and lining up practical recommendations.";
+            ? "Your AI Team Lead has the approved brief and is turning it into execution across the site, team, and business."
+            : "Your AI Team Lead has the approved brief and is ready to move into execution."
+        : "Your AI Team Lead is researching the business during the interview so the recommendation is specific before any work begins.";
   const spinnerLabel = startingNewSite
-    ? "Starting the first site version..."
+    ? "Setting up your AI Team..."
     : chatSending
       ? "Thinking..."
       : isNewSiteFlow
@@ -655,7 +655,7 @@ function NewCompanyPageContent() {
       const transcript = replyText
         ? appendUiMessage(nextMessages, { role: "ceo", text: replyText })
         : nextMessages;
-      if (replyText) {
+      if (replyText && data.conversationStatus !== "activate_now") {
         setChatMessages(transcript);
       }
       setNewSiteConversationStatus(data.conversationStatus || "gathering");
@@ -696,22 +696,19 @@ function NewCompanyPageContent() {
       }
 
       const data = (await response.json()) as NewSiteActivationResponse;
-      setActivationSession(data.activationSession);
-      setBridgeJob(data.bridgeJob);
-      setBackendBusy(Boolean(data.bridgeJob && ["queued", "running"].includes(data.bridgeJob.status)));
-      backendSignatureRef.current = data.backendSignature || "";
       setNewSiteConversationStatus("activate_now");
       setError("");
+      router.push(withMsid("/", data.activationSession.workspaceContextId));
     } catch (activationError) {
       setError(
         activationError instanceof Error
           ? activationError.message
-          : "Failed to start the first site build.",
+          : "Failed to start your AI Team.",
       );
     } finally {
       setStartingNewSite(false);
     }
-  }, []);
+  }, [router]);
 
   const updateActivationState = useCallback(async (args: {
     name?: string;
@@ -1017,7 +1014,7 @@ function NewCompanyPageContent() {
       <MetasiteIdEntry
         redirectPath="/new"
         description="Open an existing Wix business by pasting its metasite ID or manage URL."
-        createNewSiteDescription="Start from scratch. The AI Team Lead will talk through the business with you first, then start the first build only when you say to."
+        createNewSiteDescription="Start from scratch. The AI Team Lead will interview you first, make a proposal, and only start work once you approve it."
         onCreateNewSite={() => setActivationModeSelection("new_site")}
         title="Open or create your Wix site"
       />
@@ -1401,7 +1398,7 @@ function NewCompanyPageContent() {
           <div style={{ paddingTop: 10, textAlign: "center" }}>
             <Text size="small" style={{ color: "#698094" }}>
               {isDraftNewSiteFlow
-                ? "This stays a draft conversation until you explicitly tell the AI Team Lead to start the first build."
+                ? "This stays an interview and proposal conversation until you explicitly approve the AI Team Lead getting started."
                 : "This activation chat is live. Refreshing the page starts a fresh draft session."}
             </Text>
           </div>

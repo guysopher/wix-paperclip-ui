@@ -24,11 +24,21 @@ interface ActivateRequest {
   messages?: IntakeMessage[];
 }
 
+interface KickoffTask {
+  title: string;
+  description: string;
+}
+
 interface IntakeSummary {
   companyName: string;
   businessDescription: string;
+  siteProposal: string;
+  teamHiringPlan: string;
+  managementPlan: string;
   siteSpecifics: string;
   firstBuildBrief: string;
+  goals: string[];
+  kickoffTasks: KickoffTask[];
 }
 
 function buildTranscript(messages: IntakeMessage[]): string {
@@ -37,29 +47,80 @@ function buildTranscript(messages: IntakeMessage[]): string {
     .join("\n");
 }
 
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function toKickoffTasks(value: unknown): KickoffTask[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const title = typeof (entry as { title?: unknown }).title === "string"
+        ? (entry as { title: string }).title.trim()
+        : "";
+      const description = typeof (entry as { description?: unknown }).description === "string"
+        ? (entry as { description: string }).description.trim()
+        : "";
+
+      if (!title || !description) {
+        return null;
+      }
+
+      return { title, description };
+    })
+    .filter((task): task is KickoffTask => Boolean(task))
+    .slice(0, 4);
+}
+
 async function summarizeTranscript(messages: IntakeMessage[]): Promise<IntakeSummary> {
   const transcript = buildTranscript(messages);
   const response = await client.chat.completions.create({
     model: "gpt-5.4",
-    max_completion_tokens: 700,
+    max_completion_tokens: 1200,
     messages: [
       {
         role: "system",
-        content: `You are preparing a final activation brief for a new Wix site creation flow.
+        content: `You are preparing the approved kickoff plan for a founder who has decided to hire the Wix AI Team Lead.
 
 Use the full transcript as the source of truth and return ONLY valid JSON in this shape:
 {
   "companyName": "string",
   "businessDescription": "1-3 sentence summary of the business, what it sells, and who it serves",
+  "siteProposal": "what the first site version should be and why",
+  "teamHiringPlan": "which starter team should be hired first and how they would help",
+  "managementPlan": "how the AI Team Lead should begin managing and growing the business after kickoff",
   "siteSpecifics": "all notable requests for the site, tone, pages, features, priorities, and constraints",
-  "firstBuildBrief": "a concise but rich brief for building the first version of the site"
+  "firstBuildBrief": "a concise but rich brief for building the first version of the site",
+  "goals": ["goal 1", "goal 2"],
+  "kickoffTasks": [
+    { "title": "string", "description": "string" }
+  ]
 }
 
 Rules:
 - Capture the founder's actual business and audience, not generic placeholders.
 - Fold in everything meaningful the founder shared during the conversation.
-- If the founder gave multiple details in one answer, preserve them.
-- If a specific field is not explicit, make a careful best-effort summary from the transcript.
+- The proposal is now approved, so write a concrete execution plan, not another interview summary.
+- Goals should be practical and outcome-focused. Return 1 to 3.
+- Kickoff tasks should be the first concrete tasks the AI Team Lead should take on immediately after approval. Return 2 to 4 tasks.
+- At least one task should cover launching the first site version.
+- At least one task should cover building the starter team.
+- At least one task should cover beginning business management / growth work.
 - Do not include markdown fences or extra commentary.`,
       },
       {
@@ -73,27 +134,79 @@ Rules:
   const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   const parsed = JSON.parse(cleaned) as Partial<IntakeSummary>;
 
+  const companyName = parsed.companyName?.trim() || "New Business";
+  const businessDescription =
+    parsed.businessDescription?.trim() ||
+    "A new business site being created from a founder interview.";
+  const siteProposal =
+    parsed.siteProposal?.trim() ||
+    "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
+  const teamHiringPlan =
+    parsed.teamHiringPlan?.trim() ||
+    "Start with a small specialist team around site execution, brand/content, and growth operations. The AI Team Lead should decide which role to hire first based on what most accelerates launch and early traction.";
+  const managementPlan =
+    parsed.managementPlan?.trim() ||
+    "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
+  const siteSpecifics =
+    parsed.siteSpecifics?.trim() ||
+    "No additional site-specific requirements were captured.";
+  const firstBuildBrief =
+    parsed.firstBuildBrief?.trim() ||
+    `${siteProposal}\n\nRequirements and priorities:\n${siteSpecifics}`;
+  const goals = toStringArray(parsed.goals);
+  const kickoffTasks = toKickoffTasks(parsed.kickoffTasks);
+
   return {
-    companyName: parsed.companyName?.trim() || "New Business",
-    businessDescription: parsed.businessDescription?.trim() || "A new business site being created from a founder interview.",
-    siteSpecifics: parsed.siteSpecifics?.trim() || "No additional site-specific requirements were captured.",
-    firstBuildBrief: parsed.firstBuildBrief?.trim() || parsed.businessDescription?.trim() || "Build a credible first version of the site based on the founder conversation.",
+    companyName,
+    businessDescription,
+    siteProposal,
+    teamHiringPlan,
+    managementPlan,
+    siteSpecifics,
+    firstBuildBrief,
+    goals: goals.length > 0
+      ? goals
+      : [
+          `Launch the first strong version of ${companyName}`,
+          `Put the right starter team in place for ${companyName}`,
+          `Start managing growth and operations for ${companyName}`,
+        ],
+    kickoffTasks: kickoffTasks.length > 0
+      ? kickoffTasks
+      : [
+          {
+            title: `Launch the first site version for ${companyName}`,
+            description: `Create and ship the first version of the site.\n\nSite proposal:\n${siteProposal}\n\nExecution brief:\n${firstBuildBrief}`,
+          },
+          {
+            title: `Build the starter team for ${companyName}`,
+            description: `Decide which specialist roles to hire first, in what order, and why.\n\nHiring plan:\n${teamHiringPlan}`,
+          },
+          {
+            title: `Start managing ${companyName}`,
+            description: `Turn the approved proposal into an operating plan for the business.\n\nManagement plan:\n${managementPlan}`,
+          },
+        ],
   };
 }
 
-function buildIssueDescription(summary: IntakeSummary, messages: IntakeMessage[]): string {
+function buildBoardIssueDescription(summary: IntakeSummary, messages: IntakeMessage[]): string {
   const transcript = buildTranscript(messages);
 
   return [
-    `Create a brand new Wix site for ${summary.companyName}.`,
+    `The founder approved the AI Team Lead proposal for ${summary.companyName}.`,
     "",
-    "This site was activated from a standalone founder interview.",
-    "",
-    "Transcript-derived business summary:",
+    "Approved business summary:",
     summary.businessDescription,
     "",
-    "Transcript-derived site requirements:",
-    summary.siteSpecifics,
+    "Approved site proposal:",
+    summary.siteProposal,
+    "",
+    "Approved team hiring plan:",
+    summary.teamHiringPlan,
+    "",
+    "Approved management plan:",
+    summary.managementPlan,
     "",
     "First-build brief:",
     summary.firstBuildBrief,
@@ -109,6 +222,9 @@ function buildPicassoPrompt(summary: IntakeSummary): string {
     "",
     `Business overview: ${summary.businessDescription}`,
     "",
+    "Approved site direction:",
+    summary.siteProposal,
+    "",
     "Founder requirements and priorities:",
     summary.siteSpecifics,
     "",
@@ -117,6 +233,35 @@ function buildPicassoPrompt(summary: IntakeSummary): string {
     "",
     "Build a polished first version that feels credible, usable, and commercially sharp.",
   ].join("\n");
+}
+
+function buildSiteExecutionTask(summary: IntakeSummary, bridgeJobId?: string, bridgeError?: string): KickoffTask {
+  const lines = [
+    `Turn the approved site proposal into the first real version of the business site for ${summary.companyName}.`,
+    "",
+    "Approved site proposal:",
+    summary.siteProposal,
+    "",
+    "Execution brief:",
+    summary.firstBuildBrief,
+  ];
+
+  if (bridgeJobId) {
+    lines.push("");
+    lines.push(`A Picasso site-build job has already been queued: ${bridgeJobId}`);
+    lines.push("Coordinate the rest of the launch work around that build and keep momentum moving.");
+  }
+
+  if (bridgeError) {
+    lines.push("");
+    lines.push(`The first automatic site-build attempt failed to start: ${bridgeError}`);
+    lines.push("Treat this as a launch blocker to resolve quickly while keeping the rest of the kickoff moving.");
+  }
+
+  return {
+    title: `Launch the first site version for ${summary.companyName}`,
+    description: lines.join("\n"),
+  };
 }
 
 async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
@@ -180,6 +325,8 @@ export async function POST(request: NextRequest) {
     }
 
     const summary = await summarizeTranscript(messages);
+    const approvedAt = new Date().toISOString();
+
     const company = await paperclip<{
       id: string;
       name: string;
@@ -196,8 +343,8 @@ export async function POST(request: NextRequest) {
               mode: "new_site",
               newSiteInterview: {
                 stage: "building",
-                startedAt: new Date().toISOString(),
-                completedAt: new Date().toISOString(),
+                startedAt: approvedAt,
+                completedAt: approvedAt,
               },
             },
           },
@@ -242,14 +389,14 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    const issue = await paperclip<{
+    const boardIssue = await paperclip<{
       id: string;
       title: string;
     }>(`/companies/${company.id}/issues`, {
       method: "POST",
       body: JSON.stringify({
-        title: `Create new Wix site for ${summary.companyName}`,
-        description: buildIssueDescription(summary, messages),
+        title: `Approved kickoff for ${summary.companyName}`,
+        description: buildBoardIssueDescription(summary, messages),
         priority: "high",
         assigneeAgentId: ceoAgent.id,
       }),
@@ -257,7 +404,7 @@ export async function POST(request: NextRequest) {
 
     let latestAgentCommentId = "";
     for (const message of messages) {
-      const comment = await paperclip<{ id: string }>(`/issues/${issue.id}/comments`, {
+      const comment = await paperclip<{ id: string }>(`/issues/${boardIssue.id}/comments`, {
         method: "POST",
         body: JSON.stringify({
           body: message.text,
@@ -269,12 +416,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await paperclip(`/issues/${issue.id}/comments`, {
+    await paperclip(`/issues/${boardIssue.id}/comments`, {
       method: "POST",
       body: JSON.stringify({
-        body: `[System context - not visible to user]\nThis company was created from a completed founder interview. Use the issue description and transcript comments as the source of truth for the founder brief.`,
+        body: [
+          "[System context - not visible to user]",
+          `The founder has approved the AI Team Lead proposal for ${summary.companyName}.`,
+          "The interview is over. Work has officially started.",
+          "Use the approved board issue, transcript comments, goals, kickoff tasks, and any site-build status as the source of truth for execution.",
+        ].join("\n"),
       }),
     });
+
+    await Promise.all(
+      summary.goals.slice(0, 3).map((goal) =>
+        paperclip(`/companies/${company.id}/goals`, {
+          method: "POST",
+          body: JSON.stringify({
+            title: goal,
+            description: `Approved during the founder interview kickoff for ${summary.companyName}.`,
+            level: "company",
+            status: "active",
+          }),
+        }).catch(() => undefined),
+      ),
+    );
 
     const requestedAt = new Date().toISOString();
     let bridgeJob: {
@@ -289,32 +455,10 @@ export async function POST(request: NextRequest) {
       createdAt: string;
       updatedAt: string;
     } | null = null;
-
-    let nextDescription = buildCompanyDescription({
-      version: 1,
-      businessDescription: summary.businessDescription,
-      wixBinding: {
-        activationIssueId: issue.id,
-      },
-      extra: {
-        activation: {
-          mode: "new_site",
-          newSiteInterview: {
-            stage: "building",
-            startedAt: requestedAt,
-            completedAt: requestedAt,
-          },
-          picassoBridge: {
-            status: "failed",
-            requestedAt,
-            updatedAt: requestedAt,
-          },
-        },
-      },
-    });
+    let bridgeError: string | undefined;
 
     try {
-      const bridgeResponse = await startPicassoBridge(summary, company.id, issue.id);
+      const bridgeResponse = await startPicassoBridge(summary, company.id, boardIssue.id);
       bridgeJob = {
         id: bridgeResponse.jobId,
         mode: "create_site",
@@ -322,60 +466,71 @@ export async function POST(request: NextRequest) {
         prompt: buildPicassoPrompt(summary),
         designer: "none",
         companyId: company.id,
-        issueId: issue.id,
+        issueId: boardIssue.id,
         requestedBy: "paperclip-ui",
         createdAt: requestedAt,
         updatedAt: requestedAt,
       };
-
-      nextDescription = buildCompanyDescription({
-        version: 1,
-        businessDescription: summary.businessDescription,
-        wixBinding: {
-          activationIssueId: issue.id,
-        },
-        extra: {
-          activation: {
-            mode: "new_site",
-            newSiteInterview: {
-              stage: "building",
-              startedAt: requestedAt,
-              completedAt: requestedAt,
-            },
-            picassoBridge: {
-              jobId: bridgeResponse.jobId,
-              status: bridgeResponse.status,
-              requestedAt,
-              updatedAt: requestedAt,
-            },
-          },
-        },
-      });
     } catch (error) {
-      nextDescription = buildCompanyDescription({
-        version: 1,
-        businessDescription: summary.businessDescription,
-        wixBinding: {
-          activationIssueId: issue.id,
-        },
-        extra: {
-          activation: {
-            mode: "new_site",
-            newSiteInterview: {
-              stage: "building",
-              startedAt: requestedAt,
-              completedAt: requestedAt,
-            },
-            picassoBridge: {
-              status: "failed",
-              requestedAt,
-              updatedAt: requestedAt,
-              error: error instanceof Error ? error.message : "Failed to start Picasso bridge job",
-            },
-          },
-        },
-      });
+      bridgeError = error instanceof Error ? error.message : "Failed to start Picasso bridge job";
     }
+
+    const kickoffTasks = [...summary.kickoffTasks];
+    const siteTaskIndex = kickoffTasks.findIndex((task) =>
+      /site|launch|build/i.test(task.title) || /site|launch|build/i.test(task.description),
+    );
+    const siteExecutionTask = buildSiteExecutionTask(summary, bridgeJob?.id, bridgeError);
+
+    if (siteTaskIndex >= 0) {
+      kickoffTasks[siteTaskIndex] = siteExecutionTask;
+    } else {
+      kickoffTasks.unshift(siteExecutionTask);
+    }
+
+    await Promise.all(
+      kickoffTasks.slice(0, 4).map((task) =>
+        paperclip(`/companies/${company.id}/issues`, {
+          method: "POST",
+          body: JSON.stringify({
+            title: task.title,
+            description: task.description,
+            priority: "high",
+            assigneeAgentId: ceoAgent.id,
+          }),
+        }),
+      ),
+    );
+
+    const nextDescription = buildCompanyDescription({
+      version: 1,
+      businessDescription: summary.businessDescription,
+      wixBinding: {
+        activationIssueId: boardIssue.id,
+      },
+      extra: {
+        activation: {
+          mode: "new_site",
+          newSiteInterview: {
+            stage: "building",
+            startedAt: approvedAt,
+            completedAt: approvedAt,
+          },
+          picassoBridge: bridgeJob
+            ? {
+                jobId: bridgeJob.id,
+                status: bridgeJob.status,
+                requestedAt,
+                updatedAt: requestedAt,
+              }
+            : {
+                status: "failed",
+                requestedAt,
+                updatedAt: requestedAt,
+                error: bridgeError || "Failed to start Picasso bridge job",
+              },
+        },
+      },
+    });
 
     const updatedCompany = await paperclip<{
       id: string;
@@ -389,6 +544,11 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    await paperclip(`/agents/${ceoAgent.id}/heartbeat/invoke`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }).catch(() => undefined);
+
     const backendSignature = [
       latestAgentCommentId || "no-agent-comment",
       "no-run",
@@ -399,14 +559,14 @@ export async function POST(request: NextRequest) {
       "no-bridge-site-id",
       "no-bridge-dev-url",
       "no-bridge-site-url",
-      "no-bridge-error",
+      bridgeError || "no-bridge-error",
     ].join(":");
 
     return NextResponse.json({
       activationSession: {
         companyId: updatedCompany.id,
         ceoAgent,
-        inboxIssueId: issue.id,
+        inboxIssueId: boardIssue.id,
         mode: "new_site",
         companyName: updatedCompany.name,
         companyDescription: updatedCompany.description,
