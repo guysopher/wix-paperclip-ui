@@ -1219,7 +1219,15 @@ function NewCompanyPageContent() {
               </div>
             </div>
             {isDraftNewSiteFlow && (
-              <div style={{ flexShrink: 0 }}>
+              <div
+                style={{
+                  flexShrink: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                  gap: 6,
+                }}
+              >
                 <Button
                   size="small"
                   skin="premium"
@@ -1230,6 +1238,19 @@ function NewCompanyPageContent() {
                 >
                   Hire the Team
                 </Button>
+                {!canHireTeam && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#7b8c9d",
+                      maxWidth: 180,
+                      textAlign: "right",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    The AI Team Lead needs to finish the interview and present the full plan first.
+                  </div>
+                )}
               </div>
             )}
             {activationSession && (
