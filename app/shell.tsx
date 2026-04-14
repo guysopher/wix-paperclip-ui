@@ -15,7 +15,6 @@ import {
   Chat,
   Inbox,
   Refresh,
-  Confirm,
   Globe,
   ChevronDown,
   Settings,
@@ -33,7 +32,6 @@ const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; cou
   { key: "/inbox", label: "Inbox", Icon: Inbox, countKey: "inbox" },
   { key: "/tasks", label: "Tasks", Icon: Checklist, countKey: "tasks" },
   { key: "/runs", label: "Runs", Icon: Refresh, countKey: "runs" },
-  { key: "/approvals", label: "Approvals", Icon: Confirm, countKey: "approvals" },
   { key: "/team", label: "Team", Icon: Users, countKey: "team" },
   { key: "/company", label: "Business", Icon: Globe },
   { key: "/settings", label: "Settings", Icon: Settings },
@@ -84,7 +82,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             minWidth: 20,
             height: 20,
             borderRadius: 10,
-            backgroundColor: (item.countKey === "inbox" || item.countKey === "approvals") ? "#ee5951" : "rgba(255,255,255,0.2)",
+            backgroundColor: item.countKey === "inbox" ? "#ee5951" : "rgba(255,255,255,0.2)",
             color: "white",
             fontSize: 11,
             fontWeight: 700,
@@ -100,7 +98,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const totalBadge = (counts.inbox || 0) + (counts.approvals || 0);
+  const totalBadge = counts.inbox || 0;
 
   const currentCompany = companies.find((c) => c.id === companyId);
   const hasActiveCompany = Boolean(currentCompany);

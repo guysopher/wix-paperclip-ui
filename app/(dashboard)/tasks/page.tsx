@@ -119,9 +119,34 @@ function TasksContent() {
     return null;
   }
 
-  const agentName = (id: string | null) => {
-    if (!id) return "Unassigned";
-    return agents.find((a) => a.id === id)?.name || "Unknown";
+  const assigneeLabel = (issue: Issue) => {
+    const agentId = issue.assigneeAgentId || issue.assigneeId;
+    if (agentId) {
+      return {
+        kind: "agent" as const,
+        id: agentId,
+        label: agents.find((a) => a.id === agentId)?.name || "Unknown",
+      };
+    }
+
+    if (issue.assigneeUserId === "local-board") {
+      return {
+        kind: "board" as const,
+        label: "Board",
+      };
+    }
+
+    if (issue.assigneeUserId) {
+      return {
+        kind: "user" as const,
+        label: "User",
+      };
+    }
+
+    return {
+      kind: "none" as const,
+      label: "Unassigned",
+    };
   };
 
   const filteredIssues = issues
@@ -186,11 +211,10 @@ function TasksContent() {
     {
       title: "Assignee",
       render: (row: Issue) => {
-        const id = row.assigneeAgentId || row.assigneeId;
-        const name = agentName(id);
+        const assignee = assigneeLabel(row);
 
         // Debug: log unassigned tasks to console
-        if (!id && process.env.NODE_ENV === 'development') {
+        if (assignee.kind === "none" && process.env.NODE_ENV === 'development') {
           console.log(`Unassigned task ${row.identifier}:`, {
             assigneeAgentId: row.assigneeAgentId,
             assigneeId: row.assigneeId,
@@ -199,7 +223,19 @@ function TasksContent() {
           });
         }
 
-        return id ? <a href={companyPath(`/team/${id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>{name}</a> : <Text size="small" secondary>Unassigned</Text>;
+        if (assignee.kind === "agent" && assignee.id) {
+          return (
+            <a href={companyPath(`/team/${assignee.id}`)} style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}>
+              {assignee.label}
+            </a>
+          );
+        }
+
+        if (assignee.kind === "board" || assignee.kind === "user") {
+          return <Text size="small">{assignee.label}</Text>;
+        }
+
+        return <Text size="small" secondary>{assignee.label}</Text>;
       },
       width: "20%",
     },

@@ -8,7 +8,6 @@ import {
   getIssuesAssignedToMe,
   getIssues,
   getRuns,
-  getApprovals,
   getAgents,
   type Company,
 } from "@/lib/api";
@@ -20,12 +19,11 @@ export interface BadgeCounts {
   inbox: number;      // unread needs-reply
   runs: number;       // currently running
   tasks: number;      // in-progress
-  approvals: number;  // pending approvals
   chat: number;       // unread chat messages
   team: number;       // number of agents
 }
 
-const BadgeCountsContext = createContext<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
+const BadgeCountsContext = createContext<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
 
 export const useBadgeCounts = () => useContext(BadgeCountsContext);
 
@@ -66,7 +64,7 @@ export const useCompany = () => useContext(CompanyContext);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const msid = useMsid();
-  const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
+  const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [companyLookupStatus, setCompanyLookupStatus] = useState<CompanyLookupStatus>("loading");
@@ -80,7 +78,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (!normalizedMsid) {
       setCompanies([]);
       setSelectedCompanyId("");
-      setCounts({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
+      setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
       setCompanyLookupStatus("missing-msid");
       return;
     }
@@ -100,7 +98,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } catch {
       setCompanies([]);
       setSelectedCompanyId("");
-      setCounts({ inbox: 0, runs: 0, tasks: 0, approvals: 0, chat: 0, team: 0 });
+      setCounts({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
       setCompanyLookupStatus("company-missing");
     }
   }, [msid]);
@@ -118,12 +116,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     try {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
       const companyId = selectedCompanyId;
-      const [myIssues, assignedToMe, allIssues, runs, approvalList, agentList] = await Promise.all([
+      const [myIssues, assignedToMe, allIssues, runs, agentList] = await Promise.all([
         getMyIssues(companyId),
         getIssuesAssignedToMe(companyId),
         getIssues(companyId),
         getRuns(companyId),
-        getApprovals(companyId).catch(() => []),
         getAgents(companyId).catch(() => []),
       ]);
       // Inbox count: assigned to me + unread + blocked (deduplicated, skip Board Inbox)
@@ -140,9 +137,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const inboxCount = inboxIds.size;
       const runningCount = runs.filter((r) => r.status === "running").length;
       const inProgressCount = allIssues.filter((i) => i.status === "in_progress").length;
-      const pendingApprovals = approvalList.filter((a) => a.status === "pending").length;
       const teamSize = agentList.length;
-      setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, approvals: pendingApprovals, chat: 0, team: teamSize });
+      setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, chat: 0, team: teamSize });
     } catch { /* silent */ }
   }, [companyLookupStatus, selectedCompanyId]);
 
