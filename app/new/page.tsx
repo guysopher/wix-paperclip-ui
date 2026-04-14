@@ -611,8 +611,9 @@ function NewCompanyPageContent() {
         throw new Error(payload.error || "Activation chat failed");
       }
       const data = (await response.json()) as ActivationChatResponse;
-      if (data.text) {
-        setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: data.text }));
+      const replyText = data.text?.trim();
+      if (replyText) {
+        setChatMessages((current) => appendUiMessage(current, { role: "ceo", text: replyText }));
       }
       setError("");
       return data;
@@ -650,10 +651,11 @@ function NewCompanyPageContent() {
         throw new Error(payload.error || "New site intake failed");
       }
       const data = (await response.json()) as NewSiteIntakeResponse;
-      const transcript = data.text
-        ? appendUiMessage(nextMessages, { role: "ceo", text: data.text })
+      const replyText = data.text?.trim();
+      const transcript = replyText
+        ? appendUiMessage(nextMessages, { role: "ceo", text: replyText })
         : nextMessages;
-      if (data.text) {
+      if (replyText) {
         setChatMessages(transcript);
       }
       setNewSiteConversationStatus(data.conversationStatus || "gathering");
