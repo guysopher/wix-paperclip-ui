@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { renderAgentTemplateShowcase } from "@/lib/agent-templates";
 
 const client = new OpenAI();
 const FIXED_OPENING_MESSAGE = `Hey!
 
-I'm Wix AI Team Lead,
-I can help you set up a new business and site with a team of agents I'll hire just for your business.
-They can build and maintain your site, manage your business, SEO and more
+I'm **Wix AI Team Lead**.
+
+I can help you set up a new business and site with a team of specialists I'll hire for your business.
+They can build and maintain your site, run key parts of the business, handle SEO, and more.
 
 But first, tell me about the business you want to create, what is it about?`;
 
@@ -41,6 +43,7 @@ function extractConversationStatus(raw: string): ConversationStatus {
   return match[1] as ConversationStatus;
 }
 function buildIntakeSystemPrompt(trigger: IntakeTrigger): string {
+  const canonicalAgentOptions = renderAgentTemplateShowcase();
   const openingInstruction =
     trigger === "initial_open"
       ? "Open the conversation like a real studio lead meeting a new client for the first time. Introduce yourself briefly, set a confident tone, and ask one natural opening question."
@@ -79,7 +82,12 @@ Rules:
   - the expected results that team should produce
   - the first version of the site as one workstream inside that plan
 - When making that proposal, frame it as a team plan you would lead, not as work you personally would do alone.
+- When naming specialist roles in the proposal, you may only use canonical agent titles from the list below. Use the exact canonical titles as written. Do not invent variants like "Brand & Creative Lead", "Commerce Lead", or "Growth Foundations Lead".
+- If the business need does not map perfectly, choose the closest canonical role and explain its responsibility in plain language instead of inventing a new title.
 - The proposal should feel like a real operating plan for the business, not a freelancer pitch and not just a site summary.
+- Use Markdown for readability.
+- Prefer short paragraphs, short bullet lists, and bold labels when useful.
+- Keep the formatting clean and lightweight. Do not over-format and do not use tables.
 - When useful, you may use a short bullet list with at most 4 items to make the proposal clearer.
 - After presenting that proposal, tell the founder to use the "Hire the Team" button when they want to move forward.
 - Do not ask the founder to type "yes", "go", or any other approval command.
@@ -89,6 +97,8 @@ What you need to understand before asking to start:
 - what the business is
 - who it serves
 - what matters most for the first version of the site
+- Canonical agent titles available for the proposal:
+${canonicalAgentOptions}
 
 ${openingInstruction}`;
 }
