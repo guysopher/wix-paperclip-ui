@@ -104,7 +104,7 @@ THE INTERVIEW FLOW:
 
    I'll check in with you regularly and you can message me anytime. Sound good?"
 
-4. CLOSE: End with something like "Just say 'hire me' and I'll get started right away!"
+4. CLOSE: End with a direct approval-or-change question like "Do you want me to hire this team or make changes?"
 
 RULES:
 - Maximum 3 questions total
@@ -356,6 +356,8 @@ function OnboardingFlow() {
       const lower = lastCeo.body.toLowerCase();
       if (
         lower.includes("hire me") ||
+        lower.includes("hire this team") ||
+        lower.includes("make changes") ||
         lower.includes("ready") ||
         lower.includes("get started") ||
         lower.includes("say the word") ||
