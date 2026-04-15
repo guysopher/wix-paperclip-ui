@@ -51,6 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const TAB_KEYS = ["all", "needs-reply", "sent", "active", "done", "archived"];
+const DEFAULT_TAB_KEY = "needs-reply";
 
 function DescriptionBlock({
   description,
@@ -76,8 +77,8 @@ function DescriptionBlock({
       <div style={{ padding: "10px 16px 6px", display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid #eeeeee" }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: "#888", textTransform: "uppercase", letterSpacing: 0.5 }}>Brief</span>
       </div>
-      <div style={{ padding: "12px 16px" }}>
-        <div className="timeline-markdown" style={{ fontSize: 13, color: "#444", lineHeight: 1.65 }}>
+      <div style={{ padding: "14px 18px" }}>
+        <div className="timeline-markdown" style={{ fontSize: 14, color: "#444", lineHeight: 1.75 }}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -117,13 +118,13 @@ function InboxContent() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const initialTab = Math.max(0, TAB_KEYS.indexOf(searchParams.get("tab") || ""));
+  const initialTab = Math.max(0, TAB_KEYS.indexOf(searchParams.get("tab") || DEFAULT_TAB_KEY));
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const updateTab = (tabId: number) => {
     setActiveTab(tabId);
     const params = new URLSearchParams(searchParams.toString());
-    if (tabId === 0) params.delete("tab");
+    if (TAB_KEYS[tabId] === DEFAULT_TAB_KEY) params.delete("tab");
     else params.set("tab", TAB_KEYS[tabId]);
     router.replace(companyPath(`/inbox${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
@@ -288,21 +289,21 @@ function InboxContent() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       {/* Header */}
-      <div style={{ padding: "16px 24px 0", background: "white", borderBottom: "1px solid #eee", flexShrink: 0 }}>
+      <div style={{ padding: "18px 24px 0", background: "white", borderBottom: "1px solid #eee", flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>Inbox</div>
-            <div style={{ fontSize: 13, color: "#999" }}>
+            <div style={{ fontSize: 26, fontWeight: 700 }}>Inbox</div>
+            <div style={{ fontSize: 14, color: "#999" }}>
               {needsReply.length > 0
                 ? `${needsReply.length} need${needsReply.length === 1 ? "s" : ""} your attention`
                 : "All caught up"}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setComposing(true)} style={{ background: "#3899ec", color: "white", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: 600 }}>
+            <button onClick={() => setComposing(true)} style={{ background: "#3899ec", color: "white", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", fontWeight: 600 }}>
               Compose
             </button>
-            <button onClick={load} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={load} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               <Refresh size="16px" /> Refresh
             </button>
           </div>
@@ -331,7 +332,7 @@ function InboxContent() {
               <div style={{ fontWeight: 600, color: "#333", marginTop: 8 }}>
                 {activeTab === 0 ? "Nothing here yet" : activeTab === 1 ? "All caught up" : activeTab === 2 ? "No sent items" : activeTab === 3 ? "No active tasks" : activeTab === 4 ? "No completed tasks" : "No archived items"}
               </div>
-              <div style={{ fontSize: 13, marginTop: 4 }}>
+              <div style={{ fontSize: 14, marginTop: 4 }}>
                 {activeTab === 0 ? "Messages from your agents will appear here." : activeTab === 1 ? "No conversations need your reply right now." : ""}
               </div>
             </div>
@@ -385,21 +386,32 @@ function InboxContent() {
                         {issue.isUnreadForMe && (
                           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#3899ec", flexShrink: 0 }} />
                         )}
-                        <span style={{
-                          fontSize: 14, fontWeight: issue.isUnreadForMe ? 700 : 500,
-                          color: isDone ? "#aaa" : "#1a1a1a",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>
+                        <TaskLinkWithPreview
+                          href={companyPath(`/tasks/${issue.identifier}`)}
+                          issue={issue}
+                          onClick={(event) => event.stopPropagation()}
+                          style={{
+                            fontSize: 15,
+                            fontWeight: issue.isUnreadForMe ? 700 : 500,
+                            color: isDone ? "#aaa" : "#1a1a1a",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            textDecoration: "none",
+                            display: "block",
+                            minWidth: 0,
+                          }}
+                        >
                           {issue.title}
-                        </span>
+                        </TaskLinkWithPreview>
                       </div>
-                      <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }}>
+                      <span style={{ fontSize: 12, color: "#bbb", flexShrink: 0 }}>
                         {timeAgo(activityTime)}
                       </span>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                      <Text size="tiny" secondary>{assignee}</Text>
+                      <Text size="small" secondary>{assignee}</Text>
                       {isBlocked && <Badge size="tiny" skin="danger">Blocked</Badge>}
                       {isAssignedToMe && !isBlocked && <Badge size="tiny" skin="warning">Needs reply</Badge>}
                     </div>
@@ -421,11 +433,17 @@ function InboxContent() {
                   <button
                     className="inbox-back-btn"
                     onClick={() => setSelected(null)}
-                    style={{ display: "none", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#3899ec", fontSize: 13, padding: 0, marginBottom: 6 }}
+                    style={{ display: "none", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#3899ec", fontSize: 14, padding: 0, marginBottom: 6 }}
                   >
                     ← Back
                   </button>
-                  <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 6 }}>{selected.title}</div>
+                  <TaskLinkWithPreview
+                    href={companyPath(`/tasks/${selected.identifier}`)}
+                    issue={selected}
+                    style={{ fontWeight: 700, fontSize: 20, marginBottom: 6, color: "#1a1a1a", textDecoration: "none", display: "inline-block" }}
+                  >
+                    {selected.title}
+                  </TaskLinkWithPreview>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <span style={{
                       fontSize: 11, fontWeight: 600, textTransform: "uppercase",
@@ -435,14 +453,14 @@ function InboxContent() {
                     }}>
                       {selected.status.replace(/_/g, " ")}
                     </span>
-                    <span style={{ fontSize: 12, color: "#999" }}>{selected.identifier}</span>
-                    <span style={{ fontSize: 12, color: "#ccc" }}>&middot;</span>
+                    <span style={{ fontSize: 13, color: "#999" }}>{selected.identifier}</span>
+                    <span style={{ fontSize: 13, color: "#ccc" }}>&middot;</span>
                     {(selected.assigneeAgentId || selected.assigneeId) ? (
-                      <a href={companyPath(`/team/${selected.assigneeAgentId || selected.assigneeId}`)} style={{ fontSize: 12, color: "#3899ec", textDecoration: "none" }}>
+                      <a href={companyPath(`/team/${selected.assigneeAgentId || selected.assigneeId}`)} style={{ fontSize: 13, color: "#3899ec", textDecoration: "none" }}>
                         {agentName(selected.assigneeAgentId || selected.assigneeId)}
                       </a>
                     ) : (
-                      <span style={{ fontSize: 12, color: "#999" }}>Unassigned</span>
+                      <span style={{ fontSize: 13, color: "#999" }}>Unassigned</span>
                     )}
                     {selected.priority === "high" || selected.priority === "critical" ? (
                       <span style={{ fontSize: 11, fontWeight: 600, color: "#ee5951", textTransform: "uppercase" }}>
@@ -453,18 +471,18 @@ function InboxContent() {
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 16 }}>
                   {activeTab !== 5 ? (
-                    <button onClick={() => handleArchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "#666" }}>
+                    <button onClick={() => handleArchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "6px 12px", fontSize: 13, cursor: "pointer", color: "#666" }}>
                       Archive
                     </button>
                   ) : (
-                    <button onClick={() => handleUnarchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", color: "#666" }}>
+                    <button onClick={() => handleUnarchive(selected.id)} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "6px 12px", fontSize: 13, cursor: "pointer", color: "#666" }}>
                       Unarchive
                     </button>
                   )}
                   <TaskLinkWithPreview
                     href={companyPath(`/tasks/${selected.identifier}`)}
                     issue={selected}
-                    style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 12px", fontSize: 12, textDecoration: "none", color: "#666", display: "inline-flex", alignItems: "center" }}
+                    style={{ border: "1px solid #ddd", borderRadius: 6, padding: "6px 12px", fontSize: 13, textDecoration: "none", color: "#666", display: "inline-flex", alignItems: "center" }}
                   >
                     Open task
                   </TaskLinkWithPreview>
@@ -485,7 +503,7 @@ function InboxContent() {
               {loadingComments ? (
                 <Box align="center" padding="24px"><Loader size="small" /></Box>
               ) : comments.length === 0 ? (
-                <div style={{ textAlign: "center", color: "#999", padding: "40px 0", fontSize: 13 }}>No messages yet. Send a reply to start the conversation.</div>
+                <div style={{ textAlign: "center", color: "#999", padding: "40px 0", fontSize: 14 }}>No messages yet. Send a reply to start the conversation.</div>
               ) : (
                 comments.map((c, idx) => {
                   const isAgent = !!c.authorAgentId;
@@ -524,9 +542,9 @@ function InboxContent() {
                           {/* Author + time */}
                           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
                             {isAgent && c.authorAgentId ? (
-                              <a href={companyPath(`/team/${c.authorAgentId}`)} style={{ fontWeight: 600, fontSize: 13, color: "#3899ec", textDecoration: "none" }}>{author}</a>
+                              <a href={companyPath(`/team/${c.authorAgentId}`)} style={{ fontWeight: 600, fontSize: 14, color: "#3899ec", textDecoration: "none" }}>{author}</a>
                             ) : (
-                              <span style={{ fontWeight: 600, fontSize: 13, color: "#333" }}>{author}</span>
+                              <span style={{ fontWeight: 600, fontSize: 14, color: "#333" }}>{author}</span>
                             )}
                             <span style={{ fontSize: 11, color: "#bbb" }}>
                               {new Date(c.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -539,7 +557,7 @@ function InboxContent() {
                             background: isAgent ? "white" : "#f0f5ff",
                             borderRadius: 10,
                             border: isAgent ? "1px solid #e8e8e8" : "1px solid #ccdcf5",
-                            fontSize: 13, lineHeight: 1.7, color: "#333",
+                            fontSize: 14, lineHeight: 1.8, color: "#333",
                             boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
                           }}>
                             <div className="timeline-markdown">
@@ -584,7 +602,7 @@ function InboxContent() {
                   rows={1}
                   style={{
                     flex: 1, border: "1px solid #e0e0e0", borderRadius: 8,
-                    padding: "10px 14px", fontSize: 13, outline: "none", background: "#f7f8fa",
+                    padding: "10px 14px", fontSize: 14, outline: "none", background: "#f7f8fa",
                     resize: "none", fontFamily: "inherit", minHeight: 40,
                   }}
                   onInput={(e) => {
@@ -599,7 +617,7 @@ function InboxContent() {
                     disabled={!replyText.trim() || sending}
                     style={{
                       background: replyText.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white",
-                      border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600,
+                      border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 600,
                       cursor: replyText.trim() && !sending ? "pointer" : "default", flexShrink: 0,
                     }}
                   >
