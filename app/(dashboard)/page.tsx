@@ -37,6 +37,7 @@ import { useCompany } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { parseRunUsage } from "@/lib/model-pricing";
 import {
   getDashboard,
   getAgents,
@@ -628,34 +629,38 @@ function DashboardContent() {
 
   // Token usage analytics
   const tokenStats = (() => {
-    type Usage = { inputTokens?: number; outputTokens?: number; cachedInputTokens?: number; rawInputTokens?: number; rawOutputTokens?: number; costUsd?: number; model?: string };
-    const parsed: Array<{ usage: Usage; agentId: string; date: string }> = [];
+    const parsed: Array<{ agentId: string; date: string; input: number; output: number; cached: number; cost: number }> = [];
     for (const r of runs) {
-      if (!r.usageJson) continue;
-      try {
-        const u: Usage = typeof r.usageJson === "string" ? JSON.parse(r.usageJson) : r.usageJson;
-        parsed.push({ usage: u, agentId: r.agentId, date: r.createdAt });
-      } catch { /* skip */ }
+      const usage = parseRunUsage(r);
+      if (!usage) continue;
+      parsed.push({
+        agentId: r.agentId,
+        date: r.createdAt,
+        input: usage.inputTokens,
+        output: usage.outputTokens,
+        cached: usage.cachedInputTokens,
+        cost: usage.costUsd,
+      });
     }
 
     // Totals
     let totalInput = 0, totalOutput = 0, totalCached = 0, totalCost = 0;
     for (const p of parsed) {
-      totalInput += p.usage.rawInputTokens || p.usage.inputTokens || 0;
-      totalOutput += p.usage.rawOutputTokens || p.usage.outputTokens || 0;
-      totalCached += p.usage.cachedInputTokens || 0;
-      totalCost += p.usage.costUsd || 0;
+      totalInput += p.input;
+      totalOutput += p.output;
+      totalCached += p.cached;
+      totalCost += p.cost;
     }
 
     // By agent
     const byAgent: Record<string, { input: number; output: number; cached: number; runs: number; cost: number }> = {};
     for (const p of parsed) {
       if (!byAgent[p.agentId]) byAgent[p.agentId] = { input: 0, output: 0, cached: 0, runs: 0, cost: 0 };
-      byAgent[p.agentId].input += p.usage.rawInputTokens || p.usage.inputTokens || 0;
-      byAgent[p.agentId].output += p.usage.rawOutputTokens || p.usage.outputTokens || 0;
-      byAgent[p.agentId].cached += p.usage.cachedInputTokens || 0;
+      byAgent[p.agentId].input += p.input;
+      byAgent[p.agentId].output += p.output;
+      byAgent[p.agentId].cached += p.cached;
       byAgent[p.agentId].runs += 1;
-      byAgent[p.agentId].cost += p.usage.costUsd || 0;
+      byAgent[p.agentId].cost += p.cost;
     }
 
     // By day (last 7 days)
@@ -668,7 +673,7 @@ function DashboardContent() {
     }
     for (const p of parsed) {
       const day = p.date.slice(0, 10);
-      if (day in byDay) byDay[day] += (p.usage.rawOutputTokens || p.usage.outputTokens || 0) + (p.usage.rawInputTokens || p.usage.inputTokens || 0);
+      if (day in byDay) byDay[day] += p.output + p.input;
     }
 
     return { totalInput, totalOutput, totalCached, totalCost, byAgent, byDay, totalRuns: parsed.length };

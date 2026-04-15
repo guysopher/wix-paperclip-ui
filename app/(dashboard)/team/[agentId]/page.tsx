@@ -25,16 +25,19 @@ import { Breadcrumbs } from "../../../components/breadcrumbs";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { IconPicker } from "@/components/icon-picker";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
 import {
   getAgent,
   getAgents,
   getCompany,
+  getRuns,
   invokeHeartbeat,
   pauseAgent,
   resumeAgent,
   updateAgent,
   type Agent,
   type Company,
+  type HeartbeatRun,
 } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,18 +54,6 @@ const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" 
   idle: "neutral",
   error: "danger",
   paused: "warning",
-};
-
-const MODEL_OPTIONS = [
-  { id: "claude-opus-4-6", value: "Expert (Opus)" },
-  { id: "claude-sonnet-4-6", value: "Senior (Sonnet)" },
-  { id: "claude-haiku-4-5-20251001", value: "Junior (Haiku)" },
-];
-
-const MODEL_LABELS: Record<string, string> = {
-  "claude-opus-4-6": "Expert",
-  "claude-sonnet-4-6": "Senior",
-  "claude-haiku-4-5-20251001": "Junior",
 };
 
 const TIMEOUT_OPTIONS = [
@@ -95,6 +86,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -105,7 +97,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [editName, setEditName] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editIcon, setEditIcon] = useState<string | undefined>(undefined);
-  const [editModel, setEditModel] = useState("");
   const [editSchedule, setEditSchedule] = useState("");
   const [editTimeout, setEditTimeout] = useState("");
   const [editManager, setEditManager] = useState<string | null>(null);
@@ -116,14 +107,16 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
       setLoading(false);
       return;
     }
-    const [agentData, allAgents, companyData] = await Promise.all([
+    const [agentData, allAgents, companyData, runData] = await Promise.all([
       getAgent(agentId),
       getAgents(companyId),
       getCompany(companyId),
+      getRuns(companyId).catch(() => []),
     ]);
     setAgent(agentData);
     setAgents(allAgents);
     setCompany(companyData);
+    setRuns(runData);
     populateForm(agentData);
     setLoading(false);
   };
@@ -132,7 +125,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setEditName(a.name);
     setEditTitle(a.title);
     setEditIcon(a.icon);
-    setEditModel((a.adapterConfig?.model as string) || "claude-sonnet-4-6");
     setEditSchedule(String(getHeartbeatPolicy(a).intervalSec || 600));
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
     setEditManager(a.reportsTo);
@@ -163,7 +155,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
       reportsTo: editManager,
       adapterConfig: {
         ...agent.adapterConfig,
-        model: editModel,
         heartbeatIntervalSec: parseInt(editSchedule),
         timeoutSec: parseInt(editTimeout),
         promptTemplate: editPrompt,
@@ -236,6 +227,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
 
   const avatarColor =
     agent.role === "ceo" ? "#3899ec" : agent.role === "pm" ? "#7b61ff" : "#44b5b0";
+  const runtimeModel = getRuntimeModelLabel(getRuntimeModel(agent, runs));
 
   return (
     <>
@@ -389,15 +381,12 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   />
                 </FormField>
                 <FormField
-                  label="Seniority level"
-                  infoContent="Senior agents (Opus) are more capable and thorough but cost more. Standard agents (Sonnet) are faster and more cost-effective for routine work."
+                  label="Runtime model"
+                  infoContent="This is the model the Paperclip runtime is currently using for this agent. It is read-only in the UI right now."
                 >
-                  <Dropdown
-                    size="small"
-                    selectedId={editModel}
-                    onSelect={(o) => setEditModel(String(o.id))}
-                    options={MODEL_OPTIONS}
-                  />
+                  <Text size="small" weight="bold" style={{ fontFamily: "monospace" }}>
+                    {runtimeModel}
+                  </Text>
                 </FormField>
                 <FormField
                   label="Check-in schedule"

@@ -18,6 +18,7 @@ import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
 import {
   getAgents,
   getRuns,
@@ -40,18 +41,6 @@ const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" 
   idle: "neutral",
   error: "danger",
   paused: "warning",
-};
-
-const MODEL_LABELS: Record<string, string> = {
-  "claude-opus-4-6": "Expert",
-  "claude-sonnet-4-6": "Senior",
-  "claude-haiku-4-5-20251001": "Junior",
-};
-
-const MODEL_COLORS: Record<string, { bg: string; color: string }> = {
-  "claude-opus-4-6": { bg: "#f0e6ff", color: "#6b3fa0" },
-  "claude-sonnet-4-6": { bg: "#e8f4fd", color: "#2b6cb0" },
-  "claude-haiku-4-5-20251001": { bg: "#e6f4ea", color: "#2e7d32" },
 };
 
 function TeamContent() {
@@ -104,8 +93,6 @@ function TeamContent() {
     if (!id) return "—";
     return agents.find((a) => a.id === id)?.name || "Unknown";
   };
-
-  const getModel = (agent: Agent) => MODEL_LABELS[(agent.adapterConfig?.model as string) || ""] || "Unknown";
 
   const getHeartbeat = (agent: Agent) => {
     const sec = getHeartbeatPolicy(agent).intervalSec;
@@ -169,13 +156,11 @@ function TeamContent() {
       width: "25%",
     },
     { title: "Manager", render: (row: Agent) => <Text size="small">{managerName(row.reportsTo)}</Text>, width: "15%" },
-    { title: "Level", render: (row: Agent) => {
-      const model = (row.adapterConfig?.model as string) || "";
-      const label = MODEL_LABELS[model] || "Unknown";
-      const colors = MODEL_COLORS[model] || { bg: "#f0f0f0", color: "#666" };
+    { title: "Model", render: (row: Agent) => {
+      const model = getRuntimeModelLabel(getRuntimeModel(row, runs));
       return (
-        <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600, background: colors.bg, color: colors.color }}>
-          {label}
+        <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600, background: "#f5f8fc", color: "#35536b", fontFamily: "monospace" }}>
+          {model}
         </span>
       );
     }, width: "15%" },

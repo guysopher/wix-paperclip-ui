@@ -1,3 +1,5 @@
+import { parseUsageJson } from "@/lib/model-pricing";
+
 export interface LogEntry {
   kind: "assistant" | "tools" | "result";
   text: string;
@@ -245,11 +247,12 @@ export function parseDetailedRunLog(raw: string): DetailedRunEvent[] {
 export function parseUsage(usageJson: string | null): { cost: string; tokens: string } | null {
   if (!usageJson) return null;
   try {
-    const u = JSON.parse(usageJson);
-    const cost = u.total_cost_usd ? `$${u.total_cost_usd.toFixed(4)}` : null;
-    const output = u.usage?.output_tokens || u.output_tokens || 0;
-    const input = u.usage?.input_tokens || u.input_tokens || 0;
-    const cache = u.usage?.cache_read_input_tokens || u.cache_read_input_tokens || 0;
+    const usage = parseUsageJson(usageJson);
+    if (!usage) return null;
+    const cost = usage.costUsd > 0 ? `$${usage.costUsd.toFixed(4)}` : null;
+    const output = usage.outputTokens || 0;
+    const input = usage.inputTokens || 0;
+    const cache = usage.cachedInputTokens || 0;
     const tokens = output + input + cache > 0 ? `${((output + input + cache) / 1000).toFixed(1)}k tokens` : null;
     return { cost: cost || "—", tokens: tokens || "—" };
   } catch { return null; }
