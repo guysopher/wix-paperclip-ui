@@ -1255,14 +1255,27 @@ function NewCompanyPageContent() {
                 <Button
                   size="small"
                   skin="premium"
-                  disabled={!canHireTeam}
+                  disabled={!canHireTeam || startingNewSite}
                   onClick={() => {
                     void activateNewSiteConversation(chatMessagesRef.current);
                   }}
                 >
-                  Hire the Team
+                  {startingNewSite ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Loader size="tiny" />
+                      Hiring...
+                    </span>
+                  ) : (
+                    "Hire the Team"
+                  )}
                 </Button>
-                {!canHireTeam && (
+                {!canHireTeam && !startingNewSite && (
                   <div
                     style={{
                       fontSize: 12,
