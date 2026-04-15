@@ -129,7 +129,7 @@ export function MetasiteIdEntry({
         <div
           style={{
             width: "100%",
-            maxWidth: 560,
+            maxWidth: 760,
             borderRadius: 28,
             background: "rgba(255,255,255,0.94)",
             boxShadow: "0 28px 70px rgba(5, 18, 32, 0.28)",
