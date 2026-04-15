@@ -382,9 +382,13 @@ function DashboardContent() {
     }
   }, [agents, activitySliderDirty, activitySliderIndex]);
 
-  const activeRuns = [...runs]
-    .filter((run) => run.status === "running" || run.status === "queued")
+  const runningRuns = [...runs]
+    .filter((run) => run.status === "running")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const queuedRuns = [...runs]
+    .filter((run) => run.status === "queued")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const activeRuns = runningRuns.length > 0 ? runningRuns : queuedRuns;
   const preferredLiveRun =
     activeRuns.find((run) => agents.find((agent) => agent.id === run.agentId)?.role === "ceo")
     || activeRuns[0]
