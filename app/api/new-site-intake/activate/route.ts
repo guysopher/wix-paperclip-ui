@@ -69,7 +69,7 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
       "Sharper strategy, stronger trust signals, and better decisions grounded in the realities of the market.",
   },
   {
-    role: "Site Lead",
+    role: "Wix Site Expert",
     goal: "Own the first site version and the ongoing site experience as the business launches.",
     expectedResult:
       "A credible site that clearly explains the offer, supports conversion, and improves as the business learns.",
@@ -309,7 +309,7 @@ Rules:
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
 - The center of gravity is the AI team plan, not a solo site-build pitch.
 - "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
-- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Site Lead.
+- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert.
 - Any additional role in "starterTeam" must use an exact canonical title from the list below. Do not invent role variants.
 - Goals should be practical and outcome-focused. Return 1 to 3.
 - "expectedResults" should describe the concrete business results the founder should expect from the first phase. Return 2 to 4.
@@ -340,7 +340,7 @@ ${canonicalAgentOptions}
     "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
   const teamHiringPlan =
     parsed.teamHiringPlan?.trim() ||
-    "Start with the mandatory core team of AI Team Lead, Industry Advisor, and Site Lead, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
+    "Start with the mandatory core team of AI Team Lead, Industry Advisor, and Wix Site Expert, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
