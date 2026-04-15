@@ -243,7 +243,7 @@ function DashboardContent() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
-  const [workView, setWorkView] = useState<"open" | "completed">("open");
+  const [workView, setWorkView] = useState<"open" | "completed">("completed");
   const [activitySliderIndex, setActivitySliderIndex] = useState<number | null>(null);
   const [activitySliderDirty, setActivitySliderDirty] = useState(false);
   const [savingActivity, setSavingActivity] = useState(false);
@@ -256,7 +256,7 @@ function DashboardContent() {
   const [restartingServer, setRestartingServer] = useState(false);
   const [liveRunFeed, setLiveRunFeed] = useState<LiveRunFeed | null>(null);
   const [liveRunLoading, setLiveRunLoading] = useState(false);
-  const [selectedLiveRunId, setSelectedLiveRunId] = useState<string | null>(null);
+  const [selectedOpsAgentId, setSelectedOpsAgentId] = useState<string | null>(null);
   const liveFeedRef = useRef<HTMLDivElement>(null);
   const liveFeedStickToBottomRef = useRef(true);
 
@@ -397,28 +397,28 @@ function DashboardContent() {
     if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
-  const preferredLiveRun =
-    runningRuns.find((run) => agents.find((agent) => agent.id === run.agentId)?.role === "ceo")
-    || runningRuns[0]
+  const preferredOpsAgent =
+    sortedAgents.find((agent) => runningRuns.some((run) => run.agentId === agent.id))
+    || sortedAgents.find((agent) => agent.role === "ceo")
+    || sortedAgents[0]
     || null;
-  const selectedLiveRun =
-    runningRuns.find((run) => run.id === selectedLiveRunId)
-    || preferredLiveRun;
-  const selectedLiveAgent = selectedLiveRun
-    ? agents.find((agent) => agent.id === selectedLiveRun.agentId) || null
+  const selectedOpsAgent =
+    sortedAgents.find((agent) => agent.id === selectedOpsAgentId)
+    || preferredOpsAgent;
+  const selectedLiveRun = selectedOpsAgent
+    ? runningRuns.find((run) => run.agentId === selectedOpsAgent.id) || null
     : null;
 
   useEffect(() => {
-    if (!selectedLiveRun) {
-      setSelectedLiveRunId(null);
-      setLiveRunFeed(null);
+    if (!selectedOpsAgent) {
+      setSelectedOpsAgentId(null);
       return;
     }
 
-    if (!selectedLiveRunId || !runningRuns.some((run) => run.id === selectedLiveRunId)) {
-      setSelectedLiveRunId(selectedLiveRun.id);
+    if (!selectedOpsAgentId || !sortedAgents.some((agent) => agent.id === selectedOpsAgentId)) {
+      setSelectedOpsAgentId(selectedOpsAgent.id);
     }
-  }, [runningRuns, selectedLiveRun, selectedLiveRunId]);
+  }, [selectedOpsAgent, selectedOpsAgentId, sortedAgents]);
 
   useEffect(() => {
     if (!selectedLiveRun) {
@@ -609,6 +609,21 @@ function DashboardContent() {
       : workView === "open" && recentIssues.length === 0 && doneIssues.length > 0
         ? "completed"
         : workView;
+  const selectedOpsNarrative = selectedOpsAgent ? agentNarratives[selectedOpsAgent.id] : null;
+  const selectedOpsStatusText = selectedOpsAgent ? agentStatusText(selectedOpsAgent) : "Idle";
+  const selectedOpsInterval = selectedOpsAgent ? getHeartbeatPolicy(selectedOpsAgent).intervalSec : 0;
+  const selectedOpsLastHeartbeat = selectedOpsAgent?.lastHeartbeatAt ?? null;
+  const selectedOpsLastUpdate = selectedOpsNarrative?.time || selectedOpsLastHeartbeat;
+  let selectedOpsNextRunText = "";
+  if (selectedOpsAgent && selectedOpsLastHeartbeat && selectedOpsInterval && selectedOpsAgent.status !== "running" && selectedOpsAgent.status !== "paused") {
+    const elapsed = Math.round((Date.now() - new Date(selectedOpsLastHeartbeat).getTime()) / 1000);
+    const remaining = selectedOpsInterval - (elapsed % selectedOpsInterval);
+    const min = Math.ceil(remaining / 60);
+    selectedOpsNextRunText = min <= 1 ? "Next run in ~1 minute" : `Next run in ${min} minutes`;
+  } else if (selectedOpsAgent && selectedOpsInterval && selectedOpsAgent.status !== "running" && selectedOpsAgent.status !== "paused") {
+    const schedMin = Math.round(selectedOpsInterval / 60);
+    selectedOpsNextRunText = `Runs every ${schedMin}m`;
+  }
 
   // Token usage analytics
   const tokenStats = (() => {
@@ -1263,7 +1278,7 @@ function DashboardContent() {
             >
               <div
                 style={{
-                  padding: "18px 24px",
+                  padding: "14px 24px",
                   borderBottom: "1px solid #f0f3f5",
                   background: "linear-gradient(to bottom, #fafbfc, #ffffff)",
                   display: "flex",
@@ -1274,78 +1289,18 @@ function DashboardContent() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  {selectedLiveAgent ? (
-                    <AgentAvatar
-                      agentName={selectedLiveAgent.name}
-                      agentRole={selectedLiveAgent.role}
-                      icon={selectedLiveAgent.icon}
-                      size={38}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: "50%",
-                        background: "#eef4f9",
-                        border: "1px solid #dce7f2",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#87a4bb",
-                        fontSize: 16,
-                        fontWeight: 700,
-                        flexShrink: 0,
-                      }}
-                    >
-                      •
-                    </div>
-                  )}
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d" }}>
-                      {selectedLiveAgent ? selectedLiveAgent.name : "No one is running right now"}
+                      Operations Panel
                     </div>
                     <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      {selectedLiveRun ? (
-                        <>
-                          <span>Working right now</span>
-                          <span>•</span>
-                          <span>{feedDuration(selectedLiveRun.startedAt, selectedLiveRun.finishedAt)}</span>
-                          {runningRuns.length > 1 && (
-                            <>
-                              <span>•</span>
-                              <span>{runningRuns.length} active runs</span>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <span>{runningAgentCount > 0 ? `${runningAgentCount} active now` : "No active runs"}</span>
-                          <span>•</span>
-                          <span>{agents.length} team member{agents.length === 1 ? "" : "s"} ready</span>
-                        </>
-                      )}
+                      <span>{runningAgentCount > 0 ? `${runningAgentCount} running now` : "No active runs"}</span>
+                      <span>•</span>
+                      <span>{agents.length} team member{agents.length === 1 ? "" : "s"} ready</span>
                     </div>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  {selectedLiveRun && (
-                    <a
-                      href={companyPath(`/runs/${selectedLiveRun.id}`)}
-                      style={{
-                        color: "#3899ec",
-                        textDecoration: "none",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      Open full run
-                      <span style={{ fontSize: 16 }}>→</span>
-                    </a>
-                  )}
                   <a
                     href={companyPath("/team")}
                     style={{
@@ -1364,214 +1319,59 @@ function DashboardContent() {
                 </div>
               </div>
 
-              {selectedLiveRun && runningRuns.length > 1 && (
-                <div
-                  style={{
-                    padding: "14px 24px 0",
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {runningRuns.map((run) => {
-                    const runAgent = agents.find((agent) => agent.id === run.agentId);
-                    const isSelected = run.id === selectedLiveRun.id;
-
-                    return (
-                      <button
-                        key={run.id}
-                        onClick={() => {
-                          setSelectedLiveRunId(run.id);
-                          liveFeedStickToBottomRef.current = true;
-                        }}
-                        style={{
-                          border: isSelected ? "1px solid #8db7ff" : "1px solid #dce7f2",
-                          background: isSelected ? "#eef5ff" : "#f8fbff",
-                          color: isSelected ? "#2357a5" : "#5f7b93",
-                          borderRadius: 999,
-                          padding: "8px 12px",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            background: "#00d68f",
-                            boxShadow: "0 0 0 4px rgba(0,214,143,0.12)",
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span>{runAgent?.name || "Unknown agent"}</span>
-                        <span style={{ color: "#8ea5bb", fontWeight: 500 }}>
-                          {feedDuration(run.startedAt, run.finishedAt)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div style={{ padding: "18px 24px 0" }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#6b8196", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
-                  Running Feed
-                </div>
-                <div
-                  ref={liveFeedRef}
-                  onScroll={(event) => {
-                    const container = event.currentTarget;
-                    liveFeedStickToBottomRef.current =
-                      container.scrollHeight - container.scrollTop - container.clientHeight < 32;
-                  }}
-                  style={{
-                    height: 220,
-                    overflowY: "auto",
-                    borderRadius: 10,
-                    background: "linear-gradient(180deg, #f8fbff 0%, #f5f8fc 100%)",
-                    border: "1px solid #e6eef7",
-                    padding: "14px 16px",
-                  }}
-                >
-                  {selectedLiveRun ? (
-                    liveRunLoading && (!liveRunFeed || liveRunFeed.entries.length === 0) ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
-                        <Loader size="tiny" />
-                        <span>Loading live activity...</span>
-                      </div>
-                    ) : liveRunFeed && liveRunFeed.entries.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {liveRunFeed.entries.map((entry) => (
-                          <div
-                            key={entry.id}
-                            style={{
-                              display: "flex",
-                              gap: 10,
-                              alignItems: "flex-start",
-                              paddingBottom: 10,
-                              borderBottom: "1px solid rgba(225,233,241,0.9)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                marginTop: 6,
-                                flexShrink: 0,
-                                background: entry.kind === "assistant" ? "#2f8cff" : "#87a4bb",
-                                boxShadow:
-                                  entry.kind === "assistant"
-                                    ? "0 0 0 4px rgba(47,140,255,0.12)"
-                                    : "0 0 0 4px rgba(135,164,187,0.12)",
-                              }}
-                            />
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontSize: 14,
-                                  lineHeight: 1.55,
-                                  color: entry.kind === "assistant" ? "#16324a" : "#6f8599",
-                                  fontWeight: entry.kind === "assistant" ? 500 : 400,
-                                }}
-                              >
-                                {entry.text}
-                              </div>
-                              {entry.timestamp && (
-                                <div style={{ fontSize: 11, color: "#9db0c1", marginTop: 4 }}>
-                                  {new Date(entry.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
-                        <Loader size="tiny" />
-                        <span>Waiting for readable live output...</span>
-                      </div>
-                    )
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
-                      <span>No live run at the moment. Wake up a team member below or create a task to start work.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ padding: "18px 24px 0" }}>
-                <Divider />
-              </div>
-
-              <div style={{ padding: "18px 24px 10px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: "#162d3d", marginBottom: 4 }}>
-                      Team Activity
-                    </div>
-                    <div style={{ fontSize: 13, color: "#7a92a5" }}>
-                      {runningAgentCount > 0
-                        ? `${runningAgentCount} team member${runningAgentCount > 1 ? "s" : ""} working now`
-                        : `${agents.length} team member${agents.length > 1 ? "s" : ""} ready`}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "320px minmax(0, 1fr)",
+                  minHeight: Math.max(420, sortedAgents.length * 86),
+                }}
+              >
+                <div style={{ borderRight: "1px solid #f0f3f5", background: "#fbfdff" }}>
+                  <div style={{ padding: "14px 18px 10px", borderBottom: "1px solid #f0f3f5" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#6b8196", textTransform: "uppercase", letterSpacing: 0.8 }}>
+                      Team
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <div style={{ padding: "8px 0" }}>
+                  <div style={{ padding: "6px 0" }}>
                 {sortedAgents.map((agent, i) => {
                   const statusText = agentStatusText(agent);
                   const narrative = agentNarratives[agent.id];
-                  const interval = getHeartbeatPolicy(agent).intervalSec;
-                  const lastHb = agent.lastHeartbeatAt;
-                  let nextRunText = "";
-                  if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
-                    const elapsed = Math.round((Date.now() - new Date(lastHb).getTime()) / 1000);
-                    const remaining = interval - (elapsed % interval);
-                    const min = Math.ceil(remaining / 60);
-                    if (min <= 1) nextRunText = "Next run in ~1 minute";
-                    else nextRunText = `Next run in ${min} minutes`;
-                  } else if (interval && agent.status !== "running" && agent.status !== "paused") {
-                    const schedMin = Math.round(interval / 60);
-                    nextRunText = `Every ${schedMin}m`;
-                  }
+                  const hasLiveRun = runningRuns.some((run) => run.agentId === agent.id);
+                  const isSelected = selectedOpsAgent?.id === agent.id;
                   return (
                     <div
                       key={agent.id}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 16,
-                        padding: "16px 24px",
+                        gap: 12,
+                        padding: "12px 18px",
                         borderBottom: i < sortedAgents.length - 1 ? "1px solid #f5f7f9" : "none",
                         transition: "background 0.15s ease",
                         cursor: "pointer",
+                        background: isSelected ? "#eef5ff" : "transparent",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#fafbfc"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                      onClick={() => window.location.href = companyPath(agent.status === "running" ? `/runs?agent=${agent.id}` : `/team/${agent.id}`)}
+                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#fafbfc"; }}
+                      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                      onClick={() => {
+                        setSelectedOpsAgentId(agent.id);
+                        liveFeedStickToBottomRef.current = true;
+                      }}
                     >
-                      {/* Status indicator */}
                       <div style={{ position: "relative" }}>
                         <AgentAvatar
                           agentName={agent.name}
                           agentRole={agent.role}
                           icon={agent.icon}
-                          size={52}
-                          fontSize={20}
+                          size={42}
+                          fontSize={16}
                         />
                         <div style={{
                           position: "absolute",
                           bottom: -2,
                           right: -2,
-                          width: 16,
-                          height: 16,
+                          width: 14,
+                          height: 14,
                           borderRadius: "50%",
                           background: agent.status === "running" ? "#00d68f" : agent.status === "error" ? "#ff4d4f" : agent.status === "paused" ? "#ffc107" : "#d1dbe3",
                           border: "3px solid white",
@@ -1579,102 +1379,265 @@ function DashboardContent() {
                         }} />
                       </div>
 
-                      {/* Name and activity */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontWeight: 600, fontSize: 15, color: "#162d3d" }}>{agent.name}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                          <span style={{ fontWeight: 600, fontSize: 14, color: "#162d3d" }}>{agent.name}</span>
                           <span style={{ fontSize: 12, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
                             {agent.title}
                           </span>
                         </div>
-                        <div style={{ fontSize: 13, color: "#5a6c7d", lineHeight: 1.5 }}>
-                          {agent.status === "running" ? (
-                            <span style={{ color: "#00d68f", fontWeight: 500 }}>● Working now</span>
-                          ) : narrative?.title ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {narrative.title}
-                              </span>
-                              <span style={{ color: "#a3b5c7", flexShrink: 0 }}>· {timeAgo(narrative.time)}</span>
-                            </div>
-                          ) : (
-                            <span style={{ color: "#a3b5c7" }}>{statusText}</span>
+                        <div style={{ fontSize: 12, color: "#5a6c7d", lineHeight: 1.45, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ color: hasLiveRun ? "#00a862" : "#7f95a8", fontWeight: hasLiveRun ? 600 : 500 }}>
+                            {hasLiveRun ? "Working now" : statusText}
+                          </span>
+                          {narrative?.time && !hasLiveRun && (
+                            <>
+                              <span style={{ color: "#c0ccd8" }}>·</span>
+                              <span style={{ color: "#a3b5c7" }}>{timeAgo(narrative.time)}</span>
+                            </>
                           )}
                         </div>
                       </div>
-
-                      {/* Action */}
-                      <div style={{ flexShrink: 0 }}>
-                        {agent.status === "running" ? (
-                          <div style={{
-                            background: "#e6f9f2",
-                            color: "#00a862",
-                            padding: "6px 12px",
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}>
-                            <div style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: "50%",
-                              background: "#00d68f",
-                              animation: "active-pulse 2s ease-in-out infinite",
-                            }} />
-                            Active
-                          </div>
-                        ) : agent.status === "paused" ? (
-                          <Badge size="medium" skin="warning">On leave</Badge>
-                        ) : agent.status === "error" ? (
-                          <Badge size="medium" skin="danger">Needs attention</Badge>
-                        ) : (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const btn = e.currentTarget;
-                              btn.disabled = true;
-                              btn.textContent = "Waking...";
-                              try {
-                                await invokeHeartbeat(agent.id);
-                                btn.textContent = "Woke!";
-                                setTimeout(() => load(), 2000);
-                              } catch {
-                                btn.textContent = "Failed";
-                              }
-                            }}
-                            style={{
-                              background: "#f7faff",
-                              color: "#5f7b93",
-                              border: "1px solid #d7e3ef",
-                              borderRadius: 6,
-                              padding: "7px 12px",
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              whiteSpace: "nowrap",
-                              transition: "all 0.15s ease",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#edf4fb";
-                              e.currentTarget.style.borderColor = "#c8d8e8";
-                              e.currentTarget.style.color = "#47647d";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "#f7faff";
-                              e.currentTarget.style.borderColor = "#d7e3ef";
-                              e.currentTarget.style.color = "#5f7b93";
-                            }}
-                          >
-                            Wake up
-                          </button>
-                        )}
+                      <div style={{ flexShrink: 0, color: isSelected ? "#3899ec" : "#bfd0e0", fontSize: 18, lineHeight: 1 }}>
+                        ›
                       </div>
                     </div>
                   );
                 })}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <div
+                    style={{
+                      padding: "18px 22px",
+                      borderBottom: "1px solid #f0f3f5",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {selectedOpsAgent ? (
+                      <>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                          <AgentAvatar
+                            agentName={selectedOpsAgent.name}
+                            agentRole={selectedOpsAgent.role}
+                            icon={selectedOpsAgent.icon}
+                            size={40}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d" }}>{selectedOpsAgent.name}</div>
+                            <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span>{selectedOpsAgent.title}</span>
+                              <span>•</span>
+                              <span>{selectedLiveRun ? `Running for ${feedDuration(selectedLiveRun.startedAt, selectedLiveRun.finishedAt)}` : selectedOpsStatusText}</span>
+                              {selectedOpsNextRunText && !selectedLiveRun && (
+                                <>
+                                  <span>•</span>
+                                  <span>{selectedOpsNextRunText}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          {selectedLiveRun ? (
+                            <a
+                              href={companyPath(`/runs/${selectedLiveRun.id}`)}
+                              style={{
+                                color: "#3899ec",
+                                textDecoration: "none",
+                                fontSize: 13,
+                                fontWeight: 500,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              Open full run
+                              <span style={{ fontSize: 16 }}>→</span>
+                            </a>
+                          ) : selectedOpsAgent.status !== "paused" ? (
+                            <button
+                              onClick={async () => {
+                                await invokeHeartbeat(selectedOpsAgent.id);
+                                setTimeout(() => load(), 1000);
+                              }}
+                              style={{
+                                background: "#f7faff",
+                                color: "#5f7b93",
+                                border: "1px solid #d7e3ef",
+                                borderRadius: 8,
+                                padding: "8px 12px",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Wake up
+                            </button>
+                          ) : null}
+                          <a
+                            href={companyPath(`/team/${selectedOpsAgent.id}`)}
+                            style={{
+                              color: "#3899ec",
+                              textDecoration: "none",
+                              fontSize: 13,
+                              fontWeight: 500,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            View profile
+                            <span style={{ fontSize: 16 }}>→</span>
+                          </a>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 14, color: "#7a92a5" }}>No team members available.</div>
+                    )}
+                  </div>
+
+                  <div style={{ padding: "18px 22px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                    {selectedLiveRun ? (
+                      <>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#6b8196", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
+                          Running Feed
+                        </div>
+                        <div
+                          ref={liveFeedRef}
+                          onScroll={(event) => {
+                            const container = event.currentTarget;
+                            liveFeedStickToBottomRef.current =
+                              container.scrollHeight - container.scrollTop - container.clientHeight < 32;
+                          }}
+                          style={{
+                            flex: 1,
+                            minHeight: 0,
+                            overflowY: "auto",
+                            borderRadius: 10,
+                            background: "linear-gradient(180deg, #f8fbff 0%, #f5f8fc 100%)",
+                            border: "1px solid #e6eef7",
+                            padding: "14px 16px",
+                          }}
+                        >
+                          {liveRunLoading && (!liveRunFeed || liveRunFeed.entries.length === 0) ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
+                              <Loader size="tiny" />
+                              <span>Loading live activity...</span>
+                            </div>
+                          ) : liveRunFeed && liveRunFeed.entries.length > 0 ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                              {liveRunFeed.entries.map((entry) => (
+                                <div
+                                  key={entry.id}
+                                  style={{
+                                    display: "flex",
+                                    gap: 10,
+                                    alignItems: "flex-start",
+                                    paddingBottom: 10,
+                                    borderBottom: "1px solid rgba(225,233,241,0.9)",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: "50%",
+                                      marginTop: 6,
+                                      flexShrink: 0,
+                                      background: entry.kind === "assistant" ? "#2f8cff" : "#87a4bb",
+                                      boxShadow:
+                                        entry.kind === "assistant"
+                                          ? "0 0 0 4px rgba(47,140,255,0.12)"
+                                          : "0 0 0 4px rgba(135,164,187,0.12)",
+                                    }}
+                                  />
+                                  <div style={{ minWidth: 0 }}>
+                                    <div
+                                      style={{
+                                        fontSize: 14,
+                                        lineHeight: 1.55,
+                                        color: entry.kind === "assistant" ? "#16324a" : "#6f8599",
+                                        fontWeight: entry.kind === "assistant" ? 500 : 400,
+                                      }}
+                                    >
+                                      {entry.text}
+                                    </div>
+                                    {entry.timestamp && (
+                                      <div style={{ fontSize: 11, color: "#9db0c1", marginTop: 4 }}>
+                                        {new Date(entry.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
+                              <Loader size="tiny" />
+                              <span>Waiting for readable live output...</span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : selectedOpsAgent ? (
+                      <div
+                        style={{
+                          flex: 1,
+                          borderRadius: 12,
+                          background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+                          border: "1px solid #e6eef7",
+                          padding: 18,
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          gap: 16,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#6b8196", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
+                            Status
+                          </div>
+                          <div style={{ fontSize: 20, fontWeight: 600, color: "#162d3d", marginBottom: 8 }}>
+                            {selectedOpsStatusText}
+                          </div>
+                          <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
+                            {selectedOpsAgent.status === "paused"
+                              ? "This agent is paused and will stay quiet until you resume it."
+                              : selectedOpsNextRunText || "This agent is ready for the next assignment or heartbeat."}
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                          <div style={{ padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e6eef7" }}>
+                            <div style={{ fontSize: 11, color: "#8aa0b5", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6 }}>Last update</div>
+                            <div style={{ fontSize: 14, color: "#16324a", fontWeight: 600 }}>
+                              {selectedOpsLastUpdate ? timeAgo(selectedOpsLastUpdate) : "No recent activity"}
+                            </div>
+                          </div>
+                          <div style={{ padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e6eef7" }}>
+                            <div style={{ fontSize: 11, color: "#8aa0b5", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 6 }}>Cadence</div>
+                            <div style={{ fontSize: 14, color: "#16324a", fontWeight: 600 }}>
+                              {selectedOpsInterval ? formatHeartbeatInterval(selectedOpsInterval) : "Manual only"}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e6eef7" }}>
+                          <div style={{ fontSize: 11, color: "#8aa0b5", textTransform: "uppercase", letterSpacing: 0.7, marginBottom: 8 }}>Recent focus</div>
+                          <div style={{ fontSize: 14, color: "#16324a", lineHeight: 1.6 }}>
+                            {selectedOpsNarrative?.title || "No completed narrative yet. Create a task or wake this agent to get work moving."}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 14, color: "#7a92a5" }}>No team members available.</div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
