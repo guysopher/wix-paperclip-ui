@@ -614,6 +614,7 @@ function DashboardContent() {
   const selectedOpsInterval = selectedOpsAgent ? getHeartbeatPolicy(selectedOpsAgent).intervalSec : 0;
   const selectedOpsLastHeartbeat = selectedOpsAgent?.lastHeartbeatAt ?? null;
   const selectedOpsLastUpdate = selectedOpsNarrative?.time || selectedOpsLastHeartbeat;
+  const operationsPanelHeight = Math.max(420, 52 + sortedAgents.length * 67);
   let selectedOpsNextRunText = "";
   if (selectedOpsAgent && selectedOpsLastHeartbeat && selectedOpsInterval && selectedOpsAgent.status !== "running" && selectedOpsAgent.status !== "paused") {
     const elapsed = Math.round((Date.now() - new Date(selectedOpsLastHeartbeat).getTime()) / 1000);
@@ -1323,7 +1324,7 @@ function DashboardContent() {
                 style={{
                   display: "grid",
                   gridTemplateColumns: "320px minmax(0, 1fr)",
-                  minHeight: Math.max(420, sortedAgents.length * 86),
+                  height: operationsPanelHeight,
                 }}
               >
                 <div style={{ borderRight: "1px solid #f0f3f5", background: "#fbfdff" }}>
@@ -1380,11 +1381,8 @@ function DashboardContent() {
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <div style={{ marginBottom: 3 }}>
                           <span style={{ fontWeight: 600, fontSize: 14, color: "#162d3d" }}>{agent.name}</span>
-                          <span style={{ fontSize: 12, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                            {agent.title}
-                          </span>
                         </div>
                         <div style={{ fontSize: 12, color: "#5a6c7d", lineHeight: 1.45, display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ color: hasLiveRun ? "#00a862" : "#7f95a8", fontWeight: hasLiveRun ? 600 : 500 }}>
@@ -1407,7 +1405,7 @@ function DashboardContent() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0, height: "100%", overflow: "hidden" }}>
                   <div
                     style={{
                       padding: "18px 22px",
@@ -1502,7 +1500,7 @@ function DashboardContent() {
                     )}
                   </div>
 
-                  <div style={{ padding: "18px 22px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                  <div style={{ padding: "18px 22px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                     {selectedLiveRun ? (
                       <>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "#6b8196", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
@@ -1597,6 +1595,7 @@ function DashboardContent() {
                           flexDirection: "column",
                           justifyContent: "space-between",
                           gap: 16,
+                          overflowY: "auto",
                         }}
                       >
                         <div>
