@@ -25,13 +25,15 @@ export async function POST(request: Request) {
   const { action } = body;
 
   if (action === "save") {
-    const { botToken, companies } = body as {
+    const { botToken, allowedChatId, companies } = body as {
       action: string;
       botToken?: string;
+      allowedChatId?: string;
       companies?: TelegramConfig["companies"];
     };
     const config = await loadConfig();
     if (botToken !== undefined) config.botToken = botToken;
+    if (allowedChatId !== undefined) config.allowedChatId = allowedChatId.trim();
     if (companies) {
       // Merge company configs
       for (const [companyId, companyConfig] of Object.entries(companies)) {
@@ -56,15 +58,19 @@ export async function POST(request: Request) {
   }
 
   if (action === "testConnection") {
-    const { chatId } = body as { action: string; chatId: string };
+    const { chatId } = body as { action: string; chatId?: string };
     const config = await loadConfig();
     if (!config.botToken) {
       return Response.json({ ok: false, error: "No bot token configured" }, { status: 400 });
     }
+    const targetChatId = (chatId || config.allowedChatId || "").trim();
+    if (!targetChatId) {
+      return Response.json({ ok: false, error: "No chat ID configured" }, { status: 400 });
+    }
     const { sendTelegramMessage } = await import("@/lib/telegram");
     const result = await sendTelegramMessage(
       config.botToken,
-      chatId,
+      targetChatId,
       "Test message from Wix AI Business Manager. Connection is working!"
     );
     return Response.json(result);

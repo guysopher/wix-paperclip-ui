@@ -10,13 +10,10 @@ import {
   Loader,
   FormField,
   Input,
-  Heading,
-  ToggleSwitch,
   SectionHelper,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
-import type { TelegramConfig, CompanyTelegramConfig } from "@/lib/telegram-config";
+import type { TelegramConfig } from "@/lib/telegram-config";
 
 interface WebhookInfo {
   url: string;
@@ -25,13 +22,12 @@ interface WebhookInfo {
 }
 
 function SettingsContent() {
-  const { companyId, companies } = useCompany();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [botToken, setBotToken] = useState("");
-  const [companyConfigs, setCompanyConfigs] = useState<Record<string, CompanyTelegramConfig>>({});
+  const [allowedChatId, setAllowedChatId] = useState("");
   const [webhookInfo, setWebhookInfo] = useState<WebhookInfo | null>(null);
-  const [webhookUrl, setWebhookUrl] = useState("https://nonoperatic-priorly-isidro.ngrok-free.dev/api/telegram/webhook");
+  const [webhookUrl, setWebhookUrl] = useState("");
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [testingChatId, setTestingChatId] = useState<string | null>(null);
   const [settingWebhook, setSettingWebhook] = useState(false);
@@ -43,9 +39,12 @@ function SettingsContent() {
       const data = await res.json();
       const config: TelegramConfig = data.config;
       setBotToken(config.botToken || "");
-      setCompanyConfigs(config.companies || {});
+      setAllowedChatId(config.allowedChatId || "");
       if (data.webhookInfo) {
         setWebhookInfo(data.webhookInfo);
+        if (data.webhookInfo.url) {
+          setWebhookUrl(data.webhookInfo.url);
+        }
       }
     } catch (err) {
       console.error("Failed to load settings:", err);
@@ -68,7 +67,7 @@ function SettingsContent() {
         body: JSON.stringify({
           action: "save",
           botToken,
-          companies: companyConfigs,
+          allowedChatId,
         }),
       });
       const data = await res.json();
@@ -92,7 +91,7 @@ function SettingsContent() {
       await fetch("/api/telegram/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", botToken }),
+        body: JSON.stringify({ action: "save", botToken, allowedChatId }),
       });
       const res = await fetch("/api/telegram/settings", {
         method: "POST",
@@ -122,7 +121,7 @@ function SettingsContent() {
       await fetch("/api/telegram/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", botToken }),
+        body: JSON.stringify({ action: "save", botToken, allowedChatId }),
       });
       const res = await fetch("/api/telegram/settings", {
         method: "POST",
@@ -140,17 +139,6 @@ function SettingsContent() {
     } finally {
       setTestingChatId(null);
     }
-  };
-
-  const updateCompanyConfig = (cid: string, updates: Partial<CompanyTelegramConfig>) => {
-    setCompanyConfigs((prev) => {
-      const defaults: CompanyTelegramConfig = { chatId: "", enabled: false, lastSentCommentId: null };
-      const existing = prev[cid] || defaults;
-      return {
-        ...prev,
-        [cid]: { ...defaults, ...existing, ...updates },
-      };
-    });
   };
 
   if (loading) {
@@ -191,6 +179,13 @@ function SettingsContent() {
                     onChange={(e) => setBotToken(e.target.value)}
                     placeholder="Enter your Telegram bot token"
                     type="password"
+                  />
+                </FormField>
+                <FormField label="Allowed Chat ID">
+                  <Input
+                    value={allowedChatId}
+                    onChange={(e) => setAllowedChatId(e.target.value)}
+                    placeholder="Telegram chat id for this POC"
                   />
                 </FormField>
               </Box>
@@ -245,72 +240,37 @@ function SettingsContent() {
             </Card.Content>
           </Card>
 
-          {/* Per-company config */}
           <Card>
             <Card.Header
-              title="Company Telegram Channels"
-              subtitle="Configure Telegram chat IDs for each company"
+              title="Telegram POC Mode"
+              subtitle="One Telegram chat, one active company at a time, switched with /company"
             />
             <Card.Divider />
             <Card.Content>
               <Box direction="vertical" gap="18px">
-                {companies.map((company) => {
-                  const cfg = companyConfigs[company.id] || {
-                    chatId: "",
-                    enabled: false,
-                    lastSentCommentId: null,
-                  };
-                  return (
-                    <Box
-                      key={company.id}
-                      direction="vertical"
-                      gap="9px"
-                      padding="12px"
-                      borderRadius="6px"
-                    >
-                      <Box gap="12px" verticalAlign="middle">
-                        <Heading size="tiny">{company.name}</Heading>
-                        <Box marginLeft="auto">
-                          <ToggleSwitch
-                            size="small"
-                            checked={cfg.enabled}
-                            onChange={() =>
-                              updateCompanyConfig(company.id, { enabled: !cfg.enabled })
-                            }
-                          />
-                        </Box>
-                      </Box>
-                      <Box gap="9px" verticalAlign="bottom">
-                        <Box flex={1}>
-                          <FormField label="Telegram Chat ID" labelSize="small">
-                            <Input
-                              size="small"
-                              value={cfg.chatId}
-                              onChange={(e) =>
-                                updateCompanyConfig(company.id, { chatId: e.target.value })
-                              }
-                              placeholder="e.g. 123456789"
-                              disabled={!cfg.enabled}
-                            />
-                          </FormField>
-                        </Box>
-                        <Button
-                          size="tiny"
-                          priority="secondary"
-                          disabled={!cfg.chatId || !botToken || testingChatId === cfg.chatId}
-                          onClick={() => handleTestConnection(cfg.chatId)}
-                        >
-                          {testingChatId === cfg.chatId ? "Sending..." : "Test"}
-                        </Button>
-                      </Box>
-                    </Box>
-                  );
-                })}
-                {companies.length === 0 && (
-                  <Text size="small" secondary>
-                    No companies found. Create a company first.
-                  </Text>
-                )}
+                <Text size="small" secondary>
+                  The bot no longer maps one Telegram chat per company. Instead, it uses one shared chat and asks you to switch the active company with <code>/company</code>.
+                </Text>
+                <Box gap="9px" verticalAlign="bottom">
+                  <Box flex={1}>
+                    <FormField label="Test Chat ID" labelSize="small">
+                      <Input
+                        size="small"
+                        value={allowedChatId}
+                        onChange={(e) => setAllowedChatId(e.target.value)}
+                        placeholder="e.g. 123456789"
+                      />
+                    </FormField>
+                  </Box>
+                  <Button
+                    size="tiny"
+                    priority="secondary"
+                    disabled={!allowedChatId || !botToken || testingChatId === allowedChatId}
+                    onClick={() => handleTestConnection(allowedChatId)}
+                  >
+                    {testingChatId === allowedChatId ? "Sending..." : "Test"}
+                  </Button>
+                </Box>
               </Box>
             </Card.Content>
           </Card>

@@ -1,9 +1,18 @@
 const TELEGRAM_API = "https://api.telegram.org";
 
+export interface TelegramInlineKeyboardButton {
+  text: string;
+  callback_data: string;
+}
+
 export async function sendTelegramMessage(
   token: string,
   chatId: string,
-  text: string
+  text: string,
+  options?: {
+    inlineKeyboard?: TelegramInlineKeyboardButton[][];
+    disableWebPagePreview?: boolean;
+  },
 ): Promise<{ ok: boolean; result?: unknown; description?: string }> {
   const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
     method: "POST",
@@ -11,7 +20,28 @@ export async function sendTelegramMessage(
     body: JSON.stringify({
       chat_id: chatId,
       text,
-      parse_mode: "Markdown",
+      disable_web_page_preview: options?.disableWebPagePreview ?? true,
+      reply_markup: options?.inlineKeyboard
+        ? {
+            inline_keyboard: options.inlineKeyboard,
+          }
+        : undefined,
+    }),
+  });
+  return res.json();
+}
+
+export async function answerTelegramCallbackQuery(
+  token: string,
+  callbackQueryId: string,
+  text?: string,
+): Promise<{ ok: boolean; result?: unknown; description?: string }> {
+  const res = await fetch(`${TELEGRAM_API}/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      callback_query_id: callbackQueryId,
+      text,
     }),
   });
   return res.json();
