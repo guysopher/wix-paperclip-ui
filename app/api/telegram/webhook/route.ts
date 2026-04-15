@@ -145,8 +145,9 @@ async function ensureTelegramIssue(companyId: string, userLabel: string): Promis
       }),
     }));
 
-  const comments = await paperclip<PaperclipComment[]>(`/issues/${issue.id}/comments`).catch(() => []);
-  return { issueId: issue.id, comments };
+  const issueId = issue.id;
+  const comments = await paperclip<PaperclipComment[]>(`/issues/${issueId}/comments`).catch(() => []);
+  return { issueId, comments };
 }
 
 async function sendCompanyChooser(
