@@ -113,12 +113,12 @@ function formatTelegramReply(text: string, companyId: string): string {
 }
 
 function parseTelegramThread(comments: PaperclipComment[]): CeoChatMessage[] {
-  return comments.flatMap((comment) => {
+  return comments.flatMap<CeoChatMessage>((comment) => {
     if (comment.body.startsWith(`${TELEGRAM_USER_PREFIX} `)) {
-      return [{ role: "user" as const, text: comment.body.slice(TELEGRAM_USER_PREFIX.length + 1) }];
+      return [{ role: "user", text: comment.body.slice(TELEGRAM_USER_PREFIX.length + 1) }];
     }
     if (comment.body.startsWith(`${TELEGRAM_ASSISTANT_PREFIX} `)) {
-      return [{ role: "ceo" as const, text: comment.body.slice(TELEGRAM_ASSISTANT_PREFIX.length + 1) }];
+      return [{ role: "ceo", text: comment.body.slice(TELEGRAM_ASSISTANT_PREFIX.length + 1) }];
     }
     return [];
   });
