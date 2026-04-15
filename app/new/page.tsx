@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Loader, Text } from "@wix/design-system";
 import { WixDesignSystemProvider } from "@wix/design-system";
 import { Send } from "@wix/wix-ui-icons-common";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   archiveCompany,
   createCompany,
@@ -1381,10 +1383,53 @@ function NewCompanyPageContent() {
                       message.role === "ceo"
                         ? "0 14px 34px rgba(77, 103, 128, 0.12)"
                         : "0 12px 26px rgba(47,140,255,0.22)",
-                    whiteSpace: "pre-wrap",
                   }}
                 >
-                  {message.text}
+                  {message.role === "ceo" ? (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ children }) => (
+                          <p style={{ margin: "0 0 16px", lineHeight: 1.72 }}>
+                            {children}
+                          </p>
+                        ),
+                        ul: ({ children }) => (
+                          <ul style={{ margin: "0 0 16px 20px", padding: 0 }}>
+                            {children}
+                          </ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol style={{ margin: "0 0 16px 20px", padding: 0 }}>
+                            {children}
+                          </ol>
+                        ),
+                        li: ({ children }) => (
+                          <li style={{ marginBottom: 8, lineHeight: 1.72 }}>
+                            {children}
+                          </li>
+                        ),
+                        strong: ({ children }) => (
+                          <strong style={{ fontWeight: 700 }}>{children}</strong>
+                        ),
+                        a: ({ children, href }) => (
+                          <a
+                            href={href}
+                            style={{
+                              color: "#2f6fed",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            {children}
+                          </a>
+                        ),
+                      }}
+                    >
+                      {message.text}
+                    </ReactMarkdown>
+                  ) : (
+                    <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                  )}
                 </div>
               </div>
             </div>
