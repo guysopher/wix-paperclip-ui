@@ -30,6 +30,7 @@ async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
 interface PaperclipCompany {
   id: string;
   name: string;
+  status: string;
 }
 
 interface PaperclipAgent {
@@ -73,7 +74,8 @@ function getSession(config: Awaited<ReturnType<typeof loadConfig>>, userId: stri
 }
 
 async function getCompanies(): Promise<PaperclipCompany[]> {
-  return paperclip("/companies");
+  const companies = await paperclip<PaperclipCompany[]>("/companies");
+  return companies.filter((company) => company.status !== "archived");
 }
 
 function buildCompanyKeyboard(companies: PaperclipCompany[], activeCompanyId: string | null): TelegramInlineKeyboardButton[][] {
