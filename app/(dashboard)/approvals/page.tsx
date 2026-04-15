@@ -33,6 +33,7 @@ import {
   type Approval,
 } from "@/lib/api";
 import { SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
+import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_SPECIALIST_MODEL } from "@/lib/paperclip-runtime-defaults";
 
 const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
   pending: "warning",
@@ -258,6 +259,29 @@ function ApprovalsContent() {
         } catch { /* use without prompt */ }
       }
 
+      const adapterType =
+        typeof p.adapterType === "string" && p.adapterType.trim().length > 0
+          ? p.adapterType.trim()
+          : DEFAULT_OPENAI_ADAPTER_TYPE;
+      const adapterConfig =
+        adapterType === "claude_local"
+          ? {
+              model: oldConfig.model || "claude-sonnet-4-6",
+              heartbeatIntervalSec,
+              timeoutSec: oldConfig.timeoutSec || 600,
+              maxTurnsPerRun: oldConfig.maxTurnsPerRun || SPECIALIST_AGENT_MAX_TURNS,
+              dangerouslySkipPermissions: true,
+              ...(promptTemplate ? { promptTemplate } : {}),
+            }
+          : {
+              model: oldConfig.model || DEFAULT_OPENAI_SPECIALIST_MODEL,
+              heartbeatIntervalSec,
+              timeoutSec: oldConfig.timeoutSec || 600,
+              dangerouslyBypassApprovalsAndSandbox:
+                oldConfig.dangerouslyBypassApprovalsAndSandbox ?? true,
+              ...(promptTemplate ? { promptTemplate } : {}),
+            };
+
       const newAgent = await createAgent(companyId, {
         name: p.name,
         role: p.role,
@@ -265,15 +289,8 @@ function ApprovalsContent() {
         icon: p.icon as string | undefined,
         capabilities: p.capabilities,
         reportsTo: p.reportsTo || undefined,
-        adapterType: "claude_local",
-        adapterConfig: {
-          model: oldConfig.model || "claude-sonnet-4-6",
-          heartbeatIntervalSec,
-          timeoutSec: oldConfig.timeoutSec || 600,
-          maxTurnsPerRun: oldConfig.maxTurnsPerRun || SPECIALIST_AGENT_MAX_TURNS,
-          dangerouslySkipPermissions: true,
-          ...(promptTemplate ? { promptTemplate } : {}),
-        },
+        adapterType,
+        adapterConfig,
       });
       setSelected(null);
       router.push(companyPath(`/team/${newAgent.id}`));

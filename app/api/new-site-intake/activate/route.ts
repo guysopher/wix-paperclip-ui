@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
 import {
-  AI_TEAM_LEAD_MAX_TURNS,
   CANONICAL_AGENT_TITLES,
   renderAgentTemplateShowcase,
 } from "@/lib/agent-templates";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { buildCompanyDescription } from "@/lib/company-metadata";
+import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_TEAM_LEAD_MODEL } from "@/lib/paperclip-runtime-defaults";
 
 const client = new OpenAI();
 
@@ -541,13 +541,12 @@ export async function POST(request: NextRequest) {
         icon: "brain",
         capabilities:
           "Strategic planning, delegation, AI team oversight, stakeholder communication, business analysis, Wix operations",
-        adapterType: "claude_local",
+        adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
         adapterConfig: {
-          model: "claude-opus-4-6",
+          model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
           heartbeatIntervalSec: 1200,
-          dangerouslySkipPermissions: true,
+          dangerouslyBypassApprovalsAndSandbox: true,
           timeoutSec: 600,
-          maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
           promptTemplate: AI_TEAM_LEAD_PROMPT,
         },
       })),

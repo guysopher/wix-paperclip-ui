@@ -39,7 +39,7 @@ import {
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
-import { AI_TEAM_LEAD_MAX_TURNS } from "@/lib/agent-templates";
+import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_TEAM_LEAD_MODEL } from "@/lib/paperclip-runtime-defaults";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid, withWorkspaceContext } from "@/lib/msid";
 
@@ -531,13 +531,12 @@ function NewCompanyPageContent() {
           icon: "brain",
           capabilities:
             "Strategic planning, delegation, AI team oversight, stakeholder communication, business analysis, Wix operations",
-          adapterType: "claude_local",
+          adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
           adapterConfig: {
-            model: "claude-opus-4-6",
+            model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
             heartbeatIntervalSec: 1200,
-            dangerouslySkipPermissions: true,
+            dangerouslyBypassApprovalsAndSandbox: true,
             timeoutSec: 600,
-            maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
             promptTemplate: AI_TEAM_LEAD_PROMPT,
           },
         });

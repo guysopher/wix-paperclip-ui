@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { renderCanonicalHiringBlueprintLibrary, SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
+import { renderCanonicalHiringBlueprintLibrary } from "@/lib/agent-templates";
+import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_SPECIALIST_MODEL } from "@/lib/paperclip-runtime-defaults";
 
 const client = new OpenAI();
 
@@ -51,7 +52,7 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - Historical approval records may exist in older company data. Treat them as historical unless their current status is explicitly pending, and never talk as if hires are waiting on approval when staffing is already live
    - When hiring: use role labels like "Wix Site Expert", "Brand Lead", "Growth Lead", or "eCommerce Lead" for the Name field, and use the fuller job description for Title
    - When hiring, create the full agent definition, including a detailed promptTemplate tailored to the business and the role
-   - Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
+   - Specialist agents should default to adapterType "${DEFAULT_OPENAI_ADAPTER_TYPE}" and model "${DEFAULT_OPENAI_SPECIALIST_MODEL}" unless there is a strong reason to change them
    - The core operating team should always include the AI Business Manager as team lead, plus Industry Advisor and Wix Site Expert
    - Every company should have a Wix Site Expert once site work matters
    - Every company should also have an Industry Advisor early

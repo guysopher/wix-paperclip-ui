@@ -1,3 +1,5 @@
+import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_SPECIALIST_MODEL } from "./paperclip-runtime-defaults";
+
 export interface AgentTemplate {
   id: string;
   title: string;
@@ -32,13 +34,12 @@ const ROLE_NAME_RULES = [
   "title: a clear human-readable job title",
   "icon: the most fitting icon for the role",
   "capabilities: specific capabilities relevant to the business and role",
-  'adapterType: "claude_local"',
+  `adapterType: "${DEFAULT_OPENAI_ADAPTER_TYPE}"`,
   "adapterConfig defaults:",
-  '  - model: "claude-sonnet-4-6"',
+  `  - model: "${DEFAULT_OPENAI_SPECIALIST_MODEL}"`,
   "  - heartbeatIntervalSec: 1800",
   "  - timeoutSec: 900",
-  `  - maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS}`,
-  "  - dangerouslySkipPermissions: true",
+  "  - dangerouslyBypassApprovalsAndSandbox: true",
   "  - promptTemplate: fully written and business-specific",
   "runtimeConfig defaults:",
   "  - heartbeat.enabled: true",

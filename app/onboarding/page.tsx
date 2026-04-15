@@ -36,10 +36,13 @@ import { AgentAvatar } from "@/components/agent-avatar";
 import { useMsidPath } from "@/lib/msid-client";
 import { buildCompanyDescription, mergeCompanyDescription } from "@/lib/company-metadata";
 import {
-  AI_TEAM_LEAD_MAX_TURNS,
   renderCanonicalHiringBlueprintLibrary,
-  SPECIALIST_AGENT_MAX_TURNS,
 } from "@/lib/agent-templates";
+import {
+  DEFAULT_OPENAI_ADAPTER_TYPE,
+  DEFAULT_OPENAI_SPECIALIST_MODEL,
+  DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+} from "@/lib/paperclip-runtime-defaults";
 
 // --- Hardcoded Wix sites ---
 interface WixSite {
@@ -165,9 +168,9 @@ WHAT YOU DO ON EVERY CHECK-IN:
      * Title: Their job description (e.g., "Senior Marketing Manager", "Lead DevOps Engineer", "Content Strategist"). This appears below the name in smaller text.
      * IMPORTANT: Use ROLE NAMES for the name field, not person names. Good: "Wix Site Expert" / "Brand Lead". Bad: "Sarah" / "Senior Marketing Manager".
      * Clear role description (promptTemplate) that defines their responsibilities, how they work, and their personality — tailored to this specific company and its needs
-     * The right seniority level (opus for strategic roles, sonnet for execution roles)
+     * The right OpenAI model for the role and workload
      * Appropriate check-in schedule based on workload
-     * Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
+     * Specialist agents should default to adapterType "${DEFAULT_OPENAI_ADAPTER_TYPE}" and model "${DEFAULT_OPENAI_SPECIALIST_MODEL}" unless there is a strong reason to change them
      * Who they report to in the org chart
      * Their specific capabilities relevant to the company's domain
    - The core team should always include you as team lead, plus Industry Advisor and Wix Site Expert
@@ -431,12 +434,11 @@ function OnboardingFlow() {
         title: "Chief Executive Officer",
         icon: selectedIcon,
         capabilities: "Strategic planning, delegation, company oversight, stakeholder communication, goal setting",
-        adapterType: "claude_local",
+        adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
         adapterConfig: {
-          model: "claude-opus-4-6",
-          dangerouslySkipPermissions: true,
+          model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+          dangerouslyBypassApprovalsAndSandbox: true,
           timeoutSec: 600,
-          maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
           heartbeatIntervalSec: 1200,
           promptTemplate: onboardingPrompt,
         },
