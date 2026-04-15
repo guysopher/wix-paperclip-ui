@@ -1,6 +1,6 @@
 import type { Agent, HeartbeatRun } from "@/lib/api";
 
-const PAPERCLIP_RUNTIME_DEFAULT_MODEL = "gpt-4o-mini";
+const PAPERCLIP_RUNTIME_UNKNOWN_MODEL = "Not yet observed";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -37,7 +37,7 @@ function parseUsageModel(usageJson: string | null): string | null {
   }
 }
 
-export function getRuntimeModel(agent: Agent, runs: HeartbeatRun[]): string {
+export function getRuntimeModel(agent: Agent, runs: HeartbeatRun[]): string | null {
   const latestRunModel = [...runs]
     .filter((run) => run.agentId === agent.id)
     .sort((a, b) => {
@@ -48,9 +48,9 @@ export function getRuntimeModel(agent: Agent, runs: HeartbeatRun[]): string {
     .map((run) => parseUsageModel(run.usageJson))
     .find(Boolean);
 
-  return latestRunModel || PAPERCLIP_RUNTIME_DEFAULT_MODEL;
+  return latestRunModel || null;
 }
 
-export function getRuntimeModelLabel(model: string): string {
-  return model || PAPERCLIP_RUNTIME_DEFAULT_MODEL;
+export function getRuntimeModelLabel(model: string | null): string {
+  return model || PAPERCLIP_RUNTIME_UNKNOWN_MODEL;
 }

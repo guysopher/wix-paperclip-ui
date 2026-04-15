@@ -268,7 +268,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const showModelDropdown = supportsModelSelection && modelDropdownOptions.length > 0;
   const showModelInput = supportsModelSelection && !showModelDropdown;
   const hasPendingModelChange =
-    configuredModel.length > 0 && configuredModel !== runtimeModelRaw;
+    configuredModel.length > 0 && runtimeModelRaw !== null && configuredModel !== runtimeModelRaw;
 
   return (
     <>
@@ -455,6 +455,9 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                     )}
                     <Text size="tiny" secondary>
                       This takes effect after you save, then wake the agent or wait for the next check-in.
+                    </Text>
+                    <Text size="tiny" secondary style={{ fontFamily: "monospace" }}>
+                      Adapter: {agent.adapterType}
                     </Text>
                     {hasPendingModelChange && (
                       <Badge size="tiny" skin="warning">
