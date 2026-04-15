@@ -385,16 +385,12 @@ function DashboardContent() {
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const queuedRuns = [...runs]
-    .filter((run) => run.status === "queued")
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const activeRuns = runningRuns.length > 0 ? runningRuns : queuedRuns;
   const preferredLiveRun =
-    activeRuns.find((run) => agents.find((agent) => agent.id === run.agentId)?.role === "ceo")
-    || activeRuns[0]
+    runningRuns.find((run) => agents.find((agent) => agent.id === run.agentId)?.role === "ceo")
+    || runningRuns[0]
     || null;
   const selectedLiveRun =
-    activeRuns.find((run) => run.id === selectedLiveRunId)
+    runningRuns.find((run) => run.id === selectedLiveRunId)
     || preferredLiveRun;
   const selectedLiveAgent = selectedLiveRun
     ? agents.find((agent) => agent.id === selectedLiveRun.agentId) || null
@@ -407,10 +403,10 @@ function DashboardContent() {
       return;
     }
 
-    if (!selectedLiveRunId || !activeRuns.some((run) => run.id === selectedLiveRunId)) {
+    if (!selectedLiveRunId || !runningRuns.some((run) => run.id === selectedLiveRunId)) {
       setSelectedLiveRunId(selectedLiveRun.id);
     }
-  }, [activeRuns, selectedLiveRun, selectedLiveRunId]);
+  }, [runningRuns, selectedLiveRun, selectedLiveRunId]);
 
   useEffect(() => {
     if (!selectedLiveRun) {
@@ -1269,15 +1265,13 @@ function DashboardContent() {
                         {selectedLiveAgent.name}
                       </div>
                       <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span>
-                          {selectedLiveRun.status === "queued" ? "Queued to start" : "Working right now"}
-                        </span>
+                        <span>Working right now</span>
                         <span>•</span>
                         <span>{feedDuration(selectedLiveRun.startedAt, selectedLiveRun.finishedAt)}</span>
-                        {activeRuns.length > 1 && (
+                        {runningRuns.length > 1 && (
                           <>
                             <span>•</span>
-                            <span>{activeRuns.length} active runs</span>
+                            <span>{runningRuns.length} active runs</span>
                           </>
                         )}
                       </div>
@@ -1299,6 +1293,60 @@ function DashboardContent() {
                     <span style={{ fontSize: 16 }}>→</span>
                   </a>
                 </div>
+
+                {runningRuns.length > 1 && (
+                  <div
+                    style={{
+                      padding: "14px 24px 0",
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {runningRuns.map((run) => {
+                      const runAgent = agents.find((agent) => agent.id === run.agentId);
+                      const isSelected = run.id === selectedLiveRun.id;
+
+                      return (
+                        <button
+                          key={run.id}
+                          onClick={() => {
+                            setSelectedLiveRunId(run.id);
+                            liveFeedStickToBottomRef.current = true;
+                          }}
+                          style={{
+                            border: isSelected ? "1px solid #8db7ff" : "1px solid #dce7f2",
+                            background: isSelected ? "#eef5ff" : "#f8fbff",
+                            color: isSelected ? "#2357a5" : "#5f7b93",
+                            borderRadius: 999,
+                            padding: "8px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: "#00d68f",
+                              boxShadow: "0 0 0 4px rgba(0,214,143,0.12)",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span>{runAgent?.name || "Unknown agent"}</span>
+                          <span style={{ color: "#8ea5bb", fontWeight: 500 }}>
+                            {feedDuration(run.startedAt, run.finishedAt)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div style={{ padding: "18px 24px 20px" }}>
                   <div
@@ -1372,11 +1420,7 @@ function DashboardContent() {
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
                         <Loader size="tiny" />
-                        <span>
-                          {selectedLiveRun.status === "queued"
-                            ? "This run is queued. Live steps will appear once it starts."
-                            : "Waiting for readable live output..."}
-                        </span>
+                        <span>Waiting for readable live output...</span>
                       </div>
                     )}
                   </div>
