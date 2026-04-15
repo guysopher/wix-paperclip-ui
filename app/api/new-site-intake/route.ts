@@ -26,6 +26,8 @@ interface IntakeRequest {
 }
 
 type ConversationStatus = "gathering" | "ready_to_activate";
+const INTAKE_REPLY_MAX_TOKENS = 520;
+const INTAKE_CONTINUATION_MAX_TOKENS = 220;
 
 function normalizeJsonText(raw: string): string {
   return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -157,6 +159,54 @@ Conversation:
 ${transcript}`;
 }
 
+function joinReplyParts(firstPart: string, secondPart: string): string {
+  if (!firstPart) {
+    return secondPart;
+  }
+
+  if (!secondPart) {
+    return firstPart;
+  }
+
+  if (/[.!?:)\]]$/.test(firstPart.trimEnd())) {
+    return `${firstPart.trimEnd()}\n\n${secondPart.trimStart()}`;
+  }
+
+  return `${firstPart.trimEnd()} ${secondPart.trimStart()}`;
+}
+
+async function generateIntakeReply(
+  openaiMessages: OpenAI.ChatCompletionMessageParam[],
+): Promise<string> {
+  const response = await client.chat.completions.create({
+    model: "gpt-5.4",
+    max_completion_tokens: INTAKE_REPLY_MAX_TOKENS,
+    messages: openaiMessages,
+  });
+
+  const firstPart = response.choices[0]?.message?.content?.trim() || "";
+  if (response.choices[0]?.finish_reason !== "length" || !firstPart) {
+    return firstPart;
+  }
+
+  const continuation = await client.chat.completions.create({
+    model: "gpt-5.4",
+    max_completion_tokens: INTAKE_CONTINUATION_MAX_TOKENS,
+    messages: [
+      ...openaiMessages,
+      { role: "assistant", content: firstPart },
+      {
+        role: "user",
+        content:
+          "[Continue from the exact point you stopped. Finish the current answer cleanly, include the CTA question at the end if this is the proposal, and do not restart or repeat the earlier parts.]",
+      },
+    ],
+  });
+
+  const secondPart = continuation.choices[0]?.message?.content?.trim() || "";
+  return joinReplyParts(firstPart, secondPart);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as IntakeRequest;
@@ -184,12 +234,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const [response, statusResponse] = await Promise.all([
-      client.chat.completions.create({
-        model: "gpt-5.4",
-        max_completion_tokens: 340,
-        messages: openaiMessages,
-      }),
+    const [replyText, statusResponse] = await Promise.all([
+      generateIntakeReply(openaiMessages),
       client.chat.completions.create({
         model: "gpt-5.4",
         max_completion_tokens: 80,
@@ -204,7 +250,7 @@ export async function POST(request: NextRequest) {
     const conversationStatus = extractConversationStatus(raw);
 
     return NextResponse.json({
-      text: response.choices[0]?.message?.content || "",
+      text: replyText,
       conversationStatus,
     });
   } catch (error) {
