@@ -243,6 +243,7 @@ function DashboardContent() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
+  const [workView, setWorkView] = useState<"open" | "completed">("open");
   const [activitySliderIndex, setActivitySliderIndex] = useState<number | null>(null);
   const [activitySliderDirty, setActivitySliderDirty] = useState(false);
   const [savingActivity, setSavingActivity] = useState(false);
@@ -385,6 +386,17 @@ function DashboardContent() {
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const runningAgentCount = agents.filter((agent) => agent.status === "running").length;
+  const sortedAgents = [...agents].sort((a, b) => {
+    const ROLE_ORDER: Record<string, number> = { ceo: 0, pm: 1, cmo: 2, engineer: 3, qa: 4, designer: 5 };
+    const aOrder = ROLE_ORDER[a.role] ?? 99;
+    const bOrder = ROLE_ORDER[b.role] ?? 99;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    const aHasReports = agents.some((x) => x.reportsTo === a.id);
+    const bHasReports = agents.some((x) => x.reportsTo === b.id);
+    if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
   const preferredLiveRun =
     runningRuns.find((run) => agents.find((agent) => agent.id === run.agentId)?.role === "ceo")
     || runningRuns[0]
@@ -588,6 +600,15 @@ function DashboardContent() {
   const recentIssues = issues
     .filter((i) => i.status !== "done" && i.status !== "cancelled" && i.title !== "Board Inbox")
     .slice(0, 5);
+  const doneIssues = issues
+    .filter((i) => i.status === "done" && i.title !== "Board Inbox")
+    .sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime());
+  const effectiveWorkView =
+    workView === "completed" && doneIssues.length === 0
+      ? "open"
+      : workView === "open" && recentIssues.length === 0 && doneIssues.length > 0
+        ? "completed"
+        : workView;
 
   // Token usage analytics
   const tokenStats = (() => {
@@ -1228,57 +1249,105 @@ function DashboardContent() {
           </div>
           </div>
 
-          {selectedLiveRun && selectedLiveAgent && (
-            <div>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
-                Live Now
-              </div>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
+              Live Now
+            </div>
+            <div
+              style={{
+                background: "white",
+                borderRadius: 12,
+                border: "1px solid #e8ecf0",
+                overflow: "hidden",
+              }}
+            >
               <div
                 style={{
-                  background: "white",
-                  borderRadius: 12,
-                  border: "1px solid #e8ecf0",
-                  overflow: "hidden",
+                  padding: "18px 24px",
+                  borderBottom: "1px solid #f0f3f5",
+                  background: "linear-gradient(to bottom, #fafbfc, #ffffff)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  style={{
-                    padding: "18px 24px",
-                    borderBottom: "1px solid #f0f3f5",
-                    background: "linear-gradient(to bottom, #fafbfc, #ffffff)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  {selectedLiveAgent ? (
                     <AgentAvatar
                       agentName={selectedLiveAgent.name}
                       agentRole={selectedLiveAgent.role}
                       icon={selectedLiveAgent.icon}
                       size={38}
                     />
-                    <div>
-                      <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d" }}>
-                        {selectedLiveAgent.name}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span>Working right now</span>
-                        <span>•</span>
-                        <span>{feedDuration(selectedLiveRun.startedAt, selectedLiveRun.finishedAt)}</span>
-                        {runningRuns.length > 1 && (
-                          <>
-                            <span>•</span>
-                            <span>{runningRuns.length} active runs</span>
-                          </>
-                        )}
-                      </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: "50%",
+                        background: "#eef4f9",
+                        border: "1px solid #dce7f2",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#87a4bb",
+                        fontSize: 16,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      •
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d" }}>
+                      {selectedLiveAgent ? selectedLiveAgent.name : "No one is running right now"}
+                    </div>
+                    <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {selectedLiveRun ? (
+                        <>
+                          <span>Working right now</span>
+                          <span>•</span>
+                          <span>{feedDuration(selectedLiveRun.startedAt, selectedLiveRun.finishedAt)}</span>
+                          {runningRuns.length > 1 && (
+                            <>
+                              <span>•</span>
+                              <span>{runningRuns.length} active runs</span>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span>{runningAgentCount > 0 ? `${runningAgentCount} active now` : "No active runs"}</span>
+                          <span>•</span>
+                          <span>{agents.length} team member{agents.length === 1 ? "" : "s"} ready</span>
+                        </>
+                      )}
                     </div>
                   </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  {selectedLiveRun && (
+                    <a
+                      href={companyPath(`/runs/${selectedLiveRun.id}`)}
+                      style={{
+                        color: "#3899ec",
+                        textDecoration: "none",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      Open full run
+                      <span style={{ fontSize: 16 }}>→</span>
+                    </a>
+                  )}
                   <a
-                    href={companyPath(`/runs/${selectedLiveRun.id}`)}
+                    href={companyPath("/team")}
                     style={{
                       color: "#3899ec",
                       textDecoration: "none",
@@ -1289,83 +1358,88 @@ function DashboardContent() {
                       gap: 4,
                     }}
                   >
-                    Open full run
+                    View team
                     <span style={{ fontSize: 16 }}>→</span>
                   </a>
                 </div>
+              </div>
 
-                {runningRuns.length > 1 && (
-                  <div
-                    style={{
-                      padding: "14px 24px 0",
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {runningRuns.map((run) => {
-                      const runAgent = agents.find((agent) => agent.id === run.agentId);
-                      const isSelected = run.id === selectedLiveRun.id;
+              {selectedLiveRun && runningRuns.length > 1 && (
+                <div
+                  style={{
+                    padding: "14px 24px 0",
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {runningRuns.map((run) => {
+                    const runAgent = agents.find((agent) => agent.id === run.agentId);
+                    const isSelected = run.id === selectedLiveRun.id;
 
-                      return (
-                        <button
-                          key={run.id}
-                          onClick={() => {
-                            setSelectedLiveRunId(run.id);
-                            liveFeedStickToBottomRef.current = true;
-                          }}
+                    return (
+                      <button
+                        key={run.id}
+                        onClick={() => {
+                          setSelectedLiveRunId(run.id);
+                          liveFeedStickToBottomRef.current = true;
+                        }}
+                        style={{
+                          border: isSelected ? "1px solid #8db7ff" : "1px solid #dce7f2",
+                          background: isSelected ? "#eef5ff" : "#f8fbff",
+                          color: isSelected ? "#2357a5" : "#5f7b93",
+                          borderRadius: 999,
+                          padding: "8px 12px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <span
                           style={{
-                            border: isSelected ? "1px solid #8db7ff" : "1px solid #dce7f2",
-                            background: isSelected ? "#eef5ff" : "#f8fbff",
-                            color: isSelected ? "#2357a5" : "#5f7b93",
-                            borderRadius: 999,
-                            padding: "8px 12px",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: "#00d68f",
+                            boxShadow: "0 0 0 4px rgba(0,214,143,0.12)",
+                            flexShrink: 0,
                           }}
-                        >
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              background: "#00d68f",
-                              boxShadow: "0 0 0 4px rgba(0,214,143,0.12)",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <span>{runAgent?.name || "Unknown agent"}</span>
-                          <span style={{ color: "#8ea5bb", fontWeight: 500 }}>
-                            {feedDuration(run.startedAt, run.finishedAt)}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                        />
+                        <span>{runAgent?.name || "Unknown agent"}</span>
+                        <span style={{ color: "#8ea5bb", fontWeight: 500 }}>
+                          {feedDuration(run.startedAt, run.finishedAt)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
-                <div style={{ padding: "18px 24px 20px" }}>
-                  <div
-                    ref={liveFeedRef}
-                    onScroll={(event) => {
-                      const container = event.currentTarget;
-                      liveFeedStickToBottomRef.current =
-                        container.scrollHeight - container.scrollTop - container.clientHeight < 32;
-                    }}
-                    style={{
-                      height: 220,
-                      overflowY: "auto",
-                      borderRadius: 10,
-                      background: "linear-gradient(180deg, #f8fbff 0%, #f5f8fc 100%)",
-                      border: "1px solid #e6eef7",
-                      padding: "14px 16px",
-                    }}
-                  >
-                    {liveRunLoading && (!liveRunFeed || liveRunFeed.entries.length === 0) ? (
+              <div style={{ padding: "18px 24px 0" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#6b8196", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>
+                  Running Feed
+                </div>
+                <div
+                  ref={liveFeedRef}
+                  onScroll={(event) => {
+                    const container = event.currentTarget;
+                    liveFeedStickToBottomRef.current =
+                      container.scrollHeight - container.scrollTop - container.clientHeight < 32;
+                  }}
+                  style={{
+                    height: 220,
+                    overflowY: "auto",
+                    borderRadius: 10,
+                    background: "linear-gradient(180deg, #f8fbff 0%, #f5f8fc 100%)",
+                    border: "1px solid #e6eef7",
+                    padding: "14px 16px",
+                  }}
+                >
+                  {selectedLiveRun ? (
+                    liveRunLoading && (!liveRunFeed || liveRunFeed.entries.length === 0) ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
                         <Loader size="tiny" />
                         <span>Loading live activity...</span>
@@ -1422,71 +1496,36 @@ function DashboardContent() {
                         <Loader size="tiny" />
                         <span>Waiting for readable live output...</span>
                       </div>
-                    )}
+                    )
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
+                      <span>No live run at the moment. Wake up a team member below or create a task to start work.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: "18px 24px 0" }}>
+                <Divider />
+              </div>
+
+              <div style={{ padding: "18px 24px 10px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: "#162d3d", marginBottom: 4 }}>
+                      Team Activity
+                    </div>
+                    <div style={{ fontSize: 13, color: "#7a92a5" }}>
+                      {runningAgentCount > 0
+                        ? `${runningAgentCount} team member${runningAgentCount > 1 ? "s" : ""} working now`
+                        : `${agents.length} team member${agents.length > 1 ? "s" : ""} ready`}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Team status - Full width */}
-          <div>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Your Team</div>
-          <div style={{
-            background: "white",
-            borderRadius: 12,
-            border: "1px solid #e8ecf0",
-            overflow: "hidden",
-          }}>
-            {/* Header */}
-            <div style={{
-              padding: "20px 24px",
-              borderBottom: "1px solid #f0f3f5",
-              background: "linear-gradient(to bottom, #fafbfc, #ffffff)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d", marginBottom: 4 }}>
-                    {agents.filter(a => a.status === "running").length > 0 ? "🚀 " : ""}
-                    Team Activity
-                  </div>
-                  <div style={{ fontSize: 13, color: "#7a92a5" }}>
-                    {agents.filter(a => a.status === "running").length > 0
-                      ? `${agents.filter(a => a.status === "running").length} team member${agents.filter(a => a.status === "running").length > 1 ? "s" : ""} working now`
-                      : `${agents.length} team member${agents.length > 1 ? "s" : ""} ready`
-                    }
-                  </div>
-                </div>
-                <a href={companyPath("/team")} style={{
-                  color: "#3899ec",
-                  textDecoration: "none",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}>
-                  View team
-                  <span style={{ fontSize: 16 }}>→</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Team members */}
-            <div style={{ padding: "8px 0" }}>
-              {agents
-                .sort((a, b) => {
-                  // Sort by hierarchy (like team page)
-                  const ROLE_ORDER: Record<string, number> = { ceo: 0, pm: 1, cmo: 2, engineer: 3, qa: 4, designer: 5 };
-                  const aOrder = ROLE_ORDER[a.role] ?? 99;
-                  const bOrder = ROLE_ORDER[b.role] ?? 99;
-                  if (aOrder !== bOrder) return aOrder - bOrder;
-                  const aHasReports = agents.some((x) => x.reportsTo === a.id);
-                  const bHasReports = agents.some((x) => x.reportsTo === b.id);
-                  if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
-                  return a.name.localeCompare(b.name);
-                })
-                .map((agent, i) => {
+              <div style={{ padding: "8px 0" }}>
+                {sortedAgents.map((agent, i) => {
                   const statusText = agentStatusText(agent);
                   const narrative = agentNarratives[agent.id];
                   const interval = getHeartbeatPolicy(agent).intervalSec;
@@ -1510,7 +1549,7 @@ function DashboardContent() {
                         alignItems: "center",
                         gap: 16,
                         padding: "16px 24px",
-                        borderBottom: i < agents.length - 1 ? "1px solid #f5f7f9" : "none",
+                        borderBottom: i < sortedAgents.length - 1 ? "1px solid #f5f7f9" : "none",
                         transition: "background 0.15s ease",
                         cursor: "pointer",
                       }}
@@ -1636,153 +1675,188 @@ function DashboardContent() {
                     </div>
                   );
                 })}
+              </div>
             </div>
           </div>
-          </div>
 
-          {/* Achievements */}
-          {(() => {
-            const doneIssues = issues
-              .filter((i) => i.status === "done" && i.title !== "Board Inbox")
-              .sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime());
-            if (doneIssues.length === 0) return null;
-            return (
-              <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Recent Achievements</div>
-                <Card>
-                  <Card.Header
-                    title={`${doneIssues.length} Completed`}
-                    suffix={<a href={companyPath("/tasks?status=done")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>}
-                  />
-                  <Card.Content>
-                    {doneIssues.slice(0, 5).map((issue, i) => {
-                      const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
-                      const completedDate = issue.completedAt || issue.updatedAt;
-                      const desc = issue.description || "";
-                      const summary = desc
-                        .split("\n")
-                        .map((l: string) => l.replace(/^#+\s*/, "").replace(/^\*+/, "").trim())
-                        .filter((l: string) => l.length > 10 && !l.startsWith("---") && !l.startsWith("|"))[0] || "";
-                      return (
-                        <TaskLinkWithPreview
-                          key={issue.id}
-                          href={companyPath(`/tasks/${issue.identifier}`)}
-                          issue={issue}
-                          block
-                          style={{
-                            display: "flex",
-                            gap: 12,
-                            padding: "12px 0",
-                            borderBottom: i < Math.min(doneIssues.length, 5) - 1 ? "1px solid #f0f0f0" : "none",
-                            textDecoration: "none",
-                            color: "inherit",
-                          }}
-                        >
-                          <div style={{
-                            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                            background: "#e8f7e8", color: "#00a854",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 14, marginTop: 2,
-                          }}>
-                            ✓
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                              <div style={{ fontWeight: 600, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
-                              <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }} title={new Date(completedDate).toLocaleString()}>
-                                {timeAgo(completedDate)}
-                              </span>
-                            </div>
-                            {summary && (
-                              <div style={{ fontSize: 13, color: "#666", marginTop: 3, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {summary}
-                              </div>
-                            )}
-                            <div style={{ fontSize: 12, color: "#999", marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
-                              <span style={{ fontFamily: "monospace", fontSize: 11 }}>{issue.identifier}</span>
-                              <span>·</span>
-                              <span>{assignee?.name || "Unassigned"}</span>
-                            </div>
-                          </div>
-                        </TaskLinkWithPreview>
-                      );
-                    })}
-                    {doneIssues.length > 5 && (
-                      <div style={{ padding: "10px 0", textAlign: "center" }}>
-                        <a href={companyPath("/tasks?status=done")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
-                          See all achievements →
-                        </a>
-                      </div>
-                    )}
-                  </Card.Content>
-                </Card>
-              </div>
-            );
-          })()}
-
-          {/* Open work - Full width */}
           <div>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Open Work</div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Work</div>
             <Card>
               <div
                 style={{
                   padding: "16px 24px 12px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "flex-end",
-                  gap: 12,
-                  borderBottom: recentIssues.length > 0 ? "1px solid #f0f0f0" : "none",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  borderBottom:
+                    (effectiveWorkView === "open" && recentIssues.length > 0) ||
+                    (effectiveWorkView === "completed" && doneIssues.length > 0)
+                      ? "1px solid #f0f0f0"
+                      : "none",
+                  flexWrap: "wrap",
                 }}
               >
-                <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
-                  Create Task
-                </Button>
-                <a href={companyPath("/tasks")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
-                  View all
-                </a>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d", marginBottom: 4 }}>Workboard</div>
+                  <div style={{ fontSize: 13, color: "#7a92a5" }}>
+                    {recentIssues.length} open • {doneIssues.length} completed
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: 4,
+                      borderRadius: 999,
+                      background: "#f5f8fc",
+                      border: "1px solid #e4ebf3",
+                    }}
+                  >
+                    {[
+                      { key: "open" as const, label: "Open", count: recentIssues.length },
+                      { key: "completed" as const, label: "Completed", count: doneIssues.length },
+                    ].map((option) => {
+                      const isSelected = effectiveWorkView === option.key;
+                      return (
+                        <button
+                          key={option.key}
+                          onClick={() => setWorkView(option.key)}
+                          style={{
+                            border: "none",
+                            background: isSelected ? "#ffffff" : "transparent",
+                            color: isSelected ? "#2357a5" : "#5f7b93",
+                            borderRadius: 999,
+                            padding: "8px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            boxShadow: isSelected ? "0 1px 2px rgba(22,45,61,0.08)" : "none",
+                          }}
+                        >
+                          <span>{option.label}</span>
+                          <span style={{ color: isSelected ? "#5f7b93" : "#8ea5bb" }}>{option.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
+                    Create Task
+                  </Button>
+                  <a
+                    href={companyPath(effectiveWorkView === "completed" ? "/tasks?status=done" : "/tasks")}
+                    style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}
+                  >
+                    View all
+                  </a>
+                </div>
               </div>
               <Card.Content>
-                {recentIssues.length === 0 ? (
-                  <div style={{ padding: "24px 0", textAlign: "center" }}>
-                    <Checklist color="#b0b0b0" size="48px" />
-                    <div style={{ marginTop: 12 }}>
-                      <Text weight="bold">No open tasks</Text>
-                      <div style={{ marginTop: 6 }}>
-                        <Text size="small" secondary>The team is ready for new work. Create a task to get started.</Text>
+                {effectiveWorkView === "open" ? (
+                  recentIssues.length === 0 ? (
+                    <div style={{ padding: "24px 0", textAlign: "center" }}>
+                      <Checklist color="#b0b0b0" size="48px" />
+                      <div style={{ marginTop: 12 }}>
+                        <Text weight="bold">No open tasks</Text>
+                        <div style={{ marginTop: 6 }}>
+                          <Text size="small" secondary>The team is ready for new work. Create a task to get started.</Text>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 16 }}>
+                        <Button size="small" onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
+                          Create First Task
+                        </Button>
                       </div>
                     </div>
-                    <div style={{ marginTop: 16 }}>
-                      <Button size="small" onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
-                        Create First Task
-                      </Button>
-                    </div>
+                  ) : (
+                    recentIssues.map((issue, i) => {
+                      const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
+                      const statusSkin: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
+                        backlog: "neutral", todo: "general", in_progress: "warning", blocked: "danger",
+                      };
+                      const statusLabel: Record<string, string> = {
+                        backlog: "Backlog", todo: "To Do", in_progress: "In Progress", blocked: "Blocked",
+                      };
+                      return (
+                        <TaskLinkWithPreview
+                          key={issue.id}
+                          href={companyPath(`/tasks/${issue.identifier}`)}
+                          issue={issue}
+                          block
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 500, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
+                            <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
+                              {issue.identifier} · {assignee ? assignee.name : "Unassigned"}
+                            </div>
+                          </div>
+                          <Badge size="tiny" skin={statusSkin[issue.status] || "general"}>
+                            {statusLabel[issue.status] || issue.status}
+                          </Badge>
+                        </TaskLinkWithPreview>
+                      );
+                    })
+                  )
+                ) : doneIssues.length === 0 ? (
+                  <div style={{ padding: "20px 0", textAlign: "center" }}>
+                    <Text size="small" secondary>No completed work yet.</Text>
                   </div>
                 ) : (
-                  recentIssues.map((issue, i) => {
+                  doneIssues.slice(0, 5).map((issue, i) => {
                     const assignee = agents.find((a) => a.id === (issue.assigneeAgentId || issue.assigneeId));
-                    const statusSkin: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
-                      backlog: "neutral", todo: "general", in_progress: "warning", blocked: "danger",
-                    };
-                    const statusLabel: Record<string, string> = {
-                      backlog: "Backlog", todo: "To Do", in_progress: "In Progress", blocked: "Blocked",
-                    };
+                    const completedDate = issue.completedAt || issue.updatedAt;
+                    const desc = issue.description || "";
+                    const summary = desc
+                      .split("\n")
+                      .map((l: string) => l.replace(/^#+\s*/, "").replace(/^\*+/, "").trim())
+                      .filter((l: string) => l.length > 10 && !l.startsWith("---") && !l.startsWith("|"))[0] || "";
                     return (
                       <TaskLinkWithPreview
                         key={issue.id}
                         href={companyPath(`/tasks/${issue.identifier}`)}
                         issue={issue}
                         block
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < recentIssues.length - 1 ? "1px solid #f0f0f0" : "none", textDecoration: "none", color: "inherit" }}
+                        style={{
+                          display: "flex",
+                          gap: 12,
+                          padding: "12px 0",
+                          borderBottom: i < Math.min(doneIssues.length, 5) - 1 ? "1px solid #f0f0f0" : "none",
+                          textDecoration: "none",
+                          color: "inherit",
+                        }}
                       >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 500, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
-                          <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>
-                            {issue.identifier} · {assignee ? assignee.name : "Unassigned"}
+                        <div style={{
+                          width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                          background: "#e8f7e8", color: "#00a854",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 14, marginTop: 2,
+                        }}>
+                          ✓
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: "#162d3d" }}>{issue.title}</div>
+                            <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }} title={new Date(completedDate).toLocaleString()}>
+                              {timeAgo(completedDate)}
+                            </span>
+                          </div>
+                          {summary && (
+                            <div style={{ fontSize: 13, color: "#666", marginTop: 3, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {summary}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 12, color: "#999", marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
+                            <span style={{ fontFamily: "monospace", fontSize: 11 }}>{issue.identifier}</span>
+                            <span>·</span>
+                            <span>{assignee?.name || "Unassigned"}</span>
                           </div>
                         </div>
-                        <Badge size="tiny" skin={statusSkin[issue.status] || "general"}>
-                          {statusLabel[issue.status] || issue.status}
-                        </Badge>
                       </TaskLinkWithPreview>
                     );
                   })
