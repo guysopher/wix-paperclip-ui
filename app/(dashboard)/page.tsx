@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Page,
@@ -124,6 +124,18 @@ type DashboardHealthResult = {
   controls?: { restartAvailable?: boolean };
 };
 
+type LiveRunEntry = {
+  id: string;
+  kind: "assistant" | "tools";
+  text: string;
+  timestamp?: string;
+};
+
+type LiveRunFeed = {
+  entries: LiveRunEntry[];
+  updatedAt?: string;
+};
+
 
 function timeAgo(date: string) {
   const diff = Math.round((Date.now() - new Date(date).getTime()) / 60000);
@@ -241,6 +253,11 @@ function DashboardContent() {
   const [healthResult, setHealthResult] = useState<DashboardHealthResult | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [restartingServer, setRestartingServer] = useState(false);
+  const [liveRunFeed, setLiveRunFeed] = useState<LiveRunFeed | null>(null);
+  const [liveRunLoading, setLiveRunLoading] = useState(false);
+  const [selectedLiveRunId, setSelectedLiveRunId] = useState<string | null>(null);
+  const liveFeedRef = useRef<HTMLDivElement>(null);
+  const liveFeedStickToBottomRef = useRef(true);
 
   const load = async () => {
     if (!companyId) { setLoading(false); return; }
@@ -364,6 +381,86 @@ function DashboardContent() {
       setActivitySliderIndex(nextIndex);
     }
   }, [agents, activitySliderDirty, activitySliderIndex]);
+
+  const activeRuns = [...runs]
+    .filter((run) => run.status === "running" || run.status === "queued")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const preferredLiveRun =
+    activeRuns.find((run) => agents.find((agent) => agent.id === run.agentId)?.role === "ceo")
+    || activeRuns[0]
+    || null;
+  const selectedLiveRun =
+    activeRuns.find((run) => run.id === selectedLiveRunId)
+    || preferredLiveRun;
+  const selectedLiveAgent = selectedLiveRun
+    ? agents.find((agent) => agent.id === selectedLiveRun.agentId) || null
+    : null;
+
+  useEffect(() => {
+    if (!selectedLiveRun) {
+      setSelectedLiveRunId(null);
+      setLiveRunFeed(null);
+      return;
+    }
+
+    if (!selectedLiveRunId || !activeRuns.some((run) => run.id === selectedLiveRunId)) {
+      setSelectedLiveRunId(selectedLiveRun.id);
+    }
+  }, [activeRuns, selectedLiveRun, selectedLiveRunId]);
+
+  useEffect(() => {
+    if (!selectedLiveRun) {
+      setLiveRunFeed(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchLiveRun = async (initialLoad = false) => {
+      if (initialLoad) {
+        setLiveRunLoading(true);
+      }
+      try {
+        const response = await fetch(`/api/run-live/${selectedLiveRun.id}`, {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as LiveRunFeed;
+        if (!cancelled) {
+          setLiveRunFeed({
+            entries: Array.isArray(data.entries) ? data.entries : [],
+            updatedAt: data.updatedAt,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveRunFeed({ entries: [] });
+        }
+      } finally {
+        if (!cancelled) {
+          setLiveRunLoading(false);
+        }
+      }
+    };
+
+    void fetchLiveRun(true);
+    const interval = setInterval(() => {
+      void fetchLiveRun();
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [selectedLiveRun?.id]);
+
+  useEffect(() => {
+    const container = liveFeedRef.current;
+    if (!container || !liveFeedStickToBottomRef.current) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }, [liveRunFeed?.entries, selectedLiveRun?.id]);
 
   if (loading) {
     return (
@@ -1130,6 +1227,159 @@ function DashboardContent() {
             </div>
           </div>
           </div>
+
+          {selectedLiveRun && selectedLiveAgent && (
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
+                Live Now
+              </div>
+              <div
+                style={{
+                  background: "white",
+                  borderRadius: 12,
+                  border: "1px solid #e8ecf0",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "18px 24px",
+                    borderBottom: "1px solid #f0f3f5",
+                    background: "linear-gradient(to bottom, #fafbfc, #ffffff)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <AgentAvatar
+                      agentName={selectedLiveAgent.name}
+                      agentRole={selectedLiveAgent.role}
+                      icon={selectedLiveAgent.icon}
+                      size={38}
+                    />
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 600, color: "#162d3d" }}>
+                        {selectedLiveAgent.name}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span>
+                          {selectedLiveRun.status === "queued" ? "Queued to start" : "Working right now"}
+                        </span>
+                        <span>•</span>
+                        <span>{feedDuration(selectedLiveRun.startedAt, selectedLiveRun.finishedAt)}</span>
+                        {activeRuns.length > 1 && (
+                          <>
+                            <span>•</span>
+                            <span>{activeRuns.length} active runs</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <a
+                    href={companyPath(`/runs/${selectedLiveRun.id}`)}
+                    style={{
+                      color: "#3899ec",
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    Open full run
+                    <span style={{ fontSize: 16 }}>→</span>
+                  </a>
+                </div>
+
+                <div style={{ padding: "18px 24px 20px" }}>
+                  <div
+                    ref={liveFeedRef}
+                    onScroll={(event) => {
+                      const container = event.currentTarget;
+                      liveFeedStickToBottomRef.current =
+                        container.scrollHeight - container.scrollTop - container.clientHeight < 32;
+                    }}
+                    style={{
+                      height: 220,
+                      overflowY: "auto",
+                      borderRadius: 10,
+                      background: "linear-gradient(180deg, #f8fbff 0%, #f5f8fc 100%)",
+                      border: "1px solid #e6eef7",
+                      padding: "14px 16px",
+                    }}
+                  >
+                    {liveRunLoading && (!liveRunFeed || liveRunFeed.entries.length === 0) ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
+                        <Loader size="tiny" />
+                        <span>Loading live activity...</span>
+                      </div>
+                    ) : liveRunFeed && liveRunFeed.entries.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {liveRunFeed.entries.map((entry) => (
+                          <div
+                            key={entry.id}
+                            style={{
+                              display: "flex",
+                              gap: 10,
+                              alignItems: "flex-start",
+                              paddingBottom: 10,
+                              borderBottom: "1px solid rgba(225,233,241,0.9)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: "50%",
+                                marginTop: 6,
+                                flexShrink: 0,
+                                background: entry.kind === "assistant" ? "#2f8cff" : "#87a4bb",
+                                boxShadow:
+                                  entry.kind === "assistant"
+                                    ? "0 0 0 4px rgba(47,140,255,0.12)"
+                                    : "0 0 0 4px rgba(135,164,187,0.12)",
+                              }}
+                            />
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: 14,
+                                  lineHeight: 1.55,
+                                  color: entry.kind === "assistant" ? "#16324a" : "#6f8599",
+                                  fontWeight: entry.kind === "assistant" ? 500 : 400,
+                                }}
+                              >
+                                {entry.text}
+                              </div>
+                              {entry.timestamp && (
+                                <div style={{ fontSize: 11, color: "#9db0c1", marginTop: 4 }}>
+                                  {new Date(entry.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#6d8397", fontSize: 14 }}>
+                        <Loader size="tiny" />
+                        <span>
+                          {selectedLiveRun.status === "queued"
+                            ? "This run is queued. Live steps will appear once it starts."
+                            : "Waiting for readable live output..."}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Team status - Full width */}
           <div>
