@@ -110,7 +110,7 @@ THE INTERVIEW FLOW:
 
    I'll check in with you regularly and you can message me anytime. Sound good?"
 
-4. CLOSE: End with a direct approval-or-change question like "Do you want me to hire this team or make changes?"
+4. CLOSE: End with a CTA-style approval question like "May I hire this team so we can get started, or would you like any changes?"
 
 RULES:
 - Maximum 3 questions total
@@ -363,7 +363,9 @@ function OnboardingFlow() {
       if (
         lower.includes("hire me") ||
         lower.includes("hire this team") ||
+        lower.includes("may i hire") ||
         lower.includes("make changes") ||
+        lower.includes("any changes") ||
         lower.includes("ready") ||
         lower.includes("get started") ||
         lower.includes("say the word") ||
