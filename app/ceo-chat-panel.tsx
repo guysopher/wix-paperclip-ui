@@ -183,11 +183,11 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa" }}>
       {/* Header */}
-      <div style={{ padding: "12px 16px", background: "white", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #3899ec, #1a4a6e)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14 }}>C</div>
+      <div style={{ padding: "14px 16px", background: "white", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #3899ec, #1a4a6e)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15 }}>C</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>AI Team Lead</div>
-          <div style={{ fontSize: 11, color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>AI Team Lead</div>
+          <div style={{ fontSize: 12, color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: sending ? "#ffc107" : "#00d68f" }} />
             {sending ? "Thinking..." : "Online"}
           </div>
@@ -230,7 +230,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px" }}>
         {messages.map((m, i) => {
           const isAgent = m.role === "ceo";
           return (
@@ -241,11 +241,11 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                     style={{
                       background: isAgent ? "white" : "#3899ec",
                       color: isAgent ? "#333" : "white",
-                      padding: "8px 12px",
-                      borderRadius: isAgent ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
+                      padding: "11px 14px",
+                      borderRadius: isAgent ? "6px 16px 16px 16px" : "16px 6px 16px 16px",
                       boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                      fontSize: 13,
-                      lineHeight: 1.5,
+                      fontSize: 15,
+                      lineHeight: 1.6,
                     }}
                   >
                     {isAgent ? (
@@ -298,7 +298,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                         style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "6px 12px", background: "#f0f5ff", border: "1px solid #d0e0ff",
-                          borderRadius: 8, textDecoration: "none", fontSize: 12, color: "#333",
+                          borderRadius: 8, textDecoration: "none", fontSize: 13, color: "#333",
                         }}
                       >
                         <span style={{ color: "#3899ec", fontWeight: 600 }}>{action.identifier || "Task"}</span>
@@ -314,7 +314,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
 
         {sending && (
           <div style={{ display: "flex", marginBottom: 10 }}>
-            <div style={{ background: "white", padding: "10px 16px", borderRadius: "4px 14px 14px 14px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", display: "flex", gap: 4 }}>
+            <div style={{ background: "white", padding: "12px 16px", borderRadius: "6px 16px 16px 16px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", display: "flex", gap: 4 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite" }} />
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite 0.2s" }} />
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite 0.4s" }} />
@@ -326,7 +326,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
       </div>
 
       {/* Input */}
-      <div style={{ padding: "8px 12px 10px", background: "white", borderTop: "1px solid #eee", display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+      <div style={{ padding: "10px 12px 12px", background: "white", borderTop: "1px solid #eee", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
         <input
           ref={inputRef}
           type="text"
@@ -335,14 +335,14 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
           placeholder="Ask your AI Team Lead anything..."
           disabled={sending}
-          style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "8px 14px", fontSize: 13, outline: "none", background: "#f7f8fa" }}
+          style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "10px 16px", fontSize: 15, outline: "none", background: "#f7f8fa" }}
         />
         <button
           onClick={handleSend}
           disabled={!message.trim() || sending}
-          style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
+          style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
         >
-          <Send size="16px" />
+          <Send size="18px" />
         </button>
       </div>
     </div>
