@@ -132,10 +132,10 @@ async function ensureTelegramIssue(companyId: string, userLabel: string): Promis
 
   const ceo = agents.find((agent) => agent.role === "ceo");
   const title = `Telegram Chat · ${userLabel}`;
-  let issue = issues.find((candidate) => candidate.title === title);
-
-  if (!issue) {
-    issue = await paperclip(`/companies/${companyId}/issues`, {
+  const existingIssue = issues.find((candidate) => candidate.title === title);
+  const issue =
+    existingIssue ||
+    (await paperclip<PaperclipIssue>(`/companies/${companyId}/issues`, {
       method: "POST",
       body: JSON.stringify({
         title,
@@ -143,8 +143,7 @@ async function ensureTelegramIssue(companyId: string, userLabel: string): Promis
         priority: "medium",
         assigneeAgentId: ceo?.id,
       }),
-    });
-  }
+    }));
 
   const comments = await paperclip<PaperclipComment[]>(`/issues/${issue.id}/comments`).catch(() => []);
   return { issueId: issue.id, comments };
