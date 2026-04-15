@@ -11,7 +11,7 @@ const PAPERCLIP_API_URL =
 const TELEGRAM_USER_PREFIX = "[Telegram User]";
 const TELEGRAM_ASSISTANT_PREFIX = "[AI Team Lead via Telegram]";
 
-async function paperclip(path: string, options?: RequestInit) {
+async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${PAPERCLIP_API_URL}${path}`, {
     ...options,
     headers: {
@@ -24,7 +24,7 @@ async function paperclip(path: string, options?: RequestInit) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`Paperclip ${res.status}: ${text}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
 interface PaperclipCompany {
