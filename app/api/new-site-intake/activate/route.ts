@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
-import { AI_TEAM_LEAD_MAX_TURNS } from "@/lib/agent-templates";
+import {
+  AI_TEAM_LEAD_MAX_TURNS,
+  CANONICAL_AGENT_TITLES,
+  renderAgentTemplateShowcase,
+} from "@/lib/agent-templates";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { buildCompanyDescription } from "@/lib/company-metadata";
 
@@ -50,6 +54,32 @@ interface IntakeSummary {
   expectedResults: string[];
   kickoffTasks: KickoffTask[];
 }
+
+const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
+  {
+    role: "AI Team Lead",
+    goal: "Lead the business, set priorities, and hire the right specialist team.",
+    expectedResult:
+      "A coordinated operating rhythm, clear ownership, and the right work moving across the whole business.",
+  },
+  {
+    role: "Industry Advisor",
+    goal: "Bring field-specific expertise to the business and challenge weak assumptions early.",
+    expectedResult:
+      "Sharper strategy, stronger trust signals, and better decisions grounded in the realities of the market.",
+  },
+  {
+    role: "Site Lead",
+    goal: "Own the first site version and the ongoing site experience as the business launches.",
+    expectedResult:
+      "A credible site that clearly explains the offer, supports conversion, and improves as the business learns.",
+  },
+];
+
+const ALLOWED_STARTER_TEAM_ROLES = new Set([
+  "AI Team Lead",
+  ...CANONICAL_AGENT_TITLES,
+]);
 
 function normalizeJsonText(raw: string): string {
   return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -162,6 +192,23 @@ function toStarterTeam(value: unknown): StarterAgentPlan[] {
     .slice(0, 4);
 }
 
+function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan[] {
+  const uniqueAllowedAgents = starterTeam.filter((agent, index, agents) => {
+    return ALLOWED_STARTER_TEAM_ROLES.has(agent.role)
+      && agents.findIndex((entry) => entry.role === agent.role) === index;
+  });
+
+  const normalizedCoreTeam = REQUIRED_STARTER_TEAM.map((requiredAgent) => {
+    return uniqueAllowedAgents.find((agent) => agent.role === requiredAgent.role) || requiredAgent;
+  });
+
+  const additionalAgents = uniqueAllowedAgents.filter((agent) => {
+    return !REQUIRED_STARTER_TEAM.some((requiredAgent) => requiredAgent.role === agent.role);
+  });
+
+  return [...normalizedCoreTeam, ...additionalAgents].slice(0, 4);
+}
+
 async function parseJsonWithRepair<T>(raw: string, schemaDescription: string): Promise<T> {
   const direct = tryParseJson<T>(raw);
   if (direct) {
@@ -203,6 +250,7 @@ ${schemaDescription}`,
 
 async function summarizeTranscript(messages: IntakeMessage[]): Promise<IntakeSummary> {
   const transcript = buildTranscript(messages);
+  const canonicalAgentOptions = renderAgentTemplateShowcase();
   const schemaDescription = `{
   "companyName": "string",
   "businessDescription": "string",
@@ -261,12 +309,16 @@ Rules:
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
 - The center of gravity is the AI team plan, not a solo site-build pitch.
 - "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
+- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Site Lead.
+- Any additional role in "starterTeam" must use an exact canonical title from the list below. Do not invent role variants.
 - Goals should be practical and outcome-focused. Return 1 to 3.
 - "expectedResults" should describe the concrete business results the founder should expect from the first phase. Return 2 to 4.
 - Kickoff tasks should be the first concrete tasks the AI Team Lead should take on immediately after approval. Return 2 to 4 tasks.
 - At least one task should cover launching the first site version.
 - At least one task should cover building the starter team.
 - At least one task should cover beginning business management / growth work.
+- Canonical specialist titles:
+${canonicalAgentOptions}
 - Do not include markdown fences or extra commentary.`,
       },
       {
@@ -288,11 +340,11 @@ Rules:
     "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
   const teamHiringPlan =
     parsed.teamHiringPlan?.trim() ||
-    "Start with a small specialist team around site execution, brand/content, and growth operations. The AI Team Lead should decide which role to hire first based on what most accelerates launch and early traction.";
+    "Start with the mandatory core team of AI Team Lead, Industry Advisor, and Site Lead, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
-  const starterTeam = toStarterTeam(parsed.starterTeam);
+  const starterTeam = normalizeStarterTeam(toStarterTeam(parsed.starterTeam));
   const siteSpecifics =
     parsed.siteSpecifics?.trim() ||
     "No additional site-specific requirements were captured.";
@@ -311,23 +363,7 @@ Rules:
     managementPlan,
     starterTeam: starterTeam.length > 0
       ? starterTeam
-      : [
-          {
-            role: "Site Launch Lead",
-            goal: `Ship the first strong version of ${companyName}`,
-            expectedResult: "A credible first site version that clearly explains the offer and moves visitors toward the next step.",
-          },
-          {
-            role: "Brand and Conversion Lead",
-            goal: "Clarify the message, voice, and calls to action",
-            expectedResult: "Sharper positioning, stronger copy, and a clearer path from interest to inquiry or purchase.",
-          },
-          {
-            role: "Growth and Operations Lead",
-            goal: `Set the first growth and operating rhythm for ${companyName}`,
-            expectedResult: "A concrete plan for audience testing, early traction, and the next operational priorities after launch.",
-          },
-        ],
+      : REQUIRED_STARTER_TEAM,
     siteSpecifics,
     firstBuildBrief,
     goals: goals.length > 0

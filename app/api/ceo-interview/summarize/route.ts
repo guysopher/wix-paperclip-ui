@@ -52,7 +52,10 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - When hiring: use role labels like "Site Lead", "Brand Lead", "Growth Lead", or "eCommerce Lead" for the Name field, and use the fuller job description for Title
    - When hiring, create the full agent definition, including a detailed promptTemplate tailored to the business and the role
    - Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless there is a strong reason to lower it
+   - The core operating team should always include the AI Business Manager as team lead, plus Industry Advisor and Site Lead
    - Every company should have a Site Lead once site work matters
+   - Every company should also have an Industry Advisor early
+   - Additional roles must be chosen from the canonical role template library below. Do not invent new role names or variants.
    - Use the canonical role template library below when hiring these roles and tailor the chosen template to the business:
      - Site Lead
      - CRM & Lifecycle Manager
@@ -67,6 +70,7 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
      - Brand Lead
      - eCommerce Lead
      - Growth Lead
+     - Industry Advisor
    - Think strategically — keep company goals in mind, identify risks and opportunities
 
 5. BUSINESS CONTEXT: Everything specific to this business — the Wix site URL, the customers, the products/services, the market, the founder's priorities and preferences. Include any Wix apps mentioned (Stores, Bookings, Blog, etc.). Be specific and detailed.

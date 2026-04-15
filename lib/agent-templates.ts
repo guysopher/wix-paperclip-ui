@@ -728,6 +728,8 @@ export const AGENT_TEMPLATES: AgentTemplate[] = AGENT_BLUEPRINTS.map(
   }),
 );
 
+export const CANONICAL_AGENT_TITLES = AGENT_TEMPLATES.map((template) => template.title);
+
 function renderBullets(lines: string[]): string {
   return lines.map((line) => `- ${line}`).join("\n");
 }
