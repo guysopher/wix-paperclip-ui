@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { renderAgentTemplateShowcase } from "@/lib/agent-templates";
+import { appendFetchedUrlContext } from "@/lib/url-context";
 
 const client = new OpenAI();
 const FIXED_OPENING_MESSAGE = `Hey!
@@ -82,6 +83,7 @@ Rules:
 - Sound founder-facing, commercially aware, and design-aware.
 - Never mention tools, prompts, metadata, bridge jobs, agents, JSON, or implementation details.
 - Never say you are "collecting fields", "gathering inputs", or "filling out details".
+- If the founder shares a URL and readable page context is available, use it as supporting business context without over-indexing on it.
 - Do not pitch yourself as a solo builder, solo designer, or solo marketer. You are the AI Team Lead proposing a team-led plan.
 - Sell the AI Team through concrete business leverage: explain how the right specialists would help this specific company, not generic AI hype.
 - Steer the conversation toward team design, priorities, and operating leverage, not just visual preferences.
@@ -162,9 +164,12 @@ export async function POST(request: NextRequest) {
     ];
 
     for (const message of messages) {
+      const content = message.role === "user"
+        ? await appendFetchedUrlContext(message.text)
+        : message.text;
       openaiMessages.push({
         role: message.role === "user" ? "user" : "assistant",
-        content: message.text,
+        content,
       });
     }
 

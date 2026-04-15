@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { renderAgentTemplateShowcase } from "@/lib/agent-templates";
+import { appendFetchedUrlContext } from "@/lib/url-context";
 
 const client = new OpenAI(); // uses OPENAI_API_KEY env var
 
@@ -58,6 +59,7 @@ RULES:
 - Don’t dump the whole catalog at once. Pick the 2-4 most relevant agents for this business and explain what they would do.
 - Whenever you describe the recommended team, it must always include you as the team lead, plus Industry Advisor and Site Lead.
 - Any additional specialist roles must use the exact canonical titles from the list below. Do not invent role names.
+- If the founder shares a URL and readable page context is available, use it as supporting context for the business.
 - The purpose of the interview is to show how the AI Team can help grow the business and to identify the right team shape, not to gather exhaustive product detail.
 - Make the platform feel broad and capable. Mention that you can activate different specialists as the business grows.
 - The founder should feel like you're talking with them about their business personally, not interviewing them formally.
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     for (const msg of messages) {
       if (msg.role === "user") {
-        let content = msg.text;
+        let content = await appendFetchedUrlContext(msg.text);
         if (msg.fetchedContent) {
           content += `\n\n[SYSTEM: The founder shared a link. Here's what was found on the page:\n${msg.fetchedContent}\n]`;
         }
