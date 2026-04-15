@@ -14,7 +14,6 @@ import {
   Dropdown,
   Input,
   InputArea,
-  Divider,
   Tooltip,
   Modal,
   CustomModalLayout,
@@ -252,6 +251,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     agent.role === "ceo" ? "#3899ec" : agent.role === "pm" ? "#7b61ff" : "#44b5b0";
   const runtimeModel = getRuntimeModelLabel(getRuntimeModel(agent, runs));
   const configuredModel = editModel.trim();
+  const runtimeModelRaw = getRuntimeModel(agent, runs);
   const modelDropdownOptions = (() => {
     const known = new Map<string, { id: string; value: string }>();
     for (const option of modelOptions) {
@@ -267,6 +267,8 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const supportsModelSelection = MODEL_CONFIG_ADAPTERS.has(agent.adapterType);
   const showModelDropdown = supportsModelSelection && modelDropdownOptions.length > 0;
   const showModelInput = supportsModelSelection && !showModelDropdown;
+  const hasPendingModelChange =
+    configuredModel.length > 0 && configuredModel !== runtimeModelRaw;
 
   return (
     <>
@@ -420,44 +422,59 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   />
                 </FormField>
                 <FormField
-                  label="Configured model"
-                  infoContent="This is the model Paperclip will save into adapterConfig.model for this agent. Use a discovered model when available, or enter one manually if the adapter cannot list models."
+                  label="Model for next runs"
+                  infoContent="Choose the model Paperclip should save into adapterConfig.model for this agent. This is the editable setting."
                 >
-                  {loadingModels ? (
-                    <Loader size="tiny" />
-                  ) : showModelDropdown ? (
-                    <Dropdown
-                      size="small"
-                      selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
-                      onSelect={(option) => setEditModel(String(option.id))}
-                      options={modelDropdownOptions}
-                    />
-                  ) : showModelInput ? (
-                    <Input
-                      size="small"
-                      value={editModel}
-                      onChange={(e) => setEditModel(e.target.value)}
-                      placeholder={
-                        agent.adapterType === "opencode_local"
-                          ? "openai/gpt-5.4"
-                          : agent.adapterType === "claude_local"
-                            ? "claude-sonnet-4-6"
-                            : "gpt-5.4"
-                      }
-                    />
-                  ) : (
-                    <Text size="small" secondary>
-                      This adapter does not expose model selection in this UI.
+                  <Box direction="vertical" gap="6px">
+                    {loadingModels ? (
+                      <Loader size="tiny" />
+                    ) : showModelDropdown ? (
+                      <Dropdown
+                        size="small"
+                        selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
+                        onSelect={(option) => setEditModel(String(option.id))}
+                        options={modelDropdownOptions}
+                      />
+                    ) : showModelInput ? (
+                      <Input
+                        size="small"
+                        value={editModel}
+                        onChange={(e) => setEditModel(e.target.value)}
+                        placeholder={
+                          agent.adapterType === "opencode_local"
+                            ? "openai/gpt-5.4"
+                            : agent.adapterType === "claude_local"
+                              ? "claude-sonnet-4-6"
+                              : "gpt-5.4"
+                        }
+                      />
+                    ) : (
+                      <Text size="small" secondary>
+                        This adapter does not expose model selection in this UI.
+                      </Text>
+                    )}
+                    <Text size="tiny" secondary>
+                      This takes effect after you save, then wake the agent or wait for the next check-in.
                     </Text>
-                  )}
+                    {hasPendingModelChange && (
+                      <Badge size="tiny" skin="warning">
+                        Pending change: latest run still used {runtimeModel}
+                      </Badge>
+                    )}
+                  </Box>
                 </FormField>
                 <FormField
-                  label="Runtime model"
-                  infoContent="This is the most recent model observed in actual runs for this agent."
+                  label="Last observed runtime model"
+                  infoContent="This is the model seen in the latest actual run. It is read-only and can lag behind the configured model until the agent runs again."
                 >
-                  <Text size="small" weight="bold" style={{ fontFamily: "monospace" }}>
-                    {runtimeModel}
-                  </Text>
+                  <Box direction="vertical" gap="6px">
+                    <Text size="small" weight="bold" style={{ fontFamily: "monospace" }}>
+                      {runtimeModel}
+                    </Text>
+                    <Text size="tiny" secondary>
+                      Read-only. Updated from real run usage.
+                    </Text>
+                  </Box>
                 </FormField>
                 <FormField
                   label="Check-in schedule"
