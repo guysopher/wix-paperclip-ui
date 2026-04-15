@@ -1559,19 +1559,27 @@ function DashboardContent() {
                               }
                             }}
                             style={{
-                              background: "#3899ec",
-                              color: "white",
-                              border: "none",
+                              background: "#f7faff",
+                              color: "#5f7b93",
+                              border: "1px solid #d7e3ef",
                               borderRadius: 6,
-                              padding: "8px 16px",
-                              fontSize: 13,
-                              fontWeight: 500,
+                              padding: "7px 12px",
+                              fontSize: 12,
+                              fontWeight: 600,
                               cursor: "pointer",
                               whiteSpace: "nowrap",
-                              transition: "background 0.15s ease",
+                              transition: "all 0.15s ease",
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "#2b7bc9"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "#3899ec"; }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "#edf4fb";
+                              e.currentTarget.style.borderColor = "#c8d8e8";
+                              e.currentTarget.style.color = "#47647d";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "#f7faff";
+                              e.currentTarget.style.borderColor = "#d7e3ef";
+                              e.currentTarget.style.color = "#5f7b93";
+                            }}
                           >
                             Wake up
                           </button>
@@ -1668,14 +1676,23 @@ function DashboardContent() {
           <div>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>Open Work</div>
             <Card>
-              <Card.Header
-                suffix={
-                  <Box direction="horizontal" gap="12px" verticalAlign="middle">
-                    <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>Create Task</Button>
-                    <a href={companyPath("/tasks")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>View all</a>
-                  </Box>
-                }
-              />
+              <div
+                style={{
+                  padding: "16px 24px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                  borderBottom: recentIssues.length > 0 ? "1px solid #f0f0f0" : "none",
+                }}
+              >
+                <Button size="tiny" prefixIcon={<Add />} onClick={() => { setNewTaskAssignee(ceoAgent?.id); setShowCreate(true); }}>
+                  Create Task
+                </Button>
+                <a href={companyPath("/tasks")} style={{ color: "#3899ec", textDecoration: "none", fontSize: 13 }}>
+                  View all
+                </a>
+              </div>
               <Card.Content>
                 {recentIssues.length === 0 ? (
                   <div style={{ padding: "24px 0", textAlign: "center" }}>
