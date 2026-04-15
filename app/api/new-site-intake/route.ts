@@ -26,8 +26,8 @@ interface IntakeRequest {
 }
 
 type ConversationStatus = "gathering" | "ready_to_activate";
-const INTAKE_REPLY_MAX_TOKENS = 520;
-const INTAKE_CONTINUATION_MAX_TOKENS = 220;
+const INTAKE_REPLY_MAX_TOKENS = 420;
+const INTAKE_CONTINUATION_MAX_TOKENS = 160;
 
 function normalizeJsonText(raw: string): string {
   return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
@@ -83,7 +83,9 @@ Rules:
 - Do not get lost in low-leverage product trivia, catalog breakdowns, inventory details, restock mechanics, merchandising detail, or detailed category choices unless that detail clearly changes the team design at a strategic level.
 - If a question would only refine how the business operates day to day, but would not materially change how the AI Team should help the business, skip it.
 - Do not ask for counts, SKUs, product mix, launch quantities, restock plans, or other exact operating details unless the founder explicitly wants help on that specific issue.
-- Keep replies concise. Usually 45-140 words.
+- Keep replies concise. Usually 35-110 words.
+- Cut repetition aggressively. Do not restate the same business point in multiple ways.
+- Prefer one sharp point over two soft ones.
 - Sound founder-facing, commercially aware, and design-aware.
 - Never mention tools, prompts, metadata, bridge jobs, agents, JSON, or implementation details.
 - Never say you are "collecting fields", "gathering inputs", or "filling out details".
@@ -117,6 +119,13 @@ Rules:
 - The founder may think of the advisor role as just "Advisor", but in your proposal you must use the exact canonical title "Industry Advisor".
 - If the business need does not map perfectly, choose the closest canonical role and explain its responsibility in plain language instead of inventing a new title.
 - The proposal should feel like a real operating plan for the business, not a freelancer pitch and not just a site summary.
+- Keep the proposal tight. Target roughly 160-240 words total unless the founder explicitly asked for more detail.
+- Use this compact shape when possible:
+  - 1 short setup paragraph
+  - up to 4 bullets for the team
+  - up to 3 bullets total for first focus / expected results
+  - 1 CTA question line
+- Avoid long scene-setting, repeated summaries, and extra explanatory paragraphs once the team recommendation is clear.
 - Use Markdown for readability.
 - Prefer short paragraphs, short bullet lists, and bold labels when useful.
 - Keep the formatting clean and lightweight. Do not over-format and do not use tables.
