@@ -1,3 +1,5 @@
+import { syncHeartbeatConfig } from "./agent-heartbeat";
+
 // Always use the Next.js proxy so browser traffic does not depend on upstream CORS.
 const API_BASE = "/api/paperclip";
 const PICASSO_BRIDGE_BASE = "/api/picasso-bridge";
@@ -71,7 +73,10 @@ export const pauseAgent = (agentId: string) =>
 export const resumeAgent = (agentId: string) =>
   request<Agent>(`/agents/${agentId}/resume`, { method: "POST" });
 export const updateAgent = (agentId: string, data: Record<string, unknown>) =>
-  request<Agent>(`/agents/${agentId}`, { method: "PATCH", body: JSON.stringify(data) });
+  request<Agent>(`/agents/${agentId}`, {
+    method: "PATCH",
+    body: JSON.stringify(syncHeartbeatConfig(data)),
+  });
 
 // Issues
 export const getIssues = (companyId: string, params?: string) =>
@@ -178,7 +183,10 @@ export const archiveCompany = (companyId: string) =>
 
 // Agents — create
 export const createAgent = (companyId: string, data: Record<string, unknown>) =>
-  request<Agent>(`/companies/${companyId}/agents`, { method: "POST", body: JSON.stringify(data) });
+  request<Agent>(`/companies/${companyId}/agents`, {
+    method: "POST",
+    body: JSON.stringify(syncHeartbeatConfig(data)),
+  });
 
 // Goals
 export const getGoals = (companyId: string) =>
@@ -215,6 +223,7 @@ export interface Agent {
   capabilities: string;
   adapterType: string;
   adapterConfig: Record<string, unknown>;
+  runtimeConfig?: Record<string, unknown>;
   budgetMonthlyCents: number;
   lastHeartbeatAt: string | null;
   createdAt: string;

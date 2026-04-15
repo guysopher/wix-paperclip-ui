@@ -40,6 +40,9 @@ const ROLE_NAME_RULES = [
   `  - maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS}`,
   "  - dangerouslySkipPermissions: true",
   "  - promptTemplate: fully written and business-specific",
+  "runtimeConfig defaults:",
+  "  - heartbeat.enabled: true",
+  "  - heartbeat.intervalSec: 1800",
 ];
 
 const AGENT_BLUEPRINTS: AgentBlueprint[] = [
@@ -705,7 +708,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       {
         title: "Industry framing",
         bullets: [
-          'Open the promptTemplate with a direct expert framing in this format: "You are an expert in <the company\\'s specific field>."',
+          "Open the promptTemplate with a direct expert framing in this format: \"You are an expert in <the company's specific field>.\"",
           "Replace the placeholder with the actual field of the business, such as residential plumbing, family dentistry, wedding photography, boutique fitness, or specialty ecommerce.",
           "Make the rest of the promptTemplate specific to that field's customer expectations, buying behavior, risks, norms, and quality bar.",
         ],

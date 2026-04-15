@@ -36,6 +36,7 @@ import {
 import { useCompany } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
+import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import {
   getDashboard,
   getAgents,
@@ -44,6 +45,7 @@ import {
   invokeHeartbeat,
   pauseAgent,
   resumeAgent,
+  updateAgent,
   getRuns,
   createIssue,
   runCompanyHealthCheck,
@@ -91,6 +93,27 @@ const FEED_STATUS_LABELS: Record<string, string> = {
 const FEED_SOURCE_LABELS: Record<string, string> = {
   on_demand: "Manual", scheduled: "Scheduled", mention: "Mentioned", assignment: "Assigned",
 };
+const ACTIVITY_INTERVAL_OPTIONS = [
+  { seconds: 48 * 3600, shortLabel: "48h" },
+  { seconds: 36 * 3600, shortLabel: "36h" },
+  { seconds: 24 * 3600, shortLabel: "24h" },
+  { seconds: 18 * 3600, shortLabel: "18h" },
+  { seconds: 12 * 3600, shortLabel: "12h" },
+  { seconds: 8 * 3600, shortLabel: "8h" },
+  { seconds: 6 * 3600, shortLabel: "6h" },
+  { seconds: 4 * 3600, shortLabel: "4h" },
+  { seconds: 3 * 3600, shortLabel: "3h" },
+  { seconds: 2 * 3600, shortLabel: "2h" },
+  { seconds: 90 * 60, shortLabel: "90m" },
+  { seconds: 60 * 60, shortLabel: "1h" },
+  { seconds: 45 * 60, shortLabel: "45m" },
+  { seconds: 30 * 60, shortLabel: "30m" },
+  { seconds: 20 * 60, shortLabel: "20m" },
+  { seconds: 15 * 60, shortLabel: "15m" },
+  { seconds: 10 * 60, shortLabel: "10m" },
+] as const;
+const DEFAULT_ACTIVITY_INTERVAL_SEC = 20 * 60;
+const MONTHLY_SECONDS = 30 * 24 * 60 * 60;
 
 type DashboardHealthResult = {
   status: string;
@@ -117,7 +140,7 @@ function agentStatusText(agent: Agent): string {
 
   // Check if next heartbeat is actually upcoming
   const last = agent.lastHeartbeatAt;
-  const interval = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
+  const interval = getHeartbeatPolicy(agent).intervalSec;
   if (last && interval) {
     const next = new Date(new Date(last).getTime() + interval * 1000);
     const diff = Math.round((next.getTime() - Date.now()) / 60000);
@@ -137,6 +160,60 @@ function agentStatusText(agent: Agent): string {
   return "Idle";
 }
 
+function formatHeartbeatInterval(seconds: number): string {
+  if (seconds % 3600 === 0) {
+    return `${seconds / 3600}h`;
+  }
+
+  if (seconds % 60 === 0) {
+    const minutes = seconds / 60;
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+    }
+    return `${minutes} min`;
+  }
+
+  return `${seconds}s`;
+}
+
+function describeActivityLevel(index: number): string {
+  const ratio = index / (ACTIVITY_INTERVAL_OPTIONS.length - 1);
+  if (ratio < 0.25) return "Calm";
+  if (ratio < 0.55) return "Steady";
+  if (ratio < 0.85) return "Busy";
+  return "Max";
+}
+
+function closestActivityIndex(intervalSec: number): number {
+  let closestIndex = 0;
+  let closestDiff = Number.POSITIVE_INFINITY;
+
+  ACTIVITY_INTERVAL_OPTIONS.forEach((option, index) => {
+    const diff = Math.abs(option.seconds - intervalSec);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closestIndex = index;
+    }
+  });
+
+  return closestIndex;
+}
+
+function getCompanyActivityInterval(agents: Agent[]): number {
+  const scheduledIntervals = agents
+    .map((agent) => getHeartbeatPolicy(agent).intervalSec)
+    .filter((intervalSec) => intervalSec > 0)
+    .sort((a, b) => a - b);
+
+  if (scheduledIntervals.length === 0) {
+    return DEFAULT_ACTIVITY_INTERVAL_SEC;
+  }
+
+  return scheduledIntervals[Math.floor((scheduledIntervals.length - 1) / 2)];
+}
+
 function DashboardContent() {
   const router = useRouter();
   const { companyId, companies, setCompanyId, companyPath } = useCompany();
@@ -154,6 +231,11 @@ function DashboardContent() {
   const [showCreate, setShowCreate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
+  const [activitySliderIndex, setActivitySliderIndex] = useState<number | null>(null);
+  const [activitySliderDirty, setActivitySliderDirty] = useState(false);
+  const [savingActivity, setSavingActivity] = useState(false);
+  const [activityFeedback, setActivityFeedback] = useState("");
+  const [activityError, setActivityError] = useState("");
 
   // Health check
   const [healthResult, setHealthResult] = useState<DashboardHealthResult | null>(null);
@@ -275,6 +357,13 @@ function DashboardContent() {
       return () => clearInterval(interval);
     }
   }, [agents]);
+
+  useEffect(() => {
+    const nextIndex = closestActivityIndex(getCompanyActivityInterval(agents));
+    if (!activitySliderDirty || activitySliderIndex === null) {
+      setActivitySliderIndex(nextIndex);
+    }
+  }, [agents, activitySliderDirty, activitySliderIndex]);
 
   if (loading) {
     return (
@@ -425,13 +514,14 @@ function DashboardContent() {
     }
 
     // By agent
-    const byAgent: Record<string, { input: number; output: number; cached: number; runs: number }> = {};
+    const byAgent: Record<string, { input: number; output: number; cached: number; runs: number; cost: number }> = {};
     for (const p of parsed) {
-      if (!byAgent[p.agentId]) byAgent[p.agentId] = { input: 0, output: 0, cached: 0, runs: 0 };
+      if (!byAgent[p.agentId]) byAgent[p.agentId] = { input: 0, output: 0, cached: 0, runs: 0, cost: 0 };
       byAgent[p.agentId].input += p.usage.rawInputTokens || p.usage.inputTokens || 0;
       byAgent[p.agentId].output += p.usage.rawOutputTokens || p.usage.outputTokens || 0;
       byAgent[p.agentId].cached += p.usage.cachedInputTokens || 0;
       byAgent[p.agentId].runs += 1;
+      byAgent[p.agentId].cost += p.usage.costUsd || 0;
     }
 
     // By day (last 7 days)
@@ -455,6 +545,51 @@ function DashboardContent() {
     { id: "", value: "Unassigned" },
     ...agents.map((a) => ({ id: a.id, value: a.name })),
   ];
+  const companyActivityIntervalSec = getCompanyActivityInterval(agents);
+  const companyActivityIndex = closestActivityIndex(companyActivityIntervalSec);
+  const selectedActivityIndex = activitySliderIndex ?? companyActivityIndex;
+  const selectedActivityIntervalSec =
+    ACTIVITY_INTERVAL_OPTIONS[selectedActivityIndex]?.seconds ?? DEFAULT_ACTIVITY_INTERVAL_SEC;
+  const scheduledIntervals = agents
+    .map((agent) => getHeartbeatPolicy(agent).intervalSec)
+    .filter((intervalSec) => intervalSec > 0)
+    .sort((a, b) => a - b);
+  const uniqueScheduledIntervals = Array.from(new Set(scheduledIntervals));
+  const pausedAgents = agents.filter((agent) => agent.status === "paused").length;
+  const estimateAgents = agents.filter((agent) => agent.status !== "paused");
+  const averageTokensPerRun =
+    tokenStats.totalRuns > 0
+      ? (tokenStats.totalInput + tokenStats.totalOutput + tokenStats.totalCached) / tokenStats.totalRuns
+      : 0;
+  const averageCostPerRun = tokenStats.totalRuns > 0 ? tokenStats.totalCost / tokenStats.totalRuns : 0;
+  const projectedMonthlyUsage = (() => {
+    if (estimateAgents.length === 0 || tokenStats.totalRuns === 0) {
+      return { runs: 0, tokens: 0, cost: 0, hasData: false };
+    }
+
+    const monthlyRunsPerAgent = MONTHLY_SECONDS / selectedActivityIntervalSec;
+    let runs = 0;
+    let tokens = 0;
+    let cost = 0;
+
+    for (const agent of estimateAgents) {
+      const agentUsage = tokenStats.byAgent[agent.id];
+      const averageAgentTokens =
+        agentUsage && agentUsage.runs > 0
+          ? (agentUsage.input + agentUsage.output + agentUsage.cached) / agentUsage.runs
+          : averageTokensPerRun;
+      const averageAgentCost =
+        agentUsage && agentUsage.runs > 0 ? agentUsage.cost / agentUsage.runs : averageCostPerRun;
+      runs += monthlyRunsPerAgent;
+      tokens += averageAgentTokens * monthlyRunsPerAgent;
+      cost += averageAgentCost * monthlyRunsPerAgent;
+    }
+
+    return { runs, tokens, cost, hasData: true };
+  })();
+  const monthlyBudgetUsd = company.budgetMonthlyCents / 100;
+  const projectedBudgetPct =
+    monthlyBudgetUsd > 0 ? Math.round((projectedMonthlyUsage.cost / monthlyBudgetUsd) * 100) : null;
 
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim() || !company) return;
@@ -466,6 +601,35 @@ function DashboardContent() {
     setNewTaskTitle("");
     setNewTaskAssignee(undefined);
     load();
+  };
+
+  const handleApplyActivityLevel = async () => {
+    if (!agents.length) return;
+
+    setSavingActivity(true);
+    setActivityError("");
+    setActivityFeedback("");
+    try {
+      const updatedAgents = await Promise.all(
+        agents.map((agent) =>
+          updateAgent(agent.id, {
+            adapterConfig: {
+              ...agent.adapterConfig,
+              heartbeatIntervalSec: selectedActivityIntervalSec,
+            },
+          })
+        )
+      );
+      setAgents(updatedAgents);
+      setActivitySliderDirty(false);
+      setActivityFeedback(
+        `All ${updatedAgents.length} agent${updatedAgents.length === 1 ? "" : "s"} now check in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
+      );
+    } catch (error) {
+      setActivityError(error instanceof Error ? error.message : "Failed to update agent activity.");
+    } finally {
+      setSavingActivity(false);
+    }
   };
 
   return (
@@ -1027,7 +1191,7 @@ function DashboardContent() {
                 .map((agent, i) => {
                   const statusText = agentStatusText(agent);
                   const narrative = agentNarratives[agent.id];
-                  const interval = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
+                  const interval = getHeartbeatPolicy(agent).intervalSec;
                   const lastHb = agent.lastHeartbeatAt;
                   let nextRunText = "";
                   if (lastHb && interval && agent.status !== "running" && agent.status !== "paused") {
@@ -1313,94 +1477,227 @@ function DashboardContent() {
           </div>
 
           {/* Token Usage Analytics */}
-          {tokenStats.totalRuns > 0 && (
-            <div>
-              <Card>
-                <Card.Header title="Token Usage" subtitle={`${tokenStats.totalRuns} runs tracked`} />
-                <Card.Content>
-                  {/* Summary stats */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalOutput / 1000).toFixed(1)}k</div>
-                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Output tokens</div>
+          <div>
+            <Card>
+              <Card.Header
+                title="Token Usage"
+                subtitle={tokenStats.totalRuns > 0 ? `${tokenStats.totalRuns} runs tracked` : "No runs tracked yet"}
+              />
+              <Card.Content>
+                <div
+                  style={{
+                    padding: "18px 20px",
+                    borderRadius: 12,
+                    border: "1px solid #d6e4f5",
+                    background: "linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%)",
+                    marginBottom: 24,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 16,
+                      flexWrap: "wrap",
+                      marginBottom: 14,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 12, color: "#4a6375", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                        Company activity
+                      </div>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>
+                        {describeActivityLevel(selectedActivityIndex)}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#4a6375", marginTop: 4 }}>
+                        Selected cadence: <strong>{formatHeartbeatInterval(selectedActivityIntervalSec)}</strong> for every agent.
+                      </div>
                     </div>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalInput / 1000).toFixed(1)}k</div>
-                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Input tokens</div>
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalCached / 1000).toFixed(1)}k</div>
-                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Cached tokens</div>
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>${tokenStats.totalCost.toFixed(2)}</div>
-                      <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Total cost</div>
+                    <div style={{ minWidth: 220 }}>
+                      <div style={{ fontSize: 12, color: "#4a6375", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                        Estimated monthly spend
+                      </div>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>
+                        {projectedMonthlyUsage.hasData ? `~$${projectedMonthlyUsage.cost.toFixed(2)}` : "—"}
+                      </div>
+                      <div style={{ fontSize: 13, color: "#4a6375", marginTop: 4 }}>
+                        {projectedMonthlyUsage.hasData
+                          ? `~${(projectedMonthlyUsage.tokens / 1000).toFixed(1)}k tokens / ${Math.round(projectedMonthlyUsage.runs).toLocaleString()} scheduled runs`
+                          : "Estimate appears after the team has usable run history."}
+                      </div>
                     </div>
                   </div>
 
-                  <Divider />
+                  <input
+                    type="range"
+                    min={0}
+                    max={ACTIVITY_INTERVAL_OPTIONS.length - 1}
+                    step={1}
+                    value={selectedActivityIndex}
+                    disabled={savingActivity || agents.length === 0}
+                    onChange={(event) => {
+                      setActivitySliderIndex(Number(event.target.value));
+                      setActivitySliderDirty(true);
+                      setActivityFeedback("");
+                      setActivityError("");
+                    }}
+                    style={{
+                      width: "100%",
+                      accentColor: "#3899ec",
+                      cursor: savingActivity || agents.length === 0 ? "not-allowed" : "pointer",
+                    }}
+                  />
 
-                  {/* Daily usage bar chart */}
-                  <div style={{ marginTop: 20, marginBottom: 24 }}>
-                    <Text size="small" weight="bold" secondary>DAILY USAGE (last 7 days)</Text>
-                    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 12, height: 120 }}>
-                      {(() => {
-                        const days = Object.entries(tokenStats.byDay);
-                        const maxVal = Math.max(...days.map(([, v]) => v), 1);
-                        return days.map(([day, val]) => {
-                          const pct = (val / maxVal) * 100;
-                          const label = new Date(day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" });
-                          return (
-                            <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                              <div style={{ fontSize: 10, color: "#999" }}>{val > 0 ? `${(val / 1000).toFixed(1)}k` : ""}</div>
-                              <div style={{ width: "100%", maxWidth: 48, height: `${Math.max(pct, 2)}%`, background: val > 0 ? "linear-gradient(180deg, #3899ec 0%, #1a6fbf 100%)" : "#eee", borderRadius: "4px 4px 0 0", transition: "height 0.3s ease" }} />
-                              <div style={{ fontSize: 11, color: "#666" }}>{label}</div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      marginTop: 8,
+                      fontSize: 12,
+                      color: "#4a6375",
+                    }}
+                  >
+                    <span>48h · lowest activity</span>
+                    <span>10m · highest activity</span>
                   </div>
 
-                  <Divider />
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 16,
+                      flexWrap: "wrap",
+                      marginTop: 16,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, color: "#4a6375" }}>
+                      {uniqueScheduledIntervals.length > 1 && scheduledIntervals.length > 0
+                        ? `Current schedules are mixed: ${formatHeartbeatInterval(scheduledIntervals[0])} to ${formatHeartbeatInterval(scheduledIntervals[scheduledIntervals.length - 1])}. Applying this will unify all agent intervals.`
+                        : `Current company setting: ${formatHeartbeatInterval(companyActivityIntervalSec)} for ${agents.length} agent${agents.length === 1 ? "" : "s"}.`}
+                      {pausedAgents > 0 && ` ${pausedAgents} paused agent${pausedAgents === 1 ? " is" : "s are"} excluded from the spend estimate.`}
+                      {projectedMonthlyUsage.hasData && projectedBudgetPct !== null && ` Estimated budget use: ${projectedBudgetPct}% of monthly budget.`}
+                    </div>
+                    <Button
+                      size="small"
+                      onClick={handleApplyActivityLevel}
+                      disabled={
+                        savingActivity ||
+                        agents.length === 0 ||
+                        (!activitySliderDirty &&
+                          selectedActivityIntervalSec === companyActivityIntervalSec &&
+                          uniqueScheduledIntervals.length <= 1)
+                      }
+                    >
+                      {savingActivity ? "Applying..." : "Apply to all agents"}
+                    </Button>
+                  </div>
 
-                  {/* Usage by agent */}
-                  <div style={{ marginTop: 20 }}>
-                    <Text size="small" weight="bold" secondary>USAGE BY AGENT</Text>
-                    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                      {(() => {
-                        const agentEntries = Object.entries(tokenStats.byAgent)
-                          .map(([id, data]) => ({ id, name: agents.find((a) => a.id === id)?.name || "Unknown", ...data, total: data.input + data.output }))
-                          .sort((a, b) => b.total - a.total);
-                        const maxTotal = Math.max(...agentEntries.map((a) => a.total), 1);
+                  {(activityFeedback || activityError) && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        fontSize: 13,
+                        color: activityError ? "#d64545" : "#2b6a3f",
+                      }}
+                    >
+                      {activityError || activityFeedback}
+                    </div>
+                  )}
+                </div>
 
-                        return agentEntries.map((agent) => (
-                          <div key={agent.id}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                              <a href={companyPath(`/team/${agent.id}`)} style={{ fontSize: 13, fontWeight: 500, color: "#162d3d", textDecoration: "none" }}>{agent.name}</a>
-                              <div style={{ fontSize: 12, color: "#666" }}>
-                                {(agent.total / 1000).toFixed(1)}k tokens · {agent.runs} runs
+                {tokenStats.totalRuns > 0 ? (
+                  <>
+                    {/* Summary stats */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalOutput / 1000).toFixed(1)}k</div>
+                        <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Output tokens</div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalInput / 1000).toFixed(1)}k</div>
+                        <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Input tokens</div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>{(tokenStats.totalCached / 1000).toFixed(1)}k</div>
+                        <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Cached tokens</div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d" }}>${tokenStats.totalCost.toFixed(2)}</div>
+                        <div style={{ fontSize: 12, color: "#999", marginTop: 2 }}>Total cost</div>
+                      </div>
+                    </div>
+
+                    <Divider />
+
+                    {/* Daily usage bar chart */}
+                    <div style={{ marginTop: 20, marginBottom: 24 }}>
+                      <Text size="small" weight="bold" secondary>DAILY USAGE (last 7 days)</Text>
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, marginTop: 12, height: 120 }}>
+                        {(() => {
+                          const days = Object.entries(tokenStats.byDay);
+                          const maxVal = Math.max(...days.map(([, v]) => v), 1);
+                          return days.map(([day, val]) => {
+                            const pct = (val / maxVal) * 100;
+                            const label = new Date(day + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" });
+                            return (
+                              <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                                <div style={{ fontSize: 10, color: "#999" }}>{val > 0 ? `${(val / 1000).toFixed(1)}k` : ""}</div>
+                                <div style={{ width: "100%", maxWidth: 48, height: `${Math.max(pct, 2)}%`, background: val > 0 ? "linear-gradient(180deg, #3899ec 0%, #1a6fbf 100%)" : "#eee", borderRadius: "4px 4px 0 0", transition: "height 0.3s ease" }} />
+                                <div style={{ fontSize: 11, color: "#666" }}>{label}</div>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
+
+                    <Divider />
+
+                    {/* Usage by agent */}
+                    <div style={{ marginTop: 20 }}>
+                      <Text size="small" weight="bold" secondary>USAGE BY AGENT</Text>
+                      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                        {(() => {
+                          const agentEntries = Object.entries(tokenStats.byAgent)
+                            .map(([id, data]) => ({ id, name: agents.find((a) => a.id === id)?.name || "Unknown", ...data, total: data.input + data.output + data.cached }))
+                            .sort((a, b) => b.total - a.total);
+                          const maxTotal = Math.max(...agentEntries.map((a) => a.total), 1);
+
+                          return agentEntries.map((agent) => (
+                            <div key={agent.id}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                <a href={companyPath(`/team/${agent.id}`)} style={{ fontSize: 13, fontWeight: 500, color: "#162d3d", textDecoration: "none" }}>{agent.name}</a>
+                                <div style={{ fontSize: 12, color: "#666" }}>
+                                  {(agent.total / 1000).toFixed(1)}k tokens · {agent.runs} runs
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "#f0f0f0" }}>
+                                <div style={{ width: `${(agent.output / maxTotal) * 100}%`, background: "#3899ec", transition: "width 0.3s" }} title={`Output: ${(agent.output / 1000).toFixed(1)}k`} />
+                                <div style={{ width: `${(agent.input / maxTotal) * 100}%`, background: "#7bc8f6", transition: "width 0.3s" }} title={`Input: ${(agent.input / 1000).toFixed(1)}k`} />
+                                <div style={{ width: `${(agent.cached / maxTotal) * 100}%`, background: "#d6e6f2", transition: "width 0.3s" }} title={`Cached: ${(agent.cached / 1000).toFixed(1)}k`} />
                               </div>
                             </div>
-                            <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "#f0f0f0" }}>
-                              <div style={{ width: `${(agent.output / maxTotal) * 100}%`, background: "#3899ec", transition: "width 0.3s" }} title={`Output: ${(agent.output / 1000).toFixed(1)}k`} />
-                              <div style={{ width: `${(agent.input / maxTotal) * 100}%`, background: "#7bc8f6", transition: "width 0.3s" }} title={`Input: ${(agent.input / 1000).toFixed(1)}k`} />
-                              <div style={{ width: `${(agent.cached / maxTotal) * 100}%`, background: "#d6e6f2", transition: "width 0.3s" }} title={`Cached: ${(agent.cached / 1000).toFixed(1)}k`} />
-                            </div>
-                          </div>
-                        ));
-                      })()}
+                          ));
+                        })()}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, color: "#999" }}>
+                        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#3899ec", marginRight: 4, verticalAlign: "middle" }} />Output</span>
+                        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#7bc8f6", marginRight: 4, verticalAlign: "middle" }} />Input</span>
+                        <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#d6e6f2", marginRight: 4, verticalAlign: "middle" }} />Cached</span>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11, color: "#999" }}>
-                      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#3899ec", marginRight: 4, verticalAlign: "middle" }} />Output</span>
-                      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#7bc8f6", marginRight: 4, verticalAlign: "middle" }} />Input</span>
-                      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#d6e6f2", marginRight: 4, verticalAlign: "middle" }} />Cached</span>
-                    </div>
+                  </>
+                ) : (
+                  <div style={{ paddingTop: 4, fontSize: 13, color: "#66788a" }}>
+                    Token analytics will fill in after the team has completed a few runs.
                   </div>
-                </Card.Content>
-              </Card>
-            </div>
-          )}
+                )}
+              </Card.Content>
+            </Card>
+          </div>
 
           {/* Recent Activity - Compact */}
           {(() => {

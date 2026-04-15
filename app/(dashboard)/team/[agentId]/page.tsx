@@ -24,6 +24,7 @@ import { useCompany } from "../../../providers";
 import { Breadcrumbs } from "../../../components/breadcrumbs";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { IconPicker } from "@/components/icon-picker";
+import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import {
   getAgent,
   getAgents,
@@ -132,7 +133,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setEditTitle(a.title);
     setEditIcon(a.icon);
     setEditModel((a.adapterConfig?.model as string) || "claude-sonnet-4-6");
-    setEditSchedule(String((a.adapterConfig?.heartbeatIntervalSec as number) || 600));
+    setEditSchedule(String(getHeartbeatPolicy(a).intervalSec || 600));
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
     setEditManager(a.reportsTo);
     setEditPrompt((a.adapterConfig?.promptTemplate as string) || "");

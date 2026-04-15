@@ -23,6 +23,7 @@ import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { IconPicker } from "@/components/icon-picker";
 import { AgentAvatar } from "@/components/agent-avatar";
+import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import {
   getAgents,
   getApprovals,
@@ -242,6 +243,10 @@ function ApprovalsContent() {
     try {
       const p = approval.payload;
       const oldConfig = (p.adapterConfig || {}) as Record<string, unknown>;
+      const heartbeatIntervalSec = getHeartbeatPolicy({
+        adapterConfig: oldConfig,
+        runtimeConfig: (p.runtimeConfig || {}) as Record<string, unknown>,
+      }).intervalSec || 600;
 
       // If the original agent had file-based instructions, fetch them
       let promptTemplate = oldConfig.promptTemplate as string | undefined;
@@ -263,7 +268,7 @@ function ApprovalsContent() {
         adapterType: "claude_local",
         adapterConfig: {
           model: oldConfig.model || "claude-sonnet-4-6",
-          heartbeatIntervalSec: oldConfig.heartbeatIntervalSec || 600,
+          heartbeatIntervalSec,
           timeoutSec: oldConfig.timeoutSec || 600,
           maxTurnsPerRun: oldConfig.maxTurnsPerRun || SPECIALIST_AGENT_MAX_TURNS,
           dangerouslySkipPermissions: true,

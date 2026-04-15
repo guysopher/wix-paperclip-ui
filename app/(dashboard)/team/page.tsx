@@ -17,6 +17,7 @@ import {
 import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
+import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import {
   getAgents,
   getRuns,
@@ -107,7 +108,7 @@ function TeamContent() {
   const getModel = (agent: Agent) => MODEL_LABELS[(agent.adapterConfig?.model as string) || ""] || "Unknown";
 
   const getHeartbeat = (agent: Agent) => {
-    const sec = (agent.adapterConfig?.heartbeatIntervalSec as number) || 0;
+    const sec = getHeartbeatPolicy(agent).intervalSec;
     if (!sec) return "Manual";
     if (sec < 60) return `${sec}s`;
     if (sec < 3600) return `Every ${Math.round(sec / 60)} min`;

@@ -53,7 +53,9 @@ WHAT YOU DO ON EVERY CHECK-IN:
      - reportsTo: who this person reports to
      - adapterType: use the correct agent runtime
      - adapterConfig: include model, heartbeatIntervalSec, timeoutSec, maxTurnsPerRun, dangerouslySkipPermissions, and a fully written promptTemplate
+     - runtimeConfig: include heartbeat.enabled and heartbeat.intervalSec, and keep the interval aligned with adapterConfig.heartbeatIntervalSec
    - The promptTemplate is mandatory for every hire
+   - runtimeConfig is mandatory for every hire
    - The promptTemplate must be detailed and tailored to the specific business, not generic boilerplate
    - Specialist agents should default to maxTurnsPerRun: ${SPECIALIST_AGENT_MAX_TURNS} unless you have a strong reason to make the role lighter
    - Every company should have a Site Lead as soon as site work matters. If the company lacks one, hire one early.

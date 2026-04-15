@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
 import { AI_TEAM_LEAD_MAX_TURNS } from "@/lib/agent-templates";
+import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { buildCompanyDescription } from "@/lib/company-metadata";
 
 const client = new OpenAI();
@@ -560,7 +561,7 @@ export async function POST(request: NextRequest) {
       icon?: string;
     }>(`/companies/${company.id}/agents`, {
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify(syncHeartbeatConfig({
         name: "AI Team Lead",
         role: "ceo",
         title: "AI Team Lead",
@@ -576,7 +577,7 @@ export async function POST(request: NextRequest) {
           maxTurnsPerRun: AI_TEAM_LEAD_MAX_TURNS,
           promptTemplate: AI_TEAM_LEAD_PROMPT,
         },
-      }),
+      })),
     });
 
     const boardIssue = await paperclip<{

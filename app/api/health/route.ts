@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 
 const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
@@ -50,6 +51,7 @@ interface PaperclipAgent {
   adapterConfig?: {
     heartbeatIntervalSec?: number;
   };
+  runtimeConfig?: Record<string, unknown>;
 }
 
 async function paperclip(path: string, options?: RequestInit) {
@@ -187,10 +189,10 @@ export async function POST(request: NextRequest) {
       (run) => now - new Date(run.createdAt).getTime() < SCHEDULER_LOOKBACK_MS,
     );
     const scheduledAgents = (agents || []).filter(
-      (agent) => agent.status !== "paused" && (agent.adapterConfig?.heartbeatIntervalSec || 0) > 0,
+      (agent) => agent.status !== "paused" && getHeartbeatPolicy(agent).intervalSec > 0,
     );
     const overdueAgents = scheduledAgents.filter((agent) => {
-      const intervalMs = ((agent.adapterConfig?.heartbeatIntervalSec as number) || 0) * 1000;
+      const intervalMs = getHeartbeatPolicy(agent).intervalSec * 1000;
       if (!intervalMs) {
         return false;
       }
