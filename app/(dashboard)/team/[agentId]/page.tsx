@@ -29,6 +29,7 @@ import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
 import {
   getAgent,
   getAgents,
+  getAdapterModels,
   getCompany,
   getRuns,
   invokeHeartbeat,
@@ -36,6 +37,7 @@ import {
   resumeAgent,
   updateAgent,
   type Agent,
+  type AdapterModel,
   type Company,
   type HeartbeatRun,
 } from "@/lib/api";
@@ -80,6 +82,16 @@ const SCHEDULE_OPTIONS = [
   { id: "86400", value: "Every 24 hours" },
 ];
 
+const MODEL_CONFIG_ADAPTERS = new Set([
+  "claude_local",
+  "codex_local",
+  "opencode_local",
+  "cursor",
+  "gemini_local",
+  "hermes_local",
+  "pi_local",
+]);
+
 function AgentDetailContent({ agentId }: { agentId: string }) {
   const { companyId, companyPath } = useCompany();
   const router = useRouter();
@@ -92,6 +104,8 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [acting, setActing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const [modelOptions, setModelOptions] = useState<AdapterModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   // Editable fields
   const [editName, setEditName] = useState("");
@@ -101,6 +115,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [editTimeout, setEditTimeout] = useState("");
   const [editManager, setEditManager] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
+  const [editModel, setEditModel] = useState("");
 
   const load = async () => {
     if (!companyId) {
@@ -118,6 +133,12 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setCompany(companyData);
     setRuns(runData);
     populateForm(agentData);
+    setLoadingModels(true);
+    const adapterModels = await getAdapterModels(companyId, agentData.adapterType).catch(
+      () => [] as AdapterModel[],
+    );
+    setModelOptions(adapterModels);
+    setLoadingModels(false);
     setLoading(false);
   };
 
@@ -129,6 +150,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
     setEditManager(a.reportsTo);
     setEditPrompt((a.adapterConfig?.promptTemplate as string) || "");
+    setEditModel(String(a.adapterConfig?.model || ""));
   };
 
   useEffect(() => {
@@ -158,6 +180,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
         heartbeatIntervalSec: parseInt(editSchedule),
         timeoutSec: parseInt(editTimeout),
         promptTemplate: editPrompt,
+        model: editModel.trim() || null,
       },
     });
     setSaving(false);
@@ -228,6 +251,22 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const avatarColor =
     agent.role === "ceo" ? "#3899ec" : agent.role === "pm" ? "#7b61ff" : "#44b5b0";
   const runtimeModel = getRuntimeModelLabel(getRuntimeModel(agent, runs));
+  const configuredModel = editModel.trim();
+  const modelDropdownOptions = (() => {
+    const known = new Map<string, { id: string; value: string }>();
+    for (const option of modelOptions) {
+      const id = String(option.id).trim();
+      if (!id) continue;
+      known.set(id, { id, value: option.label || id });
+    }
+    if (configuredModel && !known.has(configuredModel)) {
+      known.set(configuredModel, { id: configuredModel, value: configuredModel });
+    }
+    return Array.from(known.values());
+  })();
+  const supportsModelSelection = MODEL_CONFIG_ADAPTERS.has(agent.adapterType);
+  const showModelDropdown = supportsModelSelection && modelDropdownOptions.length > 0;
+  const showModelInput = supportsModelSelection && !showModelDropdown;
 
   return (
     <>
@@ -381,8 +420,40 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   />
                 </FormField>
                 <FormField
+                  label="Configured model"
+                  infoContent="This is the model Paperclip will save into adapterConfig.model for this agent. Use a discovered model when available, or enter one manually if the adapter cannot list models."
+                >
+                  {loadingModels ? (
+                    <Loader size="tiny" />
+                  ) : showModelDropdown ? (
+                    <Dropdown
+                      size="small"
+                      selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
+                      onSelect={(option) => setEditModel(String(option.id))}
+                      options={modelDropdownOptions}
+                    />
+                  ) : showModelInput ? (
+                    <Input
+                      size="small"
+                      value={editModel}
+                      onChange={(e) => setEditModel(e.target.value)}
+                      placeholder={
+                        agent.adapterType === "opencode_local"
+                          ? "openai/gpt-5.4"
+                          : agent.adapterType === "claude_local"
+                            ? "claude-sonnet-4-6"
+                            : "gpt-5.4"
+                      }
+                    />
+                  ) : (
+                    <Text size="small" secondary>
+                      This adapter does not expose model selection in this UI.
+                    </Text>
+                  )}
+                </FormField>
+                <FormField
                   label="Runtime model"
-                  infoContent="This is the model the Paperclip runtime is currently using for this agent. It is read-only in the UI right now."
+                  infoContent="This is the most recent model observed in actual runs for this agent."
                 >
                   <Text size="small" weight="bold" style={{ fontFamily: "monospace" }}>
                     {runtimeModel}

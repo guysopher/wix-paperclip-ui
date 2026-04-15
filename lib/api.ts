@@ -66,6 +66,10 @@ export const getAgents = (companyId: string) =>
 export const getOrg = (companyId: string) =>
   request<OrgNode[]>(`/companies/${companyId}/org`);
 export const getAgent = (id: string) => request<Agent>(`/agents/${id}`);
+export const getAdapterModels = (companyId: string, adapterType: string) =>
+  request<AdapterModel[]>(
+    `/companies/${companyId}/adapters/${encodeURIComponent(adapterType)}/models`,
+  );
 export const invokeHeartbeat = (agentId: string) =>
   request<void>(`/agents/${agentId}/heartbeat/invoke`, { method: "POST" });
 export const pauseAgent = (agentId: string) =>
@@ -229,6 +233,11 @@ export interface Agent {
   createdAt: string;
   updatedAt: string;
   icon?: string;
+}
+
+export interface AdapterModel {
+  id: string;
+  label: string;
 }
 
 export interface OrgNode {
