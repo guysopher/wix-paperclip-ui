@@ -13,7 +13,7 @@ import {
 import { Refresh, ExternalLink } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { getCompany, type Company } from "@/lib/api";
-import { getCompanyWixBinding } from "@/lib/company-metadata";
+import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
 
 async function copyToClipboard(value: string) {
   try {
@@ -59,10 +59,16 @@ function WixContent() {
   }
 
   const binding = getCompanyWixBinding(company.description);
+  const vibeSite = getCompanyVibeSite(company.description);
   const metaSiteId = binding?.metaSiteId || "";
   const siteId = binding?.siteId || "";
   const siteName = binding?.siteName || company.name;
   const siteUrl = binding?.siteUrl || "";
+  const vibeSiteId = vibeSite?.siteId || "";
+  const vibeSiteUrl = vibeSite?.siteUrl || "";
+  const vibeSiteStatus = vibeSite?.status || "";
+  const vibeSiteJobId = vibeSite?.jobId || "";
+  const vibeSiteDevelopmentUrl = vibeSite?.developmentUrl || "";
   const editorUrl = siteId ? `https://manage.wix.com/dashboard/${siteId}` : "";
   const authJson = binding?.auth ? JSON.stringify(binding.auth, null, 2) : "";
   const dataJson = binding?.data ? JSON.stringify(binding.data, null, 2) : "";
@@ -143,6 +149,22 @@ function WixContent() {
                 </Card>
               </a>
             )}
+            {vibeSiteUrl && (
+              <a href={vibeSiteUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <Card>
+                  <Card.Content>
+                    <div style={{ textAlign: "center", padding: "8px 0" }}>
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#8b3dff"><path d="M12 2l2.39 4.84L20 7.64l-4 3.9.94 5.46L12 14.77 7.06 17l.94-5.46-4-3.9 5.61-.8L12 2z" /></svg>
+                      </div>
+                      <Text size="small" weight="bold">Vibe Site</Text>
+                      <br />
+                      <Text size="tiny" secondary>Open the Picasso experiment</Text>
+                    </div>
+                  </Card.Content>
+                </Card>
+              </a>
+            )}
           </div>
 
           <Card>
@@ -212,6 +234,54 @@ function WixContent() {
 
                   <Text size="small" secondary weight="bold">Activation Issue</Text>
                   <Text size="small">{binding?.activationIssueId || "Not set"}</Text>
+
+                  <Text size="small" secondary weight="bold">Vibe Site ID</Text>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <code style={{ fontSize: 12, background: "#f5f5f5", padding: "2px 8px", borderRadius: 4 }}>
+                      {vibeSiteId || "Not set"}
+                    </code>
+                    {vibeSiteId && (
+                      <button
+                        type="button"
+                        onClick={() => void copyToClipboard(vibeSiteId)}
+                        style={{
+                          border: "1px solid #d5d9e0",
+                          background: "#fff",
+                          borderRadius: 4,
+                          fontSize: 11,
+                          padding: "2px 6px",
+                          cursor: "pointer",
+                          color: "#4a4a4a",
+                        }}
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </div>
+
+                  <Text size="small" secondary weight="bold">Vibe Site URL</Text>
+                  {vibeSiteUrl ? (
+                    <a href={vibeSiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#3899ec", textDecoration: "none" }}>
+                      {vibeSiteUrl}
+                    </a>
+                  ) : (
+                    <Text size="small">Not set</Text>
+                  )}
+
+                  <Text size="small" secondary weight="bold">Vibe Site Status</Text>
+                  <Text size="small">{vibeSiteStatus || "Not set"}</Text>
+
+                  <Text size="small" secondary weight="bold">Vibe Site Job</Text>
+                  <Text size="small">{vibeSiteJobId || "Not set"}</Text>
+
+                  <Text size="small" secondary weight="bold">Vibe Dev URL</Text>
+                  {vibeSiteDevelopmentUrl ? (
+                    <a href={vibeSiteDevelopmentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: "#3899ec", textDecoration: "none" }}>
+                      {vibeSiteDevelopmentUrl}
+                    </a>
+                  ) : (
+                    <Text size="small">Not set</Text>
+                  )}
                 </div>
               </div>
             </Card.Content>

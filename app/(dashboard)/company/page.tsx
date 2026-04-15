@@ -30,7 +30,7 @@ import {
   type Company,
   type Goal,
 } from "@/lib/api";
-import { getCompanyWixBinding } from "@/lib/company-metadata";
+import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
 
 function formatDescriptionForEditor(description: string): string {
   const raw = description.trim();
@@ -204,7 +204,9 @@ function CompanyContent() {
     editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false);
   const descriptionError = getDescriptionValidationError(editDescription);
   const wixBinding = getCompanyWixBinding(company.description);
+  const vibeSite = getCompanyVibeSite(company.description);
   const siteUrl = wixBinding?.siteUrl || "";
+  const vibeSiteUrl = vibeSite?.siteUrl || "";
 
   return (
     <>
@@ -341,6 +343,20 @@ function CompanyContent() {
                         style={{ fontSize: 13, color: "#3899ec", textDecoration: "none" }}
                       >
                         {siteUrl}
+                      </a>
+                    ) : (
+                      <Text size="small" secondary>Not set</Text>
+                    )}
+                  </FormField>
+                  <FormField label="Vibe Site">
+                    {vibeSiteUrl ? (
+                      <a
+                        href={vibeSiteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 13, color: "#3899ec", textDecoration: "none" }}
+                      >
+                        {vibeSiteUrl}
                       </a>
                     ) : (
                       <Text size="small" secondary>Not set</Text>

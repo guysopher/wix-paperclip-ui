@@ -15,12 +15,6 @@ const PAPERCLIP_API =
   process.env.PAPERCLIP_API_URL ||
   "http://localhost:3100/api";
 
-const PICASSO_BRIDGE_URL =
-  process.env.PICASSO_BRIDGE_URL ||
-  "http://localhost:3401";
-
-const PICASSO_BRIDGE_TOKEN = process.env.PICASSO_BRIDGE_TOKEN || "";
-
 interface IntakeMessage {
   role: "ceo" | "user";
   text: string;
@@ -443,26 +437,7 @@ function buildBoardIssueDescription(summary: IntakeSummary, messages: IntakeMess
   ].join("\n");
 }
 
-function buildPicassoPrompt(summary: IntakeSummary): string {
-  return [
-    `Create a new Wix business site for ${summary.companyName}.`,
-    "",
-    `Business overview: ${summary.businessDescription}`,
-    "",
-    "Approved site direction:",
-    summary.siteProposal,
-    "",
-    "Founder requirements and priorities:",
-    summary.siteSpecifics,
-    "",
-    "First-build brief:",
-    summary.firstBuildBrief,
-    "",
-    "Build a polished first version that feels credible, usable, and commercially sharp.",
-  ].join("\n");
-}
-
-function buildSiteExecutionTask(summary: IntakeSummary, bridgeJobId?: string, bridgeError?: string): KickoffTask {
+function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
   const lines = [
     `Turn the approved site proposal into the first real version of the business site for ${summary.companyName}.`,
     "",
@@ -471,19 +446,14 @@ function buildSiteExecutionTask(summary: IntakeSummary, bridgeJobId?: string, br
     "",
     "Execution brief:",
     summary.firstBuildBrief,
+    "",
+    "Execution rules:",
+    "1. Build and manage the main business site through the standard Wix/Harmony tool path. That main site becomes the canonical company site in wixBinding.",
+    "2. If a Picasso vibe site would help with experimentation or creative direction, create it as a separate experimental site only.",
+    "3. Record any Picasso experimental site separately as vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
+    "4. Never overwrite wixBinding with vibe-site data.",
+    "5. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
   ];
-
-  if (bridgeJobId) {
-    lines.push("");
-    lines.push(`A Picasso site-build job has already been queued: ${bridgeJobId}`);
-    lines.push("Coordinate the rest of the launch work around that build and keep momentum moving.");
-  }
-
-  if (bridgeError) {
-    lines.push("");
-    lines.push(`The first automatic site-build attempt failed to start: ${bridgeError}`);
-    lines.push("Treat this as a launch blocker to resolve quickly while keeping the rest of the kickoff moving.");
-  }
 
   return {
     title: `Launch the first site version for ${summary.companyName}`,
@@ -507,39 +477,6 @@ async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   return response.json();
-}
-
-async function startPicassoBridge(summary: IntakeSummary, companyId: string, issueId: string) {
-  if (!PICASSO_BRIDGE_TOKEN) {
-    throw new Error("PICASSO_BRIDGE_TOKEN is not configured");
-  }
-
-  const response = await fetch(`${PICASSO_BRIDGE_URL.replace(/\/$/, "")}/jobs`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${PICASSO_BRIDGE_TOKEN}`,
-    },
-    body: JSON.stringify({
-      mode: "create_site",
-      prompt: buildPicassoPrompt(summary),
-      designer: "none",
-      companyId,
-      issueId,
-      requestedBy: "paperclip-ui",
-      metadata: {
-        businessName: summary.companyName,
-      },
-    }),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(payload.error || "Failed to start Picasso bridge job");
-  }
-
-  return response.json() as Promise<{ jobId: string; status: string }>;
 }
 
 export async function POST(request: NextRequest) {
@@ -669,44 +606,11 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    const requestedAt = new Date().toISOString();
-    let bridgeJob: {
-      id: string;
-      mode: "create_site";
-      status: string;
-      prompt: string;
-      designer: string;
-      companyId: string;
-      issueId: string;
-      requestedBy: string;
-      createdAt: string;
-      updatedAt: string;
-    } | null = null;
-    let bridgeError: string | undefined;
-
-    try {
-      const bridgeResponse = await startPicassoBridge(summary, company.id, boardIssue.id);
-      bridgeJob = {
-        id: bridgeResponse.jobId,
-        mode: "create_site",
-        status: bridgeResponse.status,
-        prompt: buildPicassoPrompt(summary),
-        designer: "none",
-        companyId: company.id,
-        issueId: boardIssue.id,
-        requestedBy: "paperclip-ui",
-        createdAt: requestedAt,
-        updatedAt: requestedAt,
-      };
-    } catch (error) {
-      bridgeError = error instanceof Error ? error.message : "Failed to start Picasso bridge job";
-    }
-
     const kickoffTasks = [...summary.kickoffTasks];
     const siteTaskIndex = kickoffTasks.findIndex((task) =>
       /site|launch|build/i.test(task.title) || /site|launch|build/i.test(task.description),
     );
-    const siteExecutionTask = buildSiteExecutionTask(summary, bridgeJob?.id, bridgeError);
+    const siteExecutionTask = buildSiteExecutionTask(summary);
 
     if (siteTaskIndex >= 0) {
       kickoffTasks[siteTaskIndex] = siteExecutionTask;
@@ -742,19 +646,6 @@ export async function POST(request: NextRequest) {
             startedAt: approvedAt,
             completedAt: approvedAt,
           },
-          picassoBridge: bridgeJob
-            ? {
-                jobId: bridgeJob.id,
-                status: bridgeJob.status,
-                requestedAt,
-                updatedAt: requestedAt,
-              }
-            : {
-                status: "failed",
-                requestedAt,
-                updatedAt: requestedAt,
-                error: bridgeError || "Failed to start Picasso bridge job",
-              },
         },
       },
     });
@@ -781,12 +672,12 @@ export async function POST(request: NextRequest) {
       "no-run",
       "no-status",
       "0",
-      bridgeJob?.status || "no-bridge",
-      bridgeJob?.updatedAt || "no-bridge-update",
+      "no-bridge",
+      "no-bridge-update",
       "no-bridge-site-id",
       "no-bridge-dev-url",
       "no-bridge-site-url",
-      bridgeError || "no-bridge-error",
+      "no-bridge-error",
     ].join(":");
 
     return NextResponse.json({
@@ -800,7 +691,7 @@ export async function POST(request: NextRequest) {
         workspaceContextId: updatedCompany.id,
         workspaceContextType: "companyId",
       },
-      bridgeJob,
+      bridgeJob: null,
       backendSignature,
     });
   } catch (error) {

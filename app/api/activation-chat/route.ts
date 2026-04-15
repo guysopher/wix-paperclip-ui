@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import {
   getCompanyActivation,
   getCompanyBusinessDescription,
+  getCompanyVibeSite,
   getCompanyWixBinding,
   parseCompanyDescription,
 } from "@/lib/company-metadata";
@@ -199,26 +200,26 @@ function buildNewSiteBuildInstruction(
   switch (trigger) {
     case "backend_update":
       if (status === "succeeded") {
-        return "The first site build has succeeded. Give the founder a concise, confident update. Mention that the first version is ready, briefly say what happens next, and suggest 2 to 4 practical ways the AI Team Lead can keep helping grow the business.";
+        return "An experimental Picasso vibe site has succeeded. If it is relevant, mention it briefly as an additional creative direction, not as the main business site. Keep the founder focused on the main site execution and the next business moves.";
       }
       if (status === "failed" || status === "canceled") {
-        return "The site build did not complete successfully. Explain that plainly, keep it calm, and immediately pivot to what you can still help with next. Do not sound alarmist or technical.";
+        return "The experimental Picasso vibe site did not complete successfully. Explain that plainly only if it matters, keep it calm, and immediately pivot back to the main site execution and the next practical business moves.";
       }
-      return "The site build is underway. Give the founder a short progress update and suggest 2 to 4 practical next steps the AI Team Lead can help with for the business while the first version is being built.";
+      return "The team is underway on the first approved site version. Give the founder a short progress update and suggest 2 to 4 practical next steps the AI Team Lead can help with for the business while execution is moving.";
     case "user_message":
       if (status === "succeeded") {
-        return "The first site build has already succeeded. Answer like the founder is now moving from creation into execution. Keep it practical and suggest concrete next moves you can help with.";
+        return "If the experimental Picasso vibe site exists, treat it as supplementary. Answer like the founder is moving from setup into execution on the main business site. Keep it practical and suggest concrete next moves you can help with.";
       }
       if (status === "failed" || status === "canceled") {
-        return "The site build did not start or complete successfully. Say that plainly, keep it calm, and pivot quickly into what you can do next for the founder without sounding technical.";
+        return "If the experimental Picasso vibe site failed, say that plainly only if useful, keep it calm, and pivot quickly into what you can do next for the founder without sounding technical.";
       }
-      return "The founder just replied during the new-site build flow. Answer them conversationally, grounded in the current business inputs and build state. If the build is already underway, mention that naturally and suggest practical next steps you can help with.";
+      return "The founder just replied during the new-site execution flow. Answer them conversationally, grounded in the current business inputs and execution state. If the main site work is underway, mention that naturally and suggest practical next steps you can help with.";
     case "initial_open":
     default:
       if (status === "failed" || status === "canceled") {
-        return "The site build did not complete successfully. Explain that simply and confidently, then suggest the most useful next things the AI Team Lead can still help with for the business.";
+        return "If the experimental Picasso vibe site failed, explain that simply only if it matters, then suggest the most useful next things the AI Team Lead can still help with for the business.";
       }
-      return "The founder just completed the intake for a new site build. Tell them you are starting the first version now, keep it warm and practical, and mention a few concrete business areas you can help with next beyond just the site build.";
+      return "The founder just completed the intake and approved kickoff. Tell them the team is starting work on the first version now, keep it warm and practical, and mention a few concrete business areas you can help with next beyond just the site.";
   }
 }
 
@@ -239,6 +240,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     const wixBinding = getCompanyWixBinding(company.description);
+    const vibeSite = getCompanyVibeSite(company.description);
     const businessDescription = getCompanyBusinessDescription(company.description);
     const activation = getCompanyActivation(company.description);
     const activeRunCount = runs.filter((run) => ["queued", "running"].includes(run.status)).length;
@@ -266,10 +268,11 @@ Current business inputs:
 ${issue.description || "No activation brief available."}
 
 Current build state:
-- Picasso job status: ${picassoStatus}
-- Site ID: ${activation.picassoBridge?.siteId || "Unknown"}
-- Development URL: ${activation.picassoBridge?.developmentUrl || "Unknown"}
-- Site URL: ${activation.picassoBridge?.siteUrl || "Unknown"}
+- Main site meta site ID: ${wixBinding?.metaSiteId || "Unknown"}
+- Main site URL: ${wixBinding?.siteUrl || "Unknown"}
+- Experimental vibe site status: ${picassoStatus}
+- Experimental vibe site ID: ${vibeSite?.siteId || activation.picassoBridge?.siteId || "Unknown"}
+- Experimental vibe site URL: ${vibeSite?.siteUrl || activation.picassoBridge?.siteUrl || "Unknown"}
 
 Instruction:
 ${buildNewSiteBuildInstruction(body.trigger, picassoStatus)}

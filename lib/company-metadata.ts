@@ -10,10 +10,19 @@ export interface WixBindingMetadata {
   data?: Record<string, unknown>;
 }
 
+export interface VibeSiteMetadata {
+  siteId?: string;
+  siteUrl?: string;
+  jobId?: string;
+  status?: string;
+  developmentUrl?: string;
+}
+
 export interface CompanyDescriptionMetadata {
   version: 1;
   businessDescription?: string;
   wixBinding?: WixBindingMetadata;
+  vibeSite?: VibeSiteMetadata;
   extra?: Record<string, unknown>;
 }
 
@@ -60,6 +69,12 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "siteId",
   "siteName",
   "siteUrl",
+  "vibeSite",
+  "vibeSiteId",
+  "vibeSiteUrl",
+  "vibeSiteJobId",
+  "vibeSiteStatus",
+  "vibeSiteDevelopmentUrl",
   "activationIssueId",
   "auth",
   "data",
@@ -194,6 +209,30 @@ function normalizeWixBinding(raw: Record<string, unknown>): WixBindingMetadata |
   return binding;
 }
 
+function normalizeVibeSite(raw: Record<string, unknown>): VibeSiteMetadata | undefined {
+  const vibeSource = isRecord(raw.vibeSite) ? raw.vibeSite : raw;
+  const vibeSite: VibeSiteMetadata = {
+    siteId: getString(vibeSource.siteId) || getString(raw.vibeSiteId),
+    siteUrl: getString(vibeSource.siteUrl) || getString(raw.vibeSiteUrl),
+    jobId: getString(vibeSource.jobId) || getString(raw.vibeSiteJobId),
+    status: getString(vibeSource.status) || getString(raw.vibeSiteStatus),
+    developmentUrl:
+      getString(vibeSource.developmentUrl) || getString(raw.vibeSiteDevelopmentUrl),
+  };
+
+  if (
+    !vibeSite.siteId &&
+    !vibeSite.siteUrl &&
+    !vibeSite.jobId &&
+    !vibeSite.status &&
+    !vibeSite.developmentUrl
+  ) {
+    return undefined;
+  }
+
+  return vibeSite;
+}
+
 export function parseCompanyDescription(description: string | null | undefined): CompanyDescriptionMetadata {
   const raw = description?.trim() || "";
   if (!raw) {
@@ -208,6 +247,7 @@ export function parseCompanyDescription(description: string | null | undefined):
         version: 1,
         businessDescription: getString(parsed.businessDescription),
         wixBinding: normalizeWixBinding(parsed),
+        vibeSite: normalizeVibeSite(parsed),
         extra: extraEntries.length > 0 ? Object.fromEntries(extraEntries) : undefined,
       };
     }
@@ -233,6 +273,12 @@ export function getCompanyWixBinding(
   return parseCompanyDescription(description).wixBinding;
 }
 
+export function getCompanyVibeSite(
+  description: string | null | undefined,
+): VibeSiteMetadata | undefined {
+  return parseCompanyDescription(description).vibeSite;
+}
+
 export function buildCompanyDescription(metadata: CompanyDescriptionMetadata): string {
   const next: Record<string, unknown> = {
     version: 1,
@@ -251,6 +297,14 @@ export function buildCompanyDescription(metadata: CompanyDescriptionMetadata): s
     };
   }
 
+  if (metadata.vibeSite) {
+    next.vibeSiteId = metadata.vibeSite.siteId || undefined;
+    next.vibeSiteUrl = metadata.vibeSite.siteUrl || undefined;
+    next.vibeSiteJobId = metadata.vibeSite.jobId || undefined;
+    next.vibeSiteStatus = metadata.vibeSite.status || undefined;
+    next.vibeSiteDevelopmentUrl = metadata.vibeSite.developmentUrl || undefined;
+  }
+
   if (metadata.extra) {
     Object.assign(next, metadata.extra);
   }
@@ -263,6 +317,7 @@ export function mergeCompanyDescription(
   updates: {
     businessDescription?: string;
     wixBinding?: Partial<WixBindingMetadata>;
+    vibeSite?: Partial<VibeSiteMetadata>;
     extra?: Record<string, unknown>;
   },
 ): string {
@@ -280,6 +335,12 @@ export function mergeCompanyDescription(
           ...updates.wixBinding,
         }
       : current.wixBinding,
+    vibeSite: updates.vibeSite
+      ? {
+          ...(current.vibeSite || {}),
+          ...updates.vibeSite,
+        }
+      : current.vibeSite,
     extra:
       updates.extra !== undefined
         ? {

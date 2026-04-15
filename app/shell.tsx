@@ -23,7 +23,7 @@ import {
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
 import { CreateCompanyWizard } from "./create-company-wizard";
-import { getCompanyWixBinding } from "@/lib/company-metadata";
+import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
 
 type CountKey = keyof BadgeCounts;
 
@@ -103,7 +103,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const currentCompany = companies.find((c) => c.id === companyId);
   const hasActiveCompany = Boolean(currentCompany);
   const wixBinding = currentCompany ? getCompanyWixBinding(currentCompany.description) : undefined;
+  const vibeSite = currentCompany ? getCompanyVibeSite(currentCompany.description) : undefined;
   const liveSiteUrl = wixBinding?.siteUrl || "";
+  const vibeSiteUrl = vibeSite?.siteUrl || "";
   const metaSiteId = wixBinding?.metaSiteId || "";
   const businessManagerUrl = metaSiteId ? `https://manage.wix.com/dashboard/${metaSiteId}` : "";
   const editorUrl = metaSiteId ? `https://www.wix.com/editor/${metaSiteId}` : "";
@@ -289,11 +291,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {NAV_ITEMS.map(navButton)}
         </div>
         <div style={{ flexGrow: 1 }} />
-        {(liveSiteUrl || metaSiteId) && (
+        {(liveSiteUrl || vibeSiteUrl || metaSiteId) && (
           <div style={{ padding: "0 12px 8px" }}>
             <Divider skin="light" />
             <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 10 }}>
               {liveSiteUrl && externalNavLink("Live Site", liveSiteUrl)}
+              {vibeSiteUrl && externalNavLink("Vibe Site", vibeSiteUrl)}
               {metaSiteId && externalNavLink("Business Manager", businessManagerUrl)}
               {metaSiteId && externalNavLink("Editor", editorUrl)}
             </div>

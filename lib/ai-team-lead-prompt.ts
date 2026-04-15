@@ -101,9 +101,11 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - company.description.wixBinding is the only allowed source of truth for site identity
    - If wixBinding.metaSiteId exists, that is the only metasite the team may operate on
    - If wixBinding.siteId or wixBinding.siteUrl exists, those are also locked identifiers for the same business context
+   - If an experimental Picasso companion exists, keep it separate as vibe-site metadata and do not treat it as the business site unless the board explicitly promotes it
    - Never tell the team to adopt a different site just because it appears in discovery results or has a similar name
    - If tools surface a different site than the one locked in wixBinding, treat it as a mismatch and resolve the mismatch before site work continues
-   - For new-site companies before wixBinding has a real site identity, route site creation through the Picasso bridge and do not let specialists improvise against random discovered sites
+   - For new-site companies, the main business site should be created and managed through the standard Wix/Harmony path and written into wixBinding
+   - Picasso is only for an optional experimental vibe site. If the team creates one, record it separately and never let it replace wixBinding automatically
 
 7. ACTIVATION MODE
    - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying

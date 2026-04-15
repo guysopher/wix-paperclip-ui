@@ -13,6 +13,7 @@ import {
   createAgent,
   createIssue,
   deleteCompany,
+  getCompany,
   getPicassoBridgeJob,
   getCompanies,
   getComments,
@@ -346,7 +347,10 @@ function NewCompanyPageContent() {
     !backendBusy &&
     !chatSending;
   const buildInProgress =
-    Boolean(activationSession?.mode === "new_site" && (bridgeStatus === "queued" || bridgeStatus === "running"));
+    Boolean(
+      activationSession?.mode === "new_site" &&
+      (backendBusy || bridgeStatus === "queued" || bridgeStatus === "running"),
+    );
   const showBackendProgress =
     activationSession?.mode === "existing_site" ? backendBusy : false;
   const showRunSpinner = chatSending || showBackendProgress || startingNewSite;
@@ -385,7 +389,7 @@ function NewCompanyPageContent() {
     : chatSending
       ? "Thinking..."
       : isNewSiteFlow
-        ? "Building the first site version..."
+        ? "Preparing the first site version..."
         : "Research in progress...";
 
   useEffect(() => {
@@ -736,6 +740,13 @@ function NewCompanyPageContent() {
     name?: string;
     businessDescription?: string;
     wixBinding?: Partial<WixBindingMetadata>;
+    vibeSite?: {
+      siteId?: string;
+      siteUrl?: string;
+      jobId?: string;
+      status?: string;
+      developmentUrl?: string;
+    };
     activation: ActivationMetadata;
     issueTitle?: string;
     issueDescription?: string;
@@ -747,6 +758,7 @@ function NewCompanyPageContent() {
     const nextDescription = mergeCompanyDescription(activationSession.companyDescription, {
       businessDescription: args.businessDescription,
       wixBinding: args.wixBinding,
+      vibeSite: args.vibeSite,
       extra: {
         activation: args.activation,
       },
@@ -790,20 +802,41 @@ function NewCompanyPageContent() {
 
     const pollBackendState = async () => {
       try {
-        const currentActivation = getCompanyActivation(activationSession.companyDescription);
-        const currentBridgeJobId = currentActivation?.picassoBridge?.jobId;
-        const [nextComments, nextRuns, nextBridgeJob] = await Promise.all([
+        const [nextCompany, nextComments, nextRuns] = await Promise.all([
+          getCompany(activationSession.companyId),
           getComments(activationSession.inboxIssueId),
           getHeartbeatRuns(activationSession.companyId).catch(() => [] as HeartbeatRun[]),
+        ]);
+        const currentActivation = getCompanyActivation(nextCompany.description);
+        const currentBridgeJobId = currentActivation?.picassoBridge?.jobId;
+        const nextBridgeJob = await (
           currentBridgeJobId
             ? getPicassoBridgeJob(currentBridgeJobId).catch(() => null)
-            : Promise.resolve(null),
-        ]);
+            : Promise.resolve(null)
+        );
         const hasActiveRuns =
           nextRuns.some((run) => ["queued", "running"].includes(run.status)) ||
           Boolean(nextBridgeJob && ["queued", "running"].includes(nextBridgeJob.status));
         setBackendBusy(hasActiveRuns);
         setBridgeJob(nextBridgeJob);
+        setActivationSession((current) => {
+          if (!current || current.companyId !== nextCompany.id) {
+            return current;
+          }
+
+          if (
+            current.companyName === nextCompany.name &&
+            current.companyDescription === nextCompany.description
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            companyName: nextCompany.name,
+            companyDescription: nextCompany.description,
+          };
+        });
 
         if (nextBridgeJob && activationSession.mode === "new_site") {
           const nextActivation: ActivationMetadata = {
@@ -838,9 +871,12 @@ function NewCompanyPageContent() {
 
           if (stageChanged || bridgeChanged) {
             await updateActivationState({
-              wixBinding: {
+              vibeSite: {
                 siteId: nextBridgeJob.result?.siteId || undefined,
                 siteUrl: nextBridgeJob.result?.siteUrl || undefined,
+                jobId: nextBridgeJob.id,
+                status: nextBridgeJob.status,
+                developmentUrl: nextBridgeJob.result?.developmentUrl || undefined,
               },
               activation: nextActivation,
             });
