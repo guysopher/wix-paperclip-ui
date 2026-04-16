@@ -617,6 +617,34 @@ function DashboardContent() {
   const selectedOpsInterval = selectedOpsAgent ? getHeartbeatPolicy(selectedOpsAgent).intervalSec : 0;
   const selectedOpsLastHeartbeat = selectedOpsAgent?.lastHeartbeatAt ?? null;
   const selectedOpsLastUpdate = selectedOpsNarrative?.time || selectedOpsLastHeartbeat;
+  const selectedOpsIssues = selectedOpsAgent
+    ? issues
+        .filter((issue) => {
+          const assigneeId = issue.assigneeAgentId || issue.assigneeId;
+          return assigneeId === selectedOpsAgent.id && !["done", "cancelled"].includes(issue.status);
+        })
+        .sort((a, b) => {
+          const priority: Record<string, number> = {
+            blocked: 0,
+            in_review: 1,
+            in_progress: 2,
+            todo: 3,
+            backlog: 4,
+          };
+          const aPriority = priority[a.status] ?? 99;
+          const bPriority = priority[b.status] ?? 99;
+          if (aPriority !== bPriority) {
+            return aPriority - bPriority;
+          }
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        })
+    : [];
+  const selectedOpsAttentionIssue = selectedOpsIssues[0] || null;
+  const selectedOpsProblemRun = selectedOpsAgent
+    ? [...runs]
+        .filter((run) => run.agentId === selectedOpsAgent.id && ["failed", "timed_out", "cancelled"].includes(run.status))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null
+    : null;
   const operationsPanelHeight = Math.max(420, 52 + sortedAgents.length * 67);
   let selectedOpsNextRunText = "";
   if (selectedOpsAgent && selectedOpsLastHeartbeat && selectedOpsInterval && selectedOpsAgent.status !== "running" && selectedOpsAgent.status !== "paused") {
@@ -1680,6 +1708,53 @@ function DashboardContent() {
                               ? "This agent is paused and will stay quiet until you resume it."
                               : selectedOpsNextRunText || "This agent is ready for the next assignment or heartbeat."}
                           </div>
+                          {(selectedOpsProblemRun || selectedOpsAttentionIssue) && (
+                            <div
+                              style={{
+                                marginTop: 14,
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 10,
+                                alignItems: "center",
+                              }}
+                            >
+                              {selectedOpsProblemRun && (
+                                <a
+                                  href={companyPath(`/runs/${selectedOpsProblemRun.id}`)}
+                                  style={{
+                                    color: "#d04b3c",
+                                    textDecoration: "none",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  Open latest failed run
+                                  <span style={{ fontSize: 16 }}>→</span>
+                                </a>
+                              )}
+                              {selectedOpsAttentionIssue && (
+                                <TaskLinkWithPreview
+                                  href={companyPath(`/tasks/${selectedOpsAttentionIssue.identifier}`)}
+                                  issue={selectedOpsAttentionIssue}
+                                  style={{
+                                    color: "#3899ec",
+                                    textDecoration: "none",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  Open blocker {selectedOpsAttentionIssue.identifier}
+                                  <span style={{ fontSize: 16 }}>→</span>
+                                </TaskLinkWithPreview>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                           <div style={{ padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e6eef7" }}>
