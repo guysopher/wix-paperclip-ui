@@ -33,40 +33,24 @@ import {
   PauseFilled,
   PlayFilled,
 } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../providers";
+import { useCompany, useCompanyData } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import { parseRunUsage } from "@/lib/model-pricing";
 import {
-  getDashboard,
-  getAgents,
-  getGoals,
-  getIssues,
   invokeHeartbeat,
   pauseAgent,
   resumeAgent,
   updateAgent,
-  getRuns,
   createIssue,
   runCompanyHealthCheck,
   restartPaperclipServer,
   repairCodexAuth,
-  getCompany,
-  type Company,
-  type Dashboard,
   type Agent,
-  type Goal,
-  type Issue,
   type HeartbeatRun,
 } from "@/lib/api";
 
-const FEED_AVATAR_COLORS = ["#3899ec", "#e01f5a", "#2ca55a", "#ff6b35", "#7c4dff", "#00bcd4", "#f59e0b"];
-function feedAvatarColor(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
-  return FEED_AVATAR_COLORS[Math.abs(h) % FEED_AVATAR_COLORS.length];
-}
 function feedParseUsage(usageJson: string | null) {
   if (!usageJson) return null;
   try {
@@ -231,16 +215,10 @@ function getCompanyActivityInterval(agents: Agent[]): number {
 function DashboardContent() {
   const router = useRouter();
   const { companyId, companies, setCompanyId, companyPath } = useCompany();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const { company, dashboard, agents, goals, issues, runs, loading, refresh } = useCompanyData();
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
   const [agentNarratives, setAgentNarratives] = useState<Record<string, { title: string; time: string } | null>>({});
   const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showLearnMore, setShowLearnMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -263,27 +241,13 @@ function DashboardContent() {
   const liveFeedRef = useRef<HTMLDivElement>(null);
   const liveFeedStickToBottomRef = useRef(true);
 
-  const load = async () => {
-    if (!companyId) { setLoading(false); return; }
-    const c = await getCompany(companyId);
-    setCompany(c);
-    const [dash, agentList, goalList, issueList, runList] = await Promise.all([
-      getDashboard(companyId),
-      getAgents(companyId),
-      getGoals(companyId).catch(() => []),
-      getIssues(companyId).catch(() => []),
-      getRuns(companyId),
-    ]);
-    setDashboard(dash);
-    setAgents(agentList);
-    setGoals(goalList);
-    setIssues(issueList);
-    setRuns(runList);
-    setLoading(false);
-
+  useEffect(() => {
+    if (!companyId || !company || !dashboard) {
+      return;
+    }
     // Fetch narratives for the 3 most recent runs
-    const agentMap = new Map(agentList.map((a: Agent) => [a.id, a]));
-    const latest = [...runList]
+    const agentMap = new Map(agents.map((a: Agent) => [a.id, a]));
+    const latest = [...runs]
       .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 3);
     setFeedNarratives(Object.fromEntries(latest.map((r: HeartbeatRun) => [r.id, r.status === "running" || r.status === "queued" ? { title: "", description: "" } : null])));
@@ -314,9 +278,9 @@ function DashboardContent() {
     });
 
     // Fetch goal progress from the most recent CEO run
-    const ceo = agentList.find((a: Agent) => a.role === "ceo");
+    const ceo = agents.find((a: Agent) => a.role === "ceo");
     if (ceo) {
-      const ceoRuns = runList
+      const ceoRuns = runs
         .filter((r: HeartbeatRun) => r.agentId === ceo.id && r.status === "succeeded")
         .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       if (ceoRuns.length > 0) {
@@ -337,8 +301,8 @@ function DashboardContent() {
     }
 
     // Fetch latest narrative for each agent
-    agentList.forEach((agent: Agent) => {
-      const agentRuns = runList
+    agents.forEach((agent: Agent) => {
+      const agentRuns = runs
         .filter((r: HeartbeatRun) => r.agentId === agent.id && r.status === "succeeded")
         .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -361,23 +325,10 @@ function DashboardContent() {
           })
           .catch(() => {
             setAgentNarratives((prev) => ({ ...prev, [agent.id]: { title: "", time: latestRun.createdAt } }));
-          });
+        });
       }
     });
-  };
-
-  useEffect(() => { load(); }, [companyId]);
-
-  // Auto-refresh when agents are running (every 10 seconds)
-  useEffect(() => {
-    const runningCount = agents.filter((a) => a.status === "running").length;
-    if (runningCount > 0) {
-      const interval = setInterval(() => {
-        load();
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [agents]);
+  }, [agents, company, companyId, dashboard, runs]);
 
   useEffect(() => {
     const nextIndex = closestActivityIndex(getCompanyActivityInterval(agents));
@@ -769,7 +720,7 @@ function DashboardContent() {
     setShowCreate(false);
     setNewTaskTitle("");
     setNewTaskAssignee(undefined);
-    load();
+    await refresh();
   };
 
   const handleApplyActivityLevel = async () => {
@@ -779,7 +730,7 @@ function DashboardContent() {
     setActivityError("");
     setActivityFeedback("");
     try {
-      const updatedAgents = await Promise.all(
+      await Promise.all(
         agents.map((agent) =>
           updateAgent(agent.id, {
             adapterConfig: {
@@ -789,10 +740,10 @@ function DashboardContent() {
           })
         )
       );
-      setAgents(updatedAgents);
+      await refresh();
       setActivitySliderDirty(false);
       setActivityFeedback(
-        `All ${updatedAgents.length} agent${updatedAgents.length === 1 ? "" : "s"} now check in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
+        `All ${agents.length} agent${agents.length === 1 ? "" : "s"} now check in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
       );
     } catch (error) {
       setActivityError(error instanceof Error ? error.message : "Failed to update agent activity.");
@@ -808,7 +759,7 @@ function DashboardContent() {
         title={company.name}
         actionsBar={
           <Box direction="horizontal" gap="6px" verticalAlign="middle">
-            <Button size="tiny" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
+            <Button size="tiny" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
               Refresh
             </Button>
             <PopoverMenu
@@ -891,7 +842,7 @@ function DashboardContent() {
                       else await pauseAgent(agent.id);
                     } catch {}
                   }
-                  load();
+                  void refresh();
                 }}
               />
               <PopoverMenu.Divider />
@@ -1225,7 +1176,7 @@ function DashboardContent() {
               onClick={async () => {
                 try {
                   await invokeHeartbeat(ceoAgent.id);
-                  setTimeout(() => load(), 2000);
+                  setTimeout(() => { void refresh(); }, 2000);
                 } catch {}
               }}
               style={{
@@ -1560,7 +1511,7 @@ function DashboardContent() {
                             <button
                               onClick={async () => {
                                 await invokeHeartbeat(selectedOpsAgent.id);
-                                setTimeout(() => load(), 1000);
+                                setTimeout(() => { void refresh(); }, 1000);
                               }}
                               style={{
                                 background: "#f7faff",

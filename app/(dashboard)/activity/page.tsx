@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Page, Box, Text, Badge, Loader, Button, Pagination } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
+import { useCompany, useCompanyData } from "../../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
-import { getAgents, getHeartbeatRuns, type Agent, type HeartbeatRun } from "@/lib/api";
+import { type Agent, type HeartbeatRun } from "@/lib/api";
 import { parseUsage, duration, timeAgo } from "@/lib/run-utils";
 
 const PAGE_SIZE = 10;
@@ -34,17 +34,6 @@ const SOURCE_LABELS: Record<string, string> = {
   mention: "Mentioned",
   assignment: "Assigned",
 };
-
-const AVATAR_COLORS = [
-  "#3899ec", "#e01f5a", "#2ca55a", "#ff6b35", "#7c4dff", "#00bcd4", "#f59e0b",
-];
-
-function avatarColor(agentId: string) {
-  let hash = 0;
-  for (let i = 0; i < agentId.length; i++)
-    hash = agentId.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 const isActive = (status: string) => status === "running" || status === "queued";
 
@@ -164,37 +153,23 @@ function PostCard({ post, companyPath }: { post: FeedPost; companyPath: (path: s
 }
 
 export default function ActivityPage() {
-  const { companyId, companyPath } = useCompany();
+  const { companyPath } = useCompany();
+  const { agents, runs, loading, refresh } = useCompanyData();
   const [posts, setPosts] = useState<FeedPost[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   // Track which run IDs have had narrative fetches started (to avoid re-fetching on re-render)
   const fetchedRunIds = useRef<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    if (!companyId) { setLoading(false); return; }
-    setLoading(true);
+  useEffect(() => {
     fetchedRunIds.current = new Set();
-
-    const [agents, runs] = await Promise.all([
-      getAgents(companyId),
-      getHeartbeatRuns(companyId),
-    ]);
-
-    const agentMap = new Map(agents.map((a) => [a.id, a]));
-    const sorted = runs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
+    const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+    const sorted = [...runs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setPosts(sorted.map((run) => ({
       run,
       agent: agentMap.get(run.agentId),
-      // Active runs get an empty narrative (no fetch needed), completed start as null
       narrative: isActive(run.status) ? { title: "", description: "" } : null,
     })));
-    setPage(1);
-    setLoading(false);
-  }, [companyId]);
-
-  useEffect(() => { load(); }, [load]);
+  }, [agents, runs]);
 
   // Lazily fetch narratives for the current page — only for runs not yet fetched
   useEffect(() => {
@@ -246,13 +221,19 @@ export default function ActivityPage() {
   const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
   const pagePosts = posts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   return (
     <Page>
       <Page.Header
         title="Activity"
         subtitle={loading ? "Loading…" : `${posts.length} runs`}
         actionsBar={
-          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
+          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
             Refresh
           </Button>
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Page,
   Card,
@@ -18,17 +18,13 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh, Add, Delete } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
+import { useCompany, useCompanyData } from "../../providers";
 import {
-  getCompany,
-  getGoals,
   updateCompany,
   deleteCompany,
   archiveCompany,
   createGoal,
   deleteGoal,
-  type Company,
-  type Goal,
 } from "@/lib/api";
 import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
 
@@ -76,10 +72,8 @@ function getDescriptionValidationError(description: string): string {
 }
 
 function CompanyContent() {
-  const { companyId, setCompanyId, refreshCompanies } = useCompany();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { setCompanyId, refreshCompanies } = useCompany();
+  const { company, goals, loading, refresh } = useCompanyData();
   const [saving, setSaving] = useState(false);
 
   // Editable company fields
@@ -101,22 +95,34 @@ function CompanyContent() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteResultMessage, setDeleteResultMessage] = useState("");
+  const lastSyncedCompanyKeyRef = useRef<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!companyId) { setLoading(false); return; }
-    const c = await getCompany(companyId);
-    setCompany(c);
-    setEditName(c.name);
-    setEditDescription(formatDescriptionForEditor(c.description));
-    setEditPrefix(c.issuePrefix);
-    setEditMaxTokensPerHour(String(c.maxTokensPerHour ?? 0));
-    setEditDisableOnDemandWakeup(c.disableOnDemandWakeup ?? false);
-    const goalList = await getGoals(c.id).catch(() => []);
-    setGoals(goalList);
-    setLoading(false);
-  }, [companyId]);
+  useEffect(() => {
+    if (!company) {
+      return;
+    }
+    const syncKey = `${company.id}:${company.updatedAt}`;
+    const isDifferentCompany = !lastSyncedCompanyKeyRef.current || !lastSyncedCompanyKeyRef.current.startsWith(`${company.id}:`);
+    const hasUnsavedEdits =
+      editName !== "" && (
+        editName !== company.name ||
+        normalizeDescriptionForSave(editDescription) !== company.description ||
+        editPrefix !== company.issuePrefix ||
+        parseInt(editMaxTokensPerHour) !== (company.maxTokensPerHour ?? 0) ||
+        editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false)
+      );
 
-  useEffect(() => { load(); }, [load]);
+    if (!isDifferentCompany && hasUnsavedEdits) {
+      return;
+    }
+
+    setEditName(company.name);
+    setEditDescription(formatDescriptionForEditor(company.description));
+    setEditPrefix(company.issuePrefix);
+    setEditMaxTokensPerHour(String(company.maxTokensPerHour ?? 0));
+    setEditDisableOnDemandWakeup(company.disableOnDemandWakeup ?? false);
+    lastSyncedCompanyKeyRef.current = syncKey;
+  }, [company, editDescription, editDisableOnDemandWakeup, editMaxTokensPerHour, editName, editPrefix]);
 
   const handleSaveCompany = async () => {
     if (!company) return;
@@ -129,8 +135,9 @@ function CompanyContent() {
         maxTokensPerHour: parseInt(editMaxTokensPerHour) || 0,
         disableOnDemandWakeup: editDisableOnDemandWakeup,
       });
-      setCompany(updated);
       setEditDescription(formatDescriptionForEditor(updated.description));
+      await refreshCompanies();
+      await refresh();
     } catch { /* silent */ }
     setSaving(false);
   };
@@ -146,12 +153,12 @@ function CompanyContent() {
     setShowGoalModal(false);
     setNewGoalTitle("");
     setNewGoalDesc("");
-    load();
+    await refresh();
   };
 
   const handleDeleteGoal = async (goalId: string) => {
     await deleteGoal(goalId);
-    setGoals(goals.filter((g) => g.id !== goalId));
+    await refresh();
   };
 
   const handleDeleteCompany = async () => {
@@ -215,7 +222,7 @@ function CompanyContent() {
           title="Business"
           subtitle={company.name}
           actionsBar={
-            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
+            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
           }
         />
         <Page.Content>

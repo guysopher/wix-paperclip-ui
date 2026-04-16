@@ -13,7 +13,7 @@ import {
 import { Refresh, Inbox as InboxIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useCompany } from "../../providers";
+import { useCompany, useCompanyData } from "../../providers";
 import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
 import {
   issueIsSent,
@@ -28,10 +28,6 @@ import {
 } from "@/lib/inbox-state";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import {
-  getAgents,
-  getMyIssues,
-  getIssuesAssignedToMe,
-  getIssues,
   getComments,
   postComment,
   createIssue,
@@ -124,11 +120,9 @@ function DescriptionBlock({
 
 function InboxContent() {
   const { companyId, companyPath } = useCompany();
+  const { agents, inboxIssues, loading, refresh } = useCompanyData();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
   const initialTab = Math.max(0, TAB_KEYS.indexOf(searchParams.get("tab") || DEFAULT_TAB_KEY));
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -156,7 +150,7 @@ function InboxContent() {
   const [composeTo, setComposeTo] = useState<string>("ceo");
   const [composeText, setComposeText] = useState("");
   const [composeSending, setComposeSending] = useState(false);
-  const issuesByIdentifier = issues.reduce<Record<string, Issue>>((acc, issue) => {
+  const issuesByIdentifier = inboxIssues.reduce<Record<string, Issue>>((acc, issue) => {
     acc[issue.identifier] = issue;
     return acc;
   }, {});
@@ -196,7 +190,7 @@ function InboxContent() {
       setComposing(false);
       setComposeText("");
       setComposeTo("ceo");
-      await load();
+      await refresh();
       if (newIssue) selectIssue(newIssue);
     } catch { /* skip */ }
     setComposeSending(false);
@@ -207,32 +201,54 @@ function InboxContent() {
     return agents.find((a) => a.id === id)?.name || "Unknown";
   }, [agents]);
 
-  const load = useCallback(async () => {
-    if (!companyId) { setLoading(false); return; }
-    const [agentList, assignedToMe, myIssues, blockedIssues] = await Promise.all([
-      getAgents(companyId),
-      getIssuesAssignedToMe(companyId),
-      getMyIssues(companyId),
-      getIssues(companyId, "status=blocked"),
-    ]);
-    setAgents(agentList);
-    // Merge all sources, deduplicated, skip Board Inbox
-    const seen = new Set<string>();
-    const merged: Issue[] = [];
-    for (const list of [assignedToMe, myIssues, blockedIssues]) {
-      for (const issue of list) {
-        if (!seen.has(issue.id) && issue.title !== "Board Inbox") {
-          seen.add(issue.id);
-          merged.push(issue);
-        }
-      }
-    }
-    setIssues(merged);
-    setLoading(false);
-  }, [companyId]);
-
-  useEffect(() => { load(); }, [load]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [comments]);
+
+  useEffect(() => {
+    setSelected((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const next = inboxIssues.find((issue) => issue.id === prev.id);
+      return next || null;
+    });
+  }, [inboxIssues]);
+
+  useEffect(() => {
+    if (!selected) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshSelectedComments = async () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      const nextComments = await getComments(selected.id).catch(() => [] as Comment[]);
+      if (cancelled) {
+        return;
+      }
+      const ordered = nextComments.reverse();
+      setComments((prev) => {
+        if (
+          prev.length === ordered.length &&
+          prev.every((comment, index) => comment.id === ordered[index]?.id && comment.body === ordered[index]?.body)
+        ) {
+          return prev;
+        }
+        return ordered;
+      });
+    };
+
+    const id = setInterval(() => {
+      void refreshSelectedComments();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [selected]);
 
   const selectIssue = async (issue: Issue) => {
     setSelected(issue);
@@ -240,7 +256,6 @@ function InboxContent() {
     setLoadingComments(true);
     if (issue.isUnreadForMe) {
       markIssueRead(issue.id).catch(() => {});
-      setIssues((prev) => prev.map((i) => i.id === issue.id ? { ...i, isUnreadForMe: false } : i));
     }
     const c = await getComments(issue.id);
     const latestComment = c[0];
@@ -262,18 +277,6 @@ function InboxContent() {
     setReplyText("");
     const c = await getComments(selected.id);
     setComments(c.reverse());
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === selected.id
-          ? {
-              ...issue,
-              isUnreadForMe: false,
-              myLastTouchAt: sentAt,
-              updatedAt: sentAt,
-            }
-          : issue,
-      ),
-    );
     setSelected((prev) =>
       prev && prev.id === selected.id
         ? {
@@ -287,7 +290,7 @@ function InboxContent() {
     setSending(false);
     const assigneeId = selected.assigneeAgentId || selected.assigneeId;
     if (assigneeId) { try { await invokeHeartbeat(assigneeId); } catch {} }
-    load();
+    void refresh();
   };
 
   const handleArchive = (id: string) => {
@@ -305,7 +308,7 @@ function InboxContent() {
   };
 
   // Filter
-  const allNonArchived = issues.filter((i) => !clientArchived.has(i.id));
+  const allNonArchived = inboxIssues.filter((i) => !clientArchived.has(i.id));
   const needsReply = allNonArchived.filter((i) =>
     issueNeedsReply(i, replyOverrides)
   );
@@ -314,14 +317,14 @@ function InboxContent() {
   );
   const activeIssues = allNonArchived.filter((i) => !["done", "cancelled"].includes(i.status));
   const doneIssues = allNonArchived.filter((i) => ["done", "cancelled"].includes(i.status));
-  const archivedIssues = issues.filter((i) => clientArchived.has(i.id));
+  const archivedIssueList = inboxIssues.filter((i) => clientArchived.has(i.id));
 
   const filtered = activeTab === 0 ? allNonArchived
     : activeTab === 1 ? needsReply
     : activeTab === 2 ? sentByMe
     : activeTab === 3 ? activeIssues
     : activeTab === 4 ? doneIssues
-    : activeTab === 5 ? archivedIssues
+    : activeTab === 5 ? archivedIssueList
     : allNonArchived;
 
   // Sort: blocked first, then unread, then by recent activity
@@ -355,7 +358,7 @@ function InboxContent() {
             <button onClick={() => setComposing(true)} style={{ background: "#3899ec", color: "white", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", fontWeight: 600 }}>
               Compose
             </button>
-            <button onClick={load} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={() => void refresh()} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               <Refresh size="16px" /> Refresh
             </button>
           </div>
@@ -369,7 +372,7 @@ function InboxContent() {
             { id: 2, title: `Sent (${sentByMe.length})` },
             { id: 3, title: `Active (${activeIssues.length})` },
             { id: 4, title: `Done (${doneIssues.length})` },
-            { id: 5, title: `Archived (${archivedIssues.length})` },
+            { id: 5, title: `Archived (${archivedIssueList.length})` },
           ]}
         />
       </div>
@@ -382,7 +385,7 @@ function InboxContent() {
             <div style={{ textAlign: "center", padding: "60px 20px", color: "#999" }}>
               <InboxIcon color="#b0b0b0" size="48px" />
               <div style={{ fontWeight: 600, color: "#333", marginTop: 8 }}>
-                {activeTab === 0 ? "Nothing here yet" : activeTab === 1 ? "All caught up" : activeTab === 2 ? "No sent items" : activeTab === 3 ? "No active tasks" : activeTab === 4 ? "No completed tasks" : "No archived items"}
+            {activeTab === 0 ? "Nothing here yet" : activeTab === 1 ? "All caught up" : activeTab === 2 ? "No sent items" : activeTab === 3 ? "No active tasks" : activeTab === 4 ? "No completed tasks" : "No archived items"}
               </div>
               <div style={{ fontSize: 14, marginTop: 4 }}>
                 {activeTab === 0 ? "Messages from your agents will appear here." : activeTab === 1 ? "No conversations need your reply right now." : ""}

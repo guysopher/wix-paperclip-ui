@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
@@ -19,13 +19,8 @@ import {
   Pagination,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
-import {
-  getAgents,
-  getHeartbeatRuns,
-  type Agent,
-  type HeartbeatRun,
-} from "@/lib/api";
+import { useCompany, useCompanyData } from "../../providers";
+import { type Agent, type HeartbeatRun } from "@/lib/api";
 
 const PAGE_SIZE = 25;
 
@@ -88,12 +83,10 @@ function parseUsage(usageJson: string | null): { cost: string; tokens: string } 
 }
 
 function RunsContent() {
-  const { companyId, companyPath } = useCompany();
+  const { companyPath } = useCompany();
+  const { runs, agents, loading, refresh } = useCompanyData();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState(searchParams.get("status") || "all");
@@ -110,20 +103,6 @@ function RunsContent() {
     else params.set(key, value);
     router.replace(companyPath(`/runs${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
-
-  const load = useCallback(async () => {
-    if (!companyId) { setLoading(false); return; }
-    setLoading(true);
-    const [agentList, runList] = await Promise.all([
-      getAgents(companyId),
-      getHeartbeatRuns(companyId),
-    ]);
-    setAgents(agentList);
-    setRuns(runList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setLoading(false);
-  }, [companyId]);
-
-  useEffect(() => { load(); }, [load]);
 
   // Reset to page 1 when filters change
   useEffect(() => { setPage(1); }, [filterStatus, filterAgent, searchTerm]);
@@ -228,7 +207,7 @@ function RunsContent() {
         title="Runs"
         subtitle={`${filtered.length} runs`}
         actionsBar={
-          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
+          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
         }
       />
       <Page.Content>
