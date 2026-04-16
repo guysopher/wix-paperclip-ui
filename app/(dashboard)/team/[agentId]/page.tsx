@@ -92,9 +92,9 @@ const MODEL_CONFIG_ADAPTERS = new Set([
 ]);
 
 const CURATED_CODEX_MODEL_OPTIONS: AdapterModel[] = [
-  { id: "gpt-5.4-pro", label: "Expert · GPT-5.4 Pro" },
-  { id: "gpt-5.4", label: "Senior · GPT-5.4" },
-  { id: "gpt-5.4-mini", label: "Junior · GPT-5.4 Mini" },
+  { id: "gpt-5.4", label: "Expert · GPT-5.4" },
+  { id: "gpt-4.1", label: "Senior · GPT-4.1" },
+  { id: "gpt-4o-mini", label: "Junior · GPT-4o Mini" },
 ];
 
 function AgentDetailContent({ agentId }: { agentId: string }) {
