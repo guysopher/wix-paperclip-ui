@@ -91,6 +91,12 @@ const MODEL_CONFIG_ADAPTERS = new Set([
   "pi_local",
 ]);
 
+const CURATED_CODEX_MODEL_OPTIONS: AdapterModel[] = [
+  { id: "gpt-5.4-pro", label: "Expert · GPT-5.4 Pro" },
+  { id: "gpt-5.4", label: "Senior · GPT-5.4" },
+  { id: "gpt-5.4-mini", label: "Junior · GPT-5.4 Mini" },
+];
+
 function AgentDetailContent({ agentId }: { agentId: string }) {
   const { companyId, companyPath } = useCompany();
   const router = useRouter();
@@ -254,7 +260,10 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const runtimeModelRaw = getRuntimeModel(agent, runs);
   const modelDropdownOptions = (() => {
     const known = new Map<string, { id: string; value: string }>();
-    for (const option of modelOptions) {
+    const sourceOptions =
+      agent.adapterType === "codex_local" ? CURATED_CODEX_MODEL_OPTIONS : modelOptions;
+
+    for (const option of sourceOptions) {
       const id = String(option.id).trim();
       if (!id) continue;
       known.set(id, { id, value: option.label || id });
