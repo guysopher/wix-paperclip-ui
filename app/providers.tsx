@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { WixDesignSystemProvider } from "@wix/design-system";
 import {
+  getIssuesAssignedToMe,
   getCompanies,
   getCompany,
   getApprovals,
@@ -16,7 +17,9 @@ import {
 import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
 import {
   issueNeedsReply,
+  readInboxArchivedIds,
   readInboxReplyOverrides,
+  subscribeInboxArchivedIds,
   subscribeInboxReplyOverrides,
 } from "@/lib/inbox-state";
 import { useWorkspaceContext } from "@/lib/msid-client";
@@ -170,17 +173,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
       const companyId = selectedCompanyId;
       const approvalsChanged = await autoApprovePendingApprovals(companyId);
-      const [myIssues, allIssues, runs, agentList] = await Promise.all([
+      const [assignedToMe, myIssues, blockedIssues, allIssues, runs, agentList] = await Promise.all([
+        getIssuesAssignedToMe(companyId),
         getMyIssues(companyId),
+        getIssues(companyId, "status=blocked"),
         getIssues(companyId),
         getRuns(companyId),
         getAgents(companyId).catch(() => []),
       ]);
+      const archivedIds = new Set(readInboxArchivedIds());
       const replyOverrides = readInboxReplyOverrides();
-      // Inbox count: items that genuinely need a board reply/action.
+      // Inbox count: match the inbox page's merged visible needs-reply set.
       const inboxIds = new Set<string>();
-      for (const i of myIssues) {
-        if (i.title !== "Board Inbox" && issueNeedsReply(i, replyOverrides)) inboxIds.add(i.id);
+      for (const list of [assignedToMe, myIssues, blockedIssues]) {
+        for (const issue of list) {
+          if (issue.title === "Board Inbox" || archivedIds.has(issue.id)) {
+            continue;
+          }
+          if (issueNeedsReply(issue, replyOverrides)) {
+            inboxIds.add(issue.id);
+          }
+        }
       }
       const inboxCount = inboxIds.size;
       const runningCount = runs.filter((r) => r.status === "running").length;
@@ -204,6 +217,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     return subscribeInboxReplyOverrides(() => {
+      void refresh();
+    });
+  }, [refresh]);
+
+  useEffect(() => {
+    return subscribeInboxArchivedIds(() => {
       void refresh();
     });
   }, [refresh]);

@@ -12,6 +12,8 @@ export type InboxReplyOverrides = Record<string, string>;
 
 const INBOX_REPLY_OVERRIDES_KEY = "inbox:reply-overrides";
 const INBOX_REPLY_OVERRIDES_EVENT = "inbox:reply-overrides-changed";
+const INBOX_ARCHIVED_KEY = "inbox:archived";
+const INBOX_ARCHIVED_EVENT = "inbox:archived-changed";
 
 function toTime(value?: string | null): number {
   if (!value) {
@@ -75,6 +77,46 @@ export function subscribeInboxReplyOverrides(listener: () => void): () => void {
   return () => {
     window.removeEventListener("storage", handleChange);
     window.removeEventListener(INBOX_REPLY_OVERRIDES_EVENT, handleChange);
+  };
+}
+
+export function readInboxArchivedIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(INBOX_ARCHIVED_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeInboxArchivedIds(ids: string[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(INBOX_ARCHIVED_KEY, JSON.stringify(ids));
+  window.dispatchEvent(new CustomEvent(INBOX_ARCHIVED_EVENT));
+}
+
+export function subscribeInboxArchivedIds(listener: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const handleChange = () => listener();
+  window.addEventListener("storage", handleChange);
+  window.addEventListener(INBOX_ARCHIVED_EVENT, handleChange);
+  return () => {
+    window.removeEventListener("storage", handleChange);
+    window.removeEventListener(INBOX_ARCHIVED_EVENT, handleChange);
   };
 }
 

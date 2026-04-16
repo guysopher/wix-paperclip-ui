@@ -18,10 +18,13 @@ import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components
 import {
   issueIsSent,
   issueNeedsReply,
+  readInboxArchivedIds,
   readInboxReplyOverrides,
   setInboxReplyOverride,
+  subscribeInboxArchivedIds,
   subscribeInboxReplyOverrides,
   type InboxReplyOverrides,
+  writeInboxArchivedIds,
 } from "@/lib/inbox-state";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import {
@@ -144,6 +147,9 @@ function InboxContent() {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
+  const [clientArchived, setClientArchived] = useState<Set<string>>(() => {
+    return new Set(readInboxArchivedIds());
+  });
 
   // Compose
   const [composing, setComposing] = useState(false);
@@ -161,6 +167,18 @@ function InboxContent() {
       setReplyOverrides(readInboxReplyOverrides());
     });
   }, []);
+
+  useEffect(() => {
+    return subscribeInboxArchivedIds(() => {
+      setClientArchived(new Set(readInboxArchivedIds()));
+    });
+  }, []);
+
+  // Client-side archive
+  const saveClientArchived = (ids: Set<string>) => {
+    setClientArchived(ids);
+    writeInboxArchivedIds([...ids]);
+  };
 
   const handleCompose = async () => {
     if (!composeText.trim() || !companyId) return;
@@ -182,15 +200,6 @@ function InboxContent() {
       if (newIssue) selectIssue(newIssue);
     } catch { /* skip */ }
     setComposeSending(false);
-  };
-
-  // Client-side archive
-  const [clientArchived, setClientArchived] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem("inbox:archived") || "[]")); } catch { return new Set(); }
-  });
-  const saveClientArchived = (ids: Set<string>) => {
-    setClientArchived(ids);
-    localStorage.setItem("inbox:archived", JSON.stringify([...ids]));
   };
 
   const agentName = useCallback((id: string | null) => {
