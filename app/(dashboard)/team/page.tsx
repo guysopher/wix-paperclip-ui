@@ -8,13 +8,11 @@ import {
   Box,
   Text,
   Badge,
-  Button,
   Loader,
   Table,
   TableToolbar,
   Search,
 } from "@wix/design-system";
-import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany, useCompanyData } from "../../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
@@ -205,9 +203,7 @@ function TeamContent() {
 
   return (
     <Page>
-      <Page.Header title="Team" subtitle={`${agents.length} team members`} actionsBar={
-        <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
-      } />
+      <Page.Header title="Team" subtitle={`${agents.length} team members`} />
       <Page.Content>
         <Card hideOverflow>
           <Table skin="standard" data={filtered} columns={columns} rowVerticalPadding="medium">

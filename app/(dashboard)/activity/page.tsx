@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Page, Box, Text, Badge, Loader, Button, Pagination } from "@wix/design-system";
-import { Refresh } from "@wix/wix-ui-icons-common";
+import { Page, Box, Text, Badge, Loader, Pagination } from "@wix/design-system";
 import { useCompany, useCompanyData } from "../../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { type Agent, type HeartbeatRun } from "@/lib/api";
@@ -154,7 +153,7 @@ function PostCard({ post, companyPath }: { post: FeedPost; companyPath: (path: s
 
 export default function ActivityPage() {
   const { companyId, companyPath } = useCompany();
-  const { agents, runs, loading, refresh } = useCompanyData();
+  const { agents, runs, loading } = useCompanyData();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [page, setPage] = useState(1);
   const fetchedRunIds = useRef<Set<string>>(new Set());
@@ -251,11 +250,6 @@ export default function ActivityPage() {
       <Page.Header
         title="Activity"
         subtitle={loading ? "Loading…" : `${posts.length} runs`}
-        actionsBar={
-          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
-            Refresh
-          </Button>
-        }
       />
       <Page.Content>
         {loading ? (

@@ -21,7 +21,7 @@ import {
   Search,
   Pagination,
 } from "@wix/design-system";
-import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
+import { Add, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import { useCompany, useCompanyData } from "../../providers";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import { createIssue, type Issue, type Agent } from "@/lib/api";
@@ -262,9 +262,6 @@ function TasksContent() {
           subtitle={`${filteredIssues.length} of ${issues.length} issues`}
           actionsBar={
             <Box direction="horizontal" gap="6px">
-              <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
-                Refresh
-              </Button>
               <Button size="small" prefixIcon={<Add />} onClick={() => { setNewAssignee(ceoAgent?.id); setShowCreate(true); }}>
                 New Task
               </Button>

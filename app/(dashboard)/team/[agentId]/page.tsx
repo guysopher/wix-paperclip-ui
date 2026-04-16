@@ -35,6 +35,7 @@ import {
   pauseAgent,
   resumeAgent,
   updateAgent,
+  deleteAgent,
   type Agent,
   type AdapterModel,
   type Company,
@@ -109,6 +110,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [acting, setActing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [modelOptions, setModelOptions] = useState<AdapterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
@@ -215,6 +217,17 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     } finally {
       setActing(false);
       load();
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!agent) return;
+    setActing(true);
+    try {
+      await deleteAgent(agent.id);
+      router.push(companyPath("/team"));
+    } finally {
+      setActing(false);
     }
   };
 
@@ -603,17 +616,40 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           <Box marginTop="24px" />
 
           {/* Danger zone */}
-          {agent.status !== "paused" && (
-            <Card>
-              <Card.Header title="Danger zone" />
-              <Card.Divider />
-              <Card.Content>
+          <Card>
+            <Card.Header title="Danger zone" />
+            <Card.Divider />
+            <Card.Content>
+              <Box direction="vertical" gap="16px">
+                {agent.status !== "paused" && (
+                  <Tooltip
+                    content="Pause this agent. They won't respond to scheduled check-ins, mentions, or task assignments until brought back."
+                    placement="right"
+                  >
+                    <button
+                      onClick={() => setShowPauseConfirm(true)}
+                      disabled={acting}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ee5951",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        padding: 0,
+                        width: "fit-content",
+                      }}
+                    >
+                      Put on leave
+                    </button>
+                  </Tooltip>
+                )}
                 <Tooltip
-                  content="Pause this agent. They won't respond to scheduled check-ins, mentions, or task assignments until brought back."
+                  content="Remove this agent permanently from the company."
                   placement="right"
                 >
                   <button
-                    onClick={() => setShowPauseConfirm(true)}
+                    onClick={() => setShowDeleteConfirm(true)}
                     disabled={acting}
                     style={{
                       background: "none",
@@ -623,14 +659,15 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                       fontWeight: 600,
                       cursor: "pointer",
                       padding: 0,
+                      width: "fit-content",
                     }}
                   >
-                    Put on leave
+                    Fire permanently
                   </button>
                 </Tooltip>
-              </Card.Content>
-            </Card>
-          )}
+              </Box>
+            </Card.Content>
+          </Card>
 
           <Box marginBottom="24px" />
         </Page.Content>
@@ -658,6 +695,30 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           <Text size="small">
             This will immediately pause {agent.name}. They will not wake up for
             scheduled check-ins or respond to mentions until you bring them back.
+          </Text>
+        </CustomModalLayout>
+      </Modal>
+
+      <Modal
+        isOpen={showDeleteConfirm}
+        onRequestClose={() => setShowDeleteConfirm(false)}
+        shouldCloseOnOverlayClick
+      >
+        <CustomModalLayout
+          title="Fire team member?"
+          subtitle={`${agent.name} will be removed from this AI Team permanently.`}
+          primaryButtonText={acting ? "Removing..." : "Fire permanently"}
+          primaryButtonOnClick={async () => {
+            await handleDelete();
+            setShowDeleteConfirm(false);
+          }}
+          primaryButtonProps={{ skin: "destructive" } as Record<string, unknown>}
+          secondaryButtonText="Cancel"
+          secondaryButtonOnClick={() => setShowDeleteConfirm(false)}
+          onCloseButtonClick={() => setShowDeleteConfirm(false)}
+        >
+          <Text size="small">
+            This permanently removes {agent.name} from the company. Their profile page will no longer be available after this action.
           </Text>
         </CustomModalLayout>
       </Modal>

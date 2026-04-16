@@ -93,6 +93,8 @@ export const updateAgent = (agentId: string, data: Record<string, unknown>) =>
     method: "PATCH",
     body: JSON.stringify(syncHeartbeatConfig(data)),
   });
+export const deleteAgent = (agentId: string) =>
+  request<{ ok?: boolean }>(`/agents/${agentId}`, { method: "DELETE" });
 
 // Issues
 export const getIssues = (companyId: string, params?: string) =>

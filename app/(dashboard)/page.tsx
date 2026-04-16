@@ -1115,9 +1115,6 @@ function DashboardContent() {
         title={company.name}
         actionsBar={
           <Box direction="horizontal" gap="6px" verticalAlign="middle">
-            <Button size="tiny" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
-              Refresh
-            </Button>
             <PopoverMenu
               placement="bottom-end"
               triggerElement={

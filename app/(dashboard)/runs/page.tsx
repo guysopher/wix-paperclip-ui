@@ -8,7 +8,6 @@ import {
   Box,
   Text,
   Badge,
-  Button,
   Loader,
   Table,
   TableToolbar,
@@ -18,7 +17,6 @@ import {
   Tooltip,
   Pagination,
 } from "@wix/design-system";
-import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany, useCompanyData } from "../../providers";
 import { type Agent, type HeartbeatRun } from "@/lib/api";
 
@@ -84,7 +82,7 @@ function parseUsage(usageJson: string | null): { cost: string; tokens: string } 
 
 function RunsContent() {
   const { companyPath } = useCompany();
-  const { runs, agents, loading, refresh } = useCompanyData();
+  const { runs, agents, loading } = useCompanyData();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [page, setPage] = useState(1);
@@ -206,9 +204,6 @@ function RunsContent() {
       <Page.Header
         title="Runs"
         subtitle={`${filtered.length} runs`}
-        actionsBar={
-          <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
-        }
       />
       <Page.Content>
         <Card hideOverflow>

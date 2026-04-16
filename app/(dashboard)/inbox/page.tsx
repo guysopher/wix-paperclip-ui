@@ -10,7 +10,7 @@ import {
   Tabs,
   Tooltip,
 } from "@wix/design-system";
-import { Refresh, Inbox as InboxIcon } from "@wix/wix-ui-icons-common";
+import { Inbox as InboxIcon } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany, useCompanyData } from "../../providers";
@@ -371,9 +371,6 @@ function InboxContent() {
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setComposing(true)} style={{ background: "#3899ec", color: "white", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", fontWeight: 600 }}>
               Compose
-            </button>
-            <button onClick={() => void refresh()} style={{ background: "none", border: "1px solid #ddd", borderRadius: 6, padding: "7px 14px", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              <Refresh size="16px" /> Refresh
             </button>
           </div>
         </div>
