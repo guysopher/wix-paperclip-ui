@@ -51,6 +51,7 @@ import {
   createIssue,
   runCompanyHealthCheck,
   restartPaperclipServer,
+  repairCodexAuth,
   getCompany,
   type Company,
   type Dashboard,
@@ -122,7 +123,7 @@ type DashboardHealthResult = {
   checkedAt?: string;
   checks: Array<{ name: string; status: string; detail?: string }>;
   actions: string[];
-  controls?: { restartAvailable?: boolean };
+  controls?: { restartAvailable?: boolean; codexRepairAvailable?: boolean };
 };
 
 type LiveRunEntry = {
@@ -255,6 +256,7 @@ function DashboardContent() {
   const [healthResult, setHealthResult] = useState<DashboardHealthResult | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [restartingServer, setRestartingServer] = useState(false);
+  const [repairingCodexAuth, setRepairingCodexAuth] = useState(false);
   const [liveRunFeed, setLiveRunFeed] = useState<LiveRunFeed | null>(null);
   const [liveRunLoading, setLiveRunLoading] = useState(false);
   const [selectedOpsAgentId, setSelectedOpsAgentId] = useState<string | null>(null);
@@ -1057,6 +1059,69 @@ function DashboardContent() {
                   }}
                 >
                   {restartingServer ? "Restarting..." : "Restart Paperclip"}
+                </button>
+              )}
+              {healthResult.controls?.codexRepairAvailable &&
+                healthResult.checks.some(
+                  (check) =>
+                    check.name === "runtime_auth" &&
+                    (check.status === "warning" || check.status === "error"),
+                ) && (
+                <button
+                  onClick={async () => {
+                    if (!companyId || repairingCodexAuth) return;
+                    setRepairingCodexAuth(true);
+                    try {
+                      const result = await repairCodexAuth(companyId);
+                      const refreshed = await runCompanyHealthCheck(companyId);
+                      setHealthResult({
+                        ...refreshed,
+                        status: result.ok ? "repaired" : refreshed.status,
+                        checks: result.ok
+                          ? [
+                              ...refreshed.checks,
+                              {
+                                name: "runtime_auth_repair",
+                                status: "repaired",
+                                detail: result.message || "Codex auth repaired",
+                              },
+                            ]
+                          : refreshed.checks,
+                        actions: result.ok
+                          ? [...refreshed.actions, result.message || "Codex auth repaired"]
+                          : refreshed.actions,
+                      });
+                    } catch (error) {
+                      setHealthResult({
+                        status: "error",
+                        checks: [
+                          ...healthResult.checks,
+                          {
+                            name: "runtime_auth_repair",
+                            status: "error",
+                            detail:
+                              error instanceof Error ? error.message : "Codex auth repair failed",
+                          },
+                        ],
+                        actions: healthResult.actions,
+                        controls: healthResult.controls,
+                      });
+                    }
+                    setRepairingCodexAuth(false);
+                  }}
+                  disabled={repairingCodexAuth}
+                  style={{
+                    border: "1px solid #d6d6d6",
+                    background: "white",
+                    borderRadius: 6,
+                    padding: "6px 10px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: repairingCodexAuth ? "default" : "pointer",
+                    color: "#2f6fed",
+                  }}
+                >
+                  {repairingCodexAuth ? "Repairing Codex auth..." : "Repair Codex Auth"}
                 </button>
               )}
             </div>

@@ -27,6 +27,7 @@ interface HealthResponseBody {
   actions: string[];
   controls: {
     restartAvailable: boolean;
+    codexRepairAvailable?: boolean;
   };
 }
 
@@ -48,10 +49,21 @@ interface PaperclipAgent {
   name: string;
   status: string;
   lastHeartbeatAt: string | null;
-  adapterConfig?: {
-    heartbeatIntervalSec?: number;
-  };
+  adapterType?: string;
+  adapterConfig?: Record<string, unknown>;
   runtimeConfig?: Record<string, unknown>;
+}
+
+interface AdapterEnvironmentCheck {
+  code: string;
+  level: "info" | "warn" | "error";
+  message: string;
+  detail?: string;
+}
+
+interface AdapterEnvironmentResult {
+  status: "pass" | "warn" | "fail";
+  checks?: AdapterEnvironmentCheck[];
 }
 
 async function paperclip(path: string, options?: RequestInit) {
@@ -95,6 +107,28 @@ function formatOverdueAgents(overdueAgents: PaperclipAgent[]) {
     .join(", ");
 }
 
+function mapAdapterCheckStatus(level: AdapterEnvironmentCheck["level"]): CheckStatus {
+  if (level === "error") {
+    return "error";
+  }
+  if (level === "warn") {
+    return "warning";
+  }
+  return "ok";
+}
+
+function findCodexHealthCheck(result: AdapterEnvironmentResult): AdapterEnvironmentCheck | null {
+  const checks = result.checks || [];
+  return (
+    checks.find((check) => check.code === "codex_hello_probe_passed") ||
+    checks.find((check) => check.code === "codex_hello_probe_auth_required") ||
+    checks.find((check) => check.code === "codex_hello_probe_failed") ||
+    checks.find((check) => check.code === "codex_command_unresolvable") ||
+    checks.find((check) => check.code === "codex_openai_api_key_missing") ||
+    null
+  );
+}
+
 export async function POST(request: NextRequest) {
   const actions: string[] = [];
   const checks: HealthCheckEntry[] = [];
@@ -115,7 +149,10 @@ export async function POST(request: NextRequest) {
         checkedAt: new Date().toISOString(),
         checks: [{ name: "api", status: "error", detail: "No companies found" }],
         actions,
-        controls: { restartAvailable: restartAvailable() },
+        controls: {
+          restartAvailable: restartAvailable(),
+          codexRepairAvailable: Boolean(process.env.OPENAI_API_KEY),
+        },
       };
       return NextResponse.json(response);
     }
@@ -230,6 +267,48 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const codexProbeAgent =
+      (agents || []).find((agent) => agent.status !== "paused" && agent.adapterType === "codex_local") ||
+      null;
+
+    if (codexProbeAgent) {
+      try {
+        const adapterHealth = (await paperclip(
+          `/companies/${targetCompany.id}/adapters/${encodeURIComponent(codexProbeAgent.adapterType || "codex_local")}/test-environment`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              adapterConfig: codexProbeAgent.adapterConfig || {},
+            }),
+          },
+        )) as AdapterEnvironmentResult;
+
+        const codexCheck = findCodexHealthCheck(adapterHealth);
+        checks.push({
+          name: "runtime_auth",
+          status: codexCheck ? mapAdapterCheckStatus(codexCheck.level) : adapterHealth.status === "pass" ? "ok" : "warning",
+          detail: codexCheck
+            ? `${codexProbeAgent.name}: ${codexCheck.detail || codexCheck.message}`
+            : `${codexProbeAgent.name}: Codex runtime auth looks healthy`,
+        });
+      } catch (error) {
+        checks.push({
+          name: "runtime_auth",
+          status: "warning",
+          detail:
+            error instanceof Error
+              ? `Could not verify Codex auth: ${error.message}`
+              : "Could not verify Codex auth",
+        });
+      }
+    } else {
+      checks.push({
+        name: "runtime_auth",
+        status: "ok",
+        detail: "No Codex agents to probe",
+      });
+    }
+
     const lastRun = [...(runs || [])].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )[0];
@@ -247,7 +326,10 @@ export async function POST(request: NextRequest) {
       checkedAt: new Date().toISOString(),
       checks,
       actions,
-      controls: { restartAvailable: restartAvailable() },
+      controls: {
+        restartAvailable: restartAvailable(),
+        codexRepairAvailable: Boolean(process.env.OPENAI_API_KEY),
+      },
     };
 
     return NextResponse.json(response);
@@ -265,7 +347,10 @@ export async function POST(request: NextRequest) {
         },
       ],
       actions,
-      controls: { restartAvailable: restartAvailable() },
+      controls: {
+        restartAvailable: restartAvailable(),
+        codexRepairAvailable: Boolean(process.env.OPENAI_API_KEY),
+      },
     };
 
     return NextResponse.json(response);

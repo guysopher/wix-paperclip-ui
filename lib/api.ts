@@ -53,6 +53,18 @@ export const restartPaperclipServer = () =>
     }
     return data as { ok: boolean; message: string };
   });
+export const repairCodexAuth = (companyId: string) =>
+  fetch("/api/health/repair-codex-auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId }),
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({ error: r.statusText }));
+    if (!r.ok) {
+      throw new Error(data.error || r.statusText);
+    }
+    return data as { ok: boolean; message: string };
+  });
 
 // Companies
 export const getCompanies = () => request<Company[]>("/companies");
