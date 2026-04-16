@@ -56,16 +56,6 @@ function stripMarkdown(value: string | null | undefined): string {
     .trim();
 }
 
-function stripTaskIdentifiers(value: string): string {
-  return value
-    .replace(/\b[A-Z][A-Z0-9]{1,9}-\d+\b/g, "")
-    .replace(/\(\s*\)/g, "")
-    .replace(/\s+,/g, ",")
-    .replace(/\s{2,}/g, " ")
-    .replace(/\s+([.?!,:;])/g, "$1")
-    .trim();
-}
-
 const SYSTEM_PROMPT = `You rewrite internal AI-team blockers into very clear founder requests.
 
 Return ONLY valid JSON with this exact shape:
@@ -85,10 +75,15 @@ Rules:
 - The ask must clearly say what the founder needs to decide, send, confirm, approve, or do.
 - Prefer a question when the founder needs to choose or confirm something.
 - Prefer a direct request when the founder needs to send or do something.
-- Never use task IDs in the ask.
+- Never use task IDs, issue identifiers, or internal reference codes in the ask.
+- If the source contains task IDs or codes, translate them into plain language instead of copying them.
 - Never mention internal workflow words like issue, inbox, board, heartbeat, run, blocker, or ticket.
 - Prefer business language over technical language.
 - Do not split the request into a title and explanation.
+- Bad: "Use the already-completed launch prep in SWEA-45, SWEA-46, and SWEA-47."
+- Good: "Review the prepared launch content and approve it for the storefront."
+- Bad: "Apply SWEA-30 on the live site."
+- Good: "Apply the prepared launch updates on the live site."
 - The quick replies must read like natural answers to the exact ask.
 - Quick replies must not be generic UI labels unless they are truly the best answer.
 - Avoid "Done" unless the ask is literally about completing a manual action.
@@ -166,7 +161,7 @@ export async function POST(request: NextRequest) {
           )
           .map((item) => ({
             issueId: item.issueId,
-            ask: stripTaskIdentifiers(item.ask.trim()),
+            ask: item.ask.trim(),
             quickReplies: item.quickReplies
               .filter((entry): entry is string => typeof entry === "string")
               .map((entry) => entry.trim())

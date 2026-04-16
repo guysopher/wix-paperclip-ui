@@ -210,18 +210,8 @@ function stripMarkdownToPlainText(value: string | null | undefined): string {
     .trim();
 }
 
-function stripTaskIdentifiers(value: string): string {
-  return value
-    .replace(/\b[A-Z][A-Z0-9]{1,9}-\d+\b/g, "")
-    .replace(/\(\s*\)/g, "")
-    .replace(/\s+,/g, ",")
-    .replace(/\s{2,}/g, " ")
-    .replace(/\s+([.?!,:;])/g, "$1")
-    .trim();
-}
-
 function firstSentence(value: string): string {
-  const normalized = stripTaskIdentifiers(value.trim());
+  const normalized = value.trim();
   if (!normalized) {
     return "";
   }
