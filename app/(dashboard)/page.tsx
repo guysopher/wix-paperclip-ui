@@ -246,6 +246,18 @@ function DashboardContent() {
   const [selectedOpsAgentId, setSelectedOpsAgentId] = useState<string | null>(null);
   const liveFeedRef = useRef<HTMLDivElement>(null);
   const liveFeedStickToBottomRef = useRef(true);
+  const fetchedFeedRunIdsRef = useRef<Set<string>>(new Set());
+  const fetchedAgentNarrativeKeysRef = useRef<Set<string>>(new Set());
+  const latestGoalProgressRunIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    fetchedFeedRunIdsRef.current = new Set();
+    fetchedAgentNarrativeKeysRef.current = new Set();
+    latestGoalProgressRunIdRef.current = null;
+    setFeedNarratives({});
+    setAgentNarratives({});
+    setGoalProgress({});
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId || !company || !dashboard) {
@@ -256,8 +268,23 @@ function DashboardContent() {
     const latest = [...runs]
       .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 3);
-    setFeedNarratives(Object.fromEntries(latest.map((r: HeartbeatRun) => [r.id, r.status === "running" || r.status === "queued" ? { title: "", description: "" } : null])));
+    setFeedNarratives((prev) => {
+      const next: Record<string, { title: string; description: string } | null> = {};
+      for (const run of latest) {
+        if (run.status === "running" || run.status === "queued") {
+          next[run.id] = { title: "", description: "" };
+          continue;
+        }
+
+        next[run.id] = fetchedFeedRunIdsRef.current.has(run.id) ? prev[run.id] ?? { title: "", description: "" } : null;
+      }
+      return next;
+    });
     latest.filter((r: HeartbeatRun) => r.status !== "running" && r.status !== "queued").forEach((run: HeartbeatRun) => {
+      if (fetchedFeedRunIdsRef.current.has(run.id)) {
+        return;
+      }
+      fetchedFeedRunIdsRef.current.add(run.id);
       const agent = agentMap.get(run.agentId);
       const params = new URLSearchParams({
         agentName: agent?.name || "Unknown",
@@ -291,18 +318,21 @@ function DashboardContent() {
         .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       if (ceoRuns.length > 0) {
         const latestCeoRun = ceoRuns[0];
-        fetch(`/api/run-narrative/${latestCeoRun.id}`)
-          .then((r) => r.json())
-          .then((data: { goalProgress?: Array<{ goalId: string; progress: number; comment: string }> }) => {
-            if (data.goalProgress && data.goalProgress.length > 0) {
-              const progressMap: Record<string, { progress: number; comment: string; updatedAt: string }> = {};
-              data.goalProgress.forEach((gp) => {
-                progressMap[gp.goalId] = { progress: gp.progress, comment: gp.comment, updatedAt: latestCeoRun.createdAt };
-              });
-              setGoalProgress(progressMap);
-            }
-          })
-          .catch(() => {});
+        if (latestGoalProgressRunIdRef.current !== latestCeoRun.id) {
+          latestGoalProgressRunIdRef.current = latestCeoRun.id;
+          fetch(`/api/run-narrative/${latestCeoRun.id}`)
+            .then((r) => r.json())
+            .then((data: { goalProgress?: Array<{ goalId: string; progress: number; comment: string }> }) => {
+              if (data.goalProgress && data.goalProgress.length > 0) {
+                const progressMap: Record<string, { progress: number; comment: string; updatedAt: string }> = {};
+                data.goalProgress.forEach((gp) => {
+                  progressMap[gp.goalId] = { progress: gp.progress, comment: gp.comment, updatedAt: latestCeoRun.createdAt };
+                });
+                setGoalProgress(progressMap);
+              }
+            })
+            .catch(() => {});
+        }
       }
     }
 
@@ -314,6 +344,11 @@ function DashboardContent() {
 
       if (agentRuns.length > 0) {
         const latestRun = agentRuns[0];
+        const narrativeKey = `${agent.id}:${latestRun.id}`;
+        if (fetchedAgentNarrativeKeysRef.current.has(narrativeKey)) {
+          return;
+        }
+        fetchedAgentNarrativeKeysRef.current.add(narrativeKey);
         const params = new URLSearchParams({
           agentName: agent.name,
           agentRole: agent.role || "",

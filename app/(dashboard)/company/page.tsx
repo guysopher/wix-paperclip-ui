@@ -75,6 +75,7 @@ function CompanyContent() {
   const { setCompanyId, refreshCompanies } = useCompany();
   const { company, goals, loading, refresh } = useCompanyData();
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   // Editable company fields
   const [editName, setEditName] = useState("");
@@ -95,24 +96,14 @@ function CompanyContent() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteResultMessage, setDeleteResultMessage] = useState("");
-  const lastSyncedCompanyKeyRef = useRef<string | null>(null);
+  const lastSyncedCompanyIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!company) {
       return;
     }
-    const syncKey = `${company.id}:${company.updatedAt}`;
-    const isDifferentCompany = !lastSyncedCompanyKeyRef.current || !lastSyncedCompanyKeyRef.current.startsWith(`${company.id}:`);
-    const hasUnsavedEdits =
-      editName !== "" && (
-        editName !== company.name ||
-        normalizeDescriptionForSave(editDescription) !== company.description ||
-        editPrefix !== company.issuePrefix ||
-        parseInt(editMaxTokensPerHour) !== (company.maxTokensPerHour ?? 0) ||
-        editDisableOnDemandWakeup !== (company.disableOnDemandWakeup ?? false)
-      );
-
-    if (!isDifferentCompany && hasUnsavedEdits) {
+    const isDifferentCompany = lastSyncedCompanyIdRef.current !== company.id;
+    if (!isDifferentCompany && isDirty) {
       return;
     }
 
@@ -121,8 +112,9 @@ function CompanyContent() {
     setEditPrefix(company.issuePrefix);
     setEditMaxTokensPerHour(String(company.maxTokensPerHour ?? 0));
     setEditDisableOnDemandWakeup(company.disableOnDemandWakeup ?? false);
-    lastSyncedCompanyKeyRef.current = syncKey;
-  }, [company, editDescription, editDisableOnDemandWakeup, editMaxTokensPerHour, editName, editPrefix]);
+    setIsDirty(false);
+    lastSyncedCompanyIdRef.current = company.id;
+  }, [company, isDirty]);
 
   const handleSaveCompany = async () => {
     if (!company) return;
@@ -136,6 +128,7 @@ function CompanyContent() {
         disableOnDemandWakeup: editDisableOnDemandWakeup,
       });
       setEditDescription(formatDescriptionForEditor(updated.description));
+      setIsDirty(false);
       await refreshCompanies();
       await refresh();
     } catch { /* silent */ }
@@ -323,11 +316,11 @@ function CompanyContent() {
               <Card.Content>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <FormField label="AI Team name" infoContent="The name of your AI Team. Shown across the app and in agent communications.">
-                    <Input size="small" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                    <Input size="small" value={editName} onChange={(e) => { setEditName(e.target.value); setIsDirty(true); }} />
                   </FormField>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <FormField label="Task prefix" infoContent="Short prefix for task identifiers (e.g., AGE-1, AGE-2). Used to reference tasks across the system.">
-                      <Input size="small" value={editPrefix} onChange={(e) => setEditPrefix(e.target.value)} />
+                      <Input size="small" value={editPrefix} onChange={(e) => { setEditPrefix(e.target.value); setIsDirty(true); }} />
                     </FormField>
                     <FormField label="Tasks created">
                       <Text size="small">{company.issueCounter}</Text>
@@ -394,7 +387,7 @@ function CompanyContent() {
                       <Input
                         size="small"
                         value={editMaxTokensPerHour}
-                        onChange={(e) => setEditMaxTokensPerHour(e.target.value.replace(/[^0-9]/g, ""))}
+                        onChange={(e) => { setEditMaxTokensPerHour(e.target.value.replace(/[^0-9]/g, "")); setIsDirty(true); }}
                         placeholder="0 = unlimited"
                         suffix={<Text size="tiny" secondary>tokens/hr</Text>}
                       />
@@ -406,7 +399,7 @@ function CompanyContent() {
                       <Dropdown
                         size="small"
                         selectedId={editDisableOnDemandWakeup ? "disabled" : "enabled"}
-                        onSelect={(o) => setEditDisableOnDemandWakeup(o.id === "disabled")}
+                        onSelect={(o) => { setEditDisableOnDemandWakeup(o.id === "disabled"); setIsDirty(true); }}
                         options={[
                           { id: "enabled", value: "Allowed" },
                           { id: "disabled", value: "Blocked" },
@@ -434,7 +427,7 @@ function CompanyContent() {
                   <InputArea
                     size="small"
                     value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
+                    onChange={(e) => { setEditDescription(e.target.value); setIsDirty(true); }}
                     rows={12}
                     resizable
                     status={descriptionError ? "error" : undefined}

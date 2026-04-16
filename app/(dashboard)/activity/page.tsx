@@ -153,22 +153,41 @@ function PostCard({ post, companyPath }: { post: FeedPost; companyPath: (path: s
 }
 
 export default function ActivityPage() {
-  const { companyPath } = useCompany();
+  const { companyId, companyPath } = useCompany();
   const { agents, runs, loading, refresh } = useCompanyData();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [page, setPage] = useState(1);
-  // Track which run IDs have had narrative fetches started (to avoid re-fetching on re-render)
   const fetchedRunIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     fetchedRunIds.current = new Set();
+    setPosts([]);
+    setPage(1);
+  }, [companyId]);
+
+  useEffect(() => {
     const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
     const sorted = [...runs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    setPosts(sorted.map((run) => ({
-      run,
-      agent: agentMap.get(run.agentId),
-      narrative: isActive(run.status) ? { title: "", description: "" } : null,
-    })));
+    setPosts((prev) => {
+      const previousByRunId = new Map(prev.map((post) => [post.run.id, post]));
+      return sorted.map((run) => {
+        const previous = previousByRunId.get(run.id);
+        const shouldPreserveNarrative =
+          previous &&
+          !isActive(previous.run.status) &&
+          fetchedRunIds.current.has(run.id);
+
+        return {
+          run,
+          agent: agentMap.get(run.agentId),
+          narrative: isActive(run.status)
+            ? { title: "", description: "" }
+            : shouldPreserveNarrative
+              ? previous.narrative
+              : null,
+        };
+      });
+    });
   }, [agents, runs]);
 
   // Lazily fetch narratives for the current page — only for runs not yet fetched
