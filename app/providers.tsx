@@ -14,7 +14,11 @@ import {
   type Company,
 } from "@/lib/api";
 import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
-import { issueNeedsReply } from "@/lib/inbox-state";
+import {
+  issueNeedsReply,
+  readInboxReplyOverrides,
+  subscribeInboxReplyOverrides,
+} from "@/lib/inbox-state";
 import { useWorkspaceContext } from "@/lib/msid-client";
 import { normalizeCompanyId, normalizeMsid, withWorkspaceContext } from "@/lib/msid";
 
@@ -172,10 +176,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         getRuns(companyId),
         getAgents(companyId).catch(() => []),
       ]);
+      const replyOverrides = readInboxReplyOverrides();
       // Inbox count: items that genuinely need a board reply/action.
       const inboxIds = new Set<string>();
       for (const i of myIssues) {
-        if (i.title !== "Board Inbox" && issueNeedsReply(i)) inboxIds.add(i.id);
+        if (i.title !== "Board Inbox" && issueNeedsReply(i, replyOverrides)) inboxIds.add(i.id);
       }
       const inboxCount = inboxIds.size;
       const runningCount = runs.filter((r) => r.status === "running").length;
@@ -196,6 +201,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const id = setInterval(refresh, 30000);
     return () => clearInterval(id);
   }, [companyLookupStatus, refresh]);
+
+  useEffect(() => {
+    return subscribeInboxReplyOverrides(() => {
+      void refresh();
+    });
+  }, [refresh]);
 
   return (
     <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, msid, workspaceCompanyId, companyLookupStatus, setCompanyId: handleSetCompanyId, companyPath, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>

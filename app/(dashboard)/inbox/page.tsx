@@ -15,7 +15,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "../../providers";
 import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
-import { issueIsSent, issueNeedsReply } from "@/lib/inbox-state";
+import {
+  issueIsSent,
+  issueNeedsReply,
+  readInboxReplyOverrides,
+  setInboxReplyOverride,
+  subscribeInboxReplyOverrides,
+  type InboxReplyOverrides,
+} from "@/lib/inbox-state";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import {
   getAgents,
@@ -136,6 +143,7 @@ function InboxContent() {
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
 
   // Compose
   const [composing, setComposing] = useState(false);
@@ -146,6 +154,13 @@ function InboxContent() {
     acc[issue.identifier] = issue;
     return acc;
   }, {});
+
+  useEffect(() => {
+    setReplyOverrides(readInboxReplyOverrides());
+    return subscribeInboxReplyOverrides(() => {
+      setReplyOverrides(readInboxReplyOverrides());
+    });
+  }, []);
 
   const handleCompose = async () => {
     if (!composeText.trim() || !companyId) return;
@@ -219,6 +234,11 @@ function InboxContent() {
       setIssues((prev) => prev.map((i) => i.id === issue.id ? { ...i, isUnreadForMe: false } : i));
     }
     const c = await getComments(issue.id);
+    const latestComment = c[0];
+    if (latestComment?.authorUserId === "local-board") {
+      const nextOverrides = setInboxReplyOverride(issue.id, latestComment.createdAt);
+      setReplyOverrides(nextOverrides);
+    }
     setComments(c.reverse());
     setLoadingComments(false);
   };
@@ -228,6 +248,8 @@ function InboxContent() {
     setSending(true);
     const sentAt = new Date().toISOString();
     await postComment(selected.id, replyText);
+    const nextOverrides = setInboxReplyOverride(selected.id, sentAt);
+    setReplyOverrides(nextOverrides);
     setReplyText("");
     const c = await getComments(selected.id);
     setComments(c.reverse());
@@ -276,10 +298,10 @@ function InboxContent() {
   // Filter
   const allNonArchived = issues.filter((i) => !clientArchived.has(i.id));
   const needsReply = allNonArchived.filter((i) =>
-    issueNeedsReply(i)
+    issueNeedsReply(i, replyOverrides)
   );
   const sentByMe = allNonArchived.filter((i) =>
-    issueIsSent(i)
+    issueIsSent(i, replyOverrides)
   );
   const activeIssues = allNonArchived.filter((i) => !["done", "cancelled"].includes(i.status));
   const doneIssues = allNonArchived.filter((i) => ["done", "cancelled"].includes(i.status));
@@ -363,7 +385,7 @@ function InboxContent() {
               const isSelected = selected?.id === issue.id;
               const assignee = agentName(issue.assigneeAgentId || issue.assigneeId);
               const activityTime = issue.lastExternalCommentAt || issue.updatedAt;
-              const needsReplyNow = issueNeedsReply(issue);
+              const needsReplyNow = issueNeedsReply(issue, replyOverrides);
               const isBlocked = issue.status === "blocked";
               const isDone = issue.status === "done" || issue.status === "cancelled";
 
