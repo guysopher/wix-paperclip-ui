@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Page,
   Card,
@@ -215,12 +217,16 @@ function getCompanyActivityInterval(agents: Agent[]): number {
 function DashboardContent() {
   const router = useRouter();
   const { companyId, companies, setCompanyId, companyPath } = useCompany();
-  const { company, dashboard, agents, goals, issues, runs, loading, refresh } = useCompanyData();
+  const { company, dashboard, agents, goals, issues, inboxIssues, runs, loading, refresh } = useCompanyData();
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
   const [agentNarratives, setAgentNarratives] = useState<Record<string, { title: string; time: string } | null>>({});
   const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
   const [showLearnMore, setShowLearnMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [companyStatusSummary, setCompanyStatusSummary] = useState("");
+  const [companyStatusLoading, setCompanyStatusLoading] = useState(false);
+  const [companyStatusError, setCompanyStatusError] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
   const [workView, setWorkView] = useState<"open" | "completed">("completed");
@@ -753,6 +759,89 @@ function DashboardContent() {
     }
   };
 
+  const handleGetCompanyStatus = async () => {
+    if (!company) {
+      return;
+    }
+
+    setShowStatusModal(true);
+    setCompanyStatusLoading(true);
+    setCompanyStatusError("");
+
+    try {
+      const response = await fetch("/api/company-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company,
+          dashboard,
+          agents: agents.map((agent) => ({
+            id: agent.id,
+            name: agent.name,
+            title: agent.title,
+            role: agent.role,
+            status: agent.status,
+            lastHeartbeatAt: agent.lastHeartbeatAt,
+          })),
+          goals: goals.slice(0, 8).map((goal) => ({
+            title: goal.title,
+            status: goal.status,
+            description: goal.description,
+          })),
+          issues: issues
+            .filter((issue) => issue.title !== "Board Inbox")
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice(0, 24)
+            .map((issue) => ({
+              identifier: issue.identifier,
+              title: issue.title,
+              status: issue.status,
+              priority: issue.priority,
+              updatedAt: issue.updatedAt,
+              assigneeAgentId: issue.assigneeAgentId,
+              assigneeId: issue.assigneeId,
+            })),
+          inboxIssues: [...inboxIssues]
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice(0, 8)
+            .map((issue) => ({
+              identifier: issue.identifier,
+              title: issue.title,
+              status: issue.status,
+              priority: issue.priority,
+              updatedAt: issue.updatedAt,
+              assigneeAgentId: issue.assigneeAgentId,
+              assigneeId: issue.assigneeId,
+            })),
+          runs: [...runs]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 12)
+            .map((run) => ({
+              agentId: run.agentId,
+              status: run.status,
+              invocationSource: run.invocationSource,
+              error: run.error,
+              createdAt: run.createdAt,
+              startedAt: run.startedAt,
+              finishedAt: run.finishedAt,
+            })),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate company status");
+      }
+
+      setCompanyStatusSummary(typeof data.markdown === "string" ? data.markdown : "No status summary available.");
+    } catch (error) {
+      setCompanyStatusError(error instanceof Error ? error.message : "Failed to generate company status");
+      setCompanyStatusSummary("");
+    } finally {
+      setCompanyStatusLoading(false);
+    }
+  };
+
   return (
     <>
     <Page>
@@ -889,10 +978,15 @@ function DashboardContent() {
             <span style={{ fontWeight: 600 }}>{dashboard.tasks.blocked || 0}</span> blocked
           </div>
           <div style={{ height: 20, width: 1, background: "#d0d0d0" }} />
-          <div style={{ fontSize: 13, color: "#666" }}>
-            <span style={{ fontWeight: 600 }}>{runs.filter((r) => r.status === "succeeded").length}/{runs.length}</span> runs successful
-          </div>
+        <div style={{ fontSize: 13, color: "#666" }}>
+          <span style={{ fontWeight: 600 }}>{runs.filter((r) => r.status === "succeeded").length}/{runs.length}</span> runs successful
         </div>
+        <div style={{ marginLeft: "auto" }}>
+          <Button size="small" priority="secondary" onClick={handleGetCompanyStatus}>
+            {companyStatusLoading && showStatusModal ? "Updating status..." : "Get Status"}
+          </Button>
+        </div>
+      </div>
 
         {/* Health check results */}
         {healthResult && (
@@ -2174,6 +2268,72 @@ function DashboardContent() {
             />
           </FormField>
         </Box>
+      </CustomModalLayout>
+    </Modal>
+
+    <Modal isOpen={showStatusModal} onRequestClose={() => setShowStatusModal(false)} shouldCloseOnOverlayClick>
+      <CustomModalLayout
+        width="760px"
+        title="Company Status"
+        primaryButtonText={companyStatusLoading ? "Updating..." : "Refresh status"}
+        primaryButtonOnClick={handleGetCompanyStatus}
+        primaryButtonProps={{ disabled: companyStatusLoading }}
+        secondaryButtonText="Close"
+        secondaryButtonOnClick={() => setShowStatusModal(false)}
+        onCloseButtonClick={() => setShowStatusModal(false)}
+      >
+        <div style={{ fontSize: 13, color: "#7a92a5", marginBottom: 14 }}>
+          Executive summary for the board. This turns the current company snapshot into a plain-language business update.
+        </div>
+        {companyStatusError ? (
+          <div
+            style={{
+              borderRadius: 10,
+              border: "1px solid #f2c9c9",
+              background: "#fff6f6",
+              color: "#b53d3d",
+              padding: "14px 16px",
+              fontSize: 14,
+            }}
+          >
+            {companyStatusError}
+          </div>
+        ) : companyStatusLoading && !companyStatusSummary ? (
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e6eef7",
+              background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+              padding: "22px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              color: "#5f7386",
+            }}
+          >
+            <Loader size="small" />
+            <span>Generating a board-style status update...</span>
+          </div>
+        ) : (
+          <div
+            className="timeline-markdown"
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e6eef7",
+              background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+              padding: "22px 22px 18px",
+              maxHeight: "68vh",
+              overflowY: "auto",
+              fontSize: 15,
+              color: "#16324a",
+              lineHeight: 1.7,
+            }}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {companyStatusSummary || "No status summary available yet."}
+            </ReactMarkdown>
+          </div>
+        )}
       </CustomModalLayout>
     </Modal>
 
