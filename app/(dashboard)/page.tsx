@@ -1357,182 +1357,6 @@ function DashboardContent() {
           </div>
         )}
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 12, fontWeight: 600 }}>
-            Your Attention
-          </div>
-          <Card>
-            <Card.Content>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: attentionRequests.length > 0 ? 18 : 0, flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: "#162d3d", marginBottom: 4 }}>
-                    CEO Requests
-                  </div>
-                  <div style={{ fontSize: 14, color: "#5f7386" }}>
-                    {attentionHeadline}
-                  </div>
-                </div>
-                <a
-                  href={companyPath("/inbox?tab=needs-reply")}
-                  style={{
-                    color: "#3899ec",
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  View full inbox
-                  <span style={{ fontSize: 16 }}>→</span>
-                </a>
-              </div>
-
-              {requestError && (
-                <div
-                  style={{
-                    borderRadius: 10,
-                    border: "1px solid #f2c9c9",
-                    background: "#fff6f6",
-                    color: "#b53d3d",
-                    padding: "12px 14px",
-                    fontSize: 13,
-                    marginBottom: 14,
-                  }}
-                >
-                  {requestError}
-                </div>
-              )}
-
-              {attentionRequests.length === 0 ? (
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #e6eef7",
-                    background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
-                    padding: "18px 20px",
-                  }}
-                >
-                  <div style={{ fontSize: 16, fontWeight: 600, color: "#162d3d", marginBottom: 6 }}>
-                    The team can keep moving without you right now.
-                  </div>
-                  <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
-                    When the CEO or specialists genuinely need a decision, manual action, or clarification from you, it will show up here in plain language.
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {attentionRequests.map((issue) => {
-                    const why = summarizeAttentionWhy(issue.description, issue.status);
-                    const isSubmitting = requestSubmittingId === issue.id;
-                    const assigneeId = issue.assigneeAgentId || issue.assigneeId;
-                    const assignee = assigneeId ? agents.find((agent) => agent.id === assigneeId) : null;
-                    return (
-                      <div
-                        key={issue.id}
-                        style={{
-                          borderRadius: 12,
-                          border: "1px solid #e6eef7",
-                          background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
-                          padding: "18px 18px 16px",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 19, fontWeight: 700, color: "#162d3d", lineHeight: 1.35, marginBottom: 6 }}>
-                              {issue.title}
-                            </div>
-                            <div style={{ fontSize: 14, color: "#4f6578", lineHeight: 1.6 }}>
-                              {why}
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: 0.5,
-                                color: issue.status === "blocked" ? "#d04b3c" : "#b68200",
-                                background: issue.status === "blocked" ? "#fff1ef" : "#fff8df",
-                                borderRadius: 999,
-                                padding: "5px 9px",
-                              }}
-                            >
-                              {issue.status === "blocked" ? "Blocking progress" : "Reply needed"}
-                            </span>
-                            {assignee && (
-                              <div style={{ fontSize: 12, color: "#8aa0b5" }}>
-                                Requested by {assignee.title || assignee.name}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-                          <button
-                            onClick={() => void submitAttentionResponse(issue.id, "Done.")}
-                            disabled={isSubmitting}
-                            style={{
-                              border: "1px solid #d8e6d5",
-                              background: "#f5fbf4",
-                              color: "#2b6a3f",
-                              borderRadius: 999,
-                              padding: "8px 14px",
-                              fontSize: 13,
-                              fontWeight: 700,
-                              cursor: isSubmitting ? "default" : "pointer",
-                            }}
-                          >
-                            {isSubmitting ? "Sending..." : "Done"}
-                          </button>
-                          <button
-                            onClick={() => void submitAttentionResponse(issue.id, "Not now. Please proceed without this for now if possible.")}
-                            disabled={isSubmitting}
-                            style={{
-                              border: "1px solid #e6e8eb",
-                              background: "white",
-                              color: "#5f7386",
-                              borderRadius: 999,
-                              padding: "8px 14px",
-                              fontSize: 13,
-                              fontWeight: 700,
-                              cursor: isSubmitting ? "default" : "pointer",
-                            }}
-                          >
-                            Not now
-                          </button>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 10, alignItems: "stretch", flexWrap: "wrap" }}>
-                          <div style={{ flex: 1, minWidth: 260 }}>
-                            <Input
-                              value={requestDrafts[issue.id] || ""}
-                              onChange={(event) =>
-                                setRequestDrafts((prev) => ({ ...prev, [issue.id]: event.target.value }))
-                              }
-                              placeholder="Type an answer or clarification..."
-                              disabled={isSubmitting}
-                            />
-                          </div>
-                          <Button
-                            size="small"
-                            disabled={isSubmitting || !(requestDrafts[issue.id] || "").trim()}
-                            onClick={() => void submitAttentionResponse(issue.id, requestDrafts[issue.id] || "")}
-                          >
-                            Send
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card.Content>
-          </Card>
-        </div>
-
         {/* Goals */}
         {goals.length > 0 && (
           <div style={{ background: "linear-gradient(135deg, #162d3d 0%, #1a4a6e 100%)", borderRadius: 12, padding: "20px 28px", marginBottom: 20, color: "white" }}>
@@ -1738,6 +1562,159 @@ function DashboardContent() {
               </Card>
             </div>
           </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
+              Your Attention
+            </div>
+            <Card>
+              <Card.Content>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: attentionRequests.length > 0 || requestError ? 12 : 0, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d", marginBottom: 2 }}>
+                      CEO Requests
+                    </div>
+                    <div style={{ fontSize: 13, color: "#5f7386" }}>
+                      {attentionHeadline}
+                    </div>
+                  </div>
+                  <a
+                    href={companyPath("/inbox?tab=needs-reply")}
+                    style={{
+                      color: "#3899ec",
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    Open inbox
+                    <span style={{ fontSize: 16 }}>→</span>
+                  </a>
+                </div>
+
+                {requestError && (
+                  <div
+                    style={{
+                      borderRadius: 8,
+                      border: "1px solid #f2c9c9",
+                      background: "#fff6f6",
+                      color: "#b53d3d",
+                      padding: "10px 12px",
+                      fontSize: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {requestError}
+                  </div>
+                )}
+
+                {attentionRequests.length === 0 ? (
+                  <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
+                    No decisions or replies are blocking the team right now.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {attentionRequests.map((issue) => {
+                      const why = summarizeAttentionWhy(issue.description, issue.status);
+                      const isSubmitting = requestSubmittingId === issue.id;
+                      return (
+                        <div
+                          key={issue.id}
+                          style={{
+                            borderRadius: 10,
+                            border: "1px solid #e6eef7",
+                            background: "#fbfdff",
+                            padding: "12px 14px",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 8 }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: "#162d3d", lineHeight: 1.4, marginBottom: 4 }}>
+                                {issue.title}
+                              </div>
+                              <div style={{ fontSize: 13, color: "#5f7386", lineHeight: 1.55 }}>
+                                {why}
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: 0.5,
+                                color: issue.status === "blocked" ? "#d04b3c" : "#b68200",
+                                background: issue.status === "blocked" ? "#fff1ef" : "#fff8df",
+                                borderRadius: 999,
+                                padding: "4px 8px",
+                              }}
+                            >
+                              {issue.status === "blocked" ? "Blocking" : "Reply needed"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <button
+                              onClick={() => void submitAttentionResponse(issue.id, "Done.")}
+                              disabled={isSubmitting}
+                              style={{
+                                border: "1px solid #d8e6d5",
+                                background: "#f5fbf4",
+                                color: "#2b6a3f",
+                                borderRadius: 999,
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: isSubmitting ? "default" : "pointer",
+                              }}
+                            >
+                              {isSubmitting ? "Sending..." : "Done"}
+                            </button>
+                            <button
+                              onClick={() => void submitAttentionResponse(issue.id, "Not now. Please proceed without this for now if possible.")}
+                              disabled={isSubmitting}
+                              style={{
+                                border: "1px solid #e6e8eb",
+                                background: "white",
+                                color: "#5f7386",
+                                borderRadius: 999,
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: isSubmitting ? "default" : "pointer",
+                              }}
+                            >
+                              Not now
+                            </button>
+                            <div style={{ flex: 1, minWidth: 220 }}>
+                              <Input
+                                value={requestDrafts[issue.id] || ""}
+                                onChange={(event) =>
+                                  setRequestDrafts((prev) => ({ ...prev, [issue.id]: event.target.value }))
+                                }
+                                placeholder="Answer..."
+                                disabled={isSubmitting}
+                                size="small"
+                              />
+                            </div>
+                            <Button
+                              size="tiny"
+                              disabled={isSubmitting || !(requestDrafts[issue.id] || "").trim()}
+                              onClick={() => void submitAttentionResponse(issue.id, requestDrafts[issue.id] || "")}
+                            >
+                              Send
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card.Content>
+            </Card>
           </div>
 
           <div>
