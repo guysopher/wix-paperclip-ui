@@ -373,66 +373,107 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
             <Card.Header title="Details" />
             <Card.Divider />
             <Card.Content>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "14px 18px",
-                }}
-              >
-                <FormField label="Name" infoContent="The primary identifier for this team member (e.g., 'Sarah', 'Mike', 'AI Team Lead'). Shown in bold across the dashboard.">
-                  <Input
-                    size="small"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
-                </FormField>
-                <FormField label="Title" infoContent="The job description shown below the name (e.g., 'AI Business Manager', 'Senior Engineer', 'Marketing Manager').">
-                  <Input
-                    size="small"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                  />
-                </FormField>
-              </div>
+              <Box direction="vertical" gap="18px">
+                <Box direction="vertical" gap="12px">
+                  <Text size="small" weight="bold" secondary>
+                    Identity
+                  </Text>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "14px 18px",
+                    }}
+                  >
+                    <FormField label="Name" infoContent="The primary identifier for this team member (e.g., 'Sarah', 'Mike', 'AI Team Lead'). Shown in bold across the dashboard.">
+                      <Input
+                        size="small"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    </FormField>
+                    <FormField label="Title" infoContent="The job description shown below the name (e.g., 'AI Business Manager', 'Senior Engineer', 'Marketing Manager').">
+                      <Input
+                        size="small"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                      />
+                    </FormField>
+                    <FormField label="Icon" infoContent="Choose an icon to represent this team member. Icons appear in the activity feed, team list, and other places.">
+                      <IconPicker
+                        selectedIcon={editIcon}
+                        onSelect={setEditIcon}
+                        avatarColor={avatarColor}
+                        agentName={editName}
+                        agentRole={agent.role}
+                      />
+                    </FormField>
+                    <FormField label="Joined" infoContent="The date this team member was created.">
+                      <Box
+                        padding="12px 14px"
+                        border="1px solid #dfe5eb"
+                        borderRadius="8px"
+                        backgroundColor="#fafbfc"
+                      >
+                        <Text size="small" weight="bold">
+                          {new Date(agent.createdAt).toLocaleDateString()}
+                        </Text>
+                        <Text size="tiny" secondary>
+                          Team member since creation
+                        </Text>
+                      </Box>
+                    </FormField>
+                  </div>
+                </Box>
 
-              <Box marginTop="18px" />
+                <div style={{ borderTop: "1px solid #eef1f5" }} />
 
-              <FormField label="Icon" infoContent="Choose an icon to represent this team member. Icons appear in the activity feed, team list, and other places.">
-                <IconPicker
-                  selectedIcon={editIcon}
-                  onSelect={setEditIcon}
-                  avatarColor={avatarColor}
-                  agentName={editName}
-                  agentRole={agent.role}
-                />
-              </FormField>
+                <Box direction="vertical" gap="12px">
+                  <Text size="small" weight="bold" secondary>
+                    Ownership
+                  </Text>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "14px 18px",
+                    }}
+                  >
+                    <FormField
+                      label="Manager"
+                      infoContent="Who this team member reports to. Their manager can delegate tasks and review their work."
+                    >
+                      <Dropdown
+                        size="small"
+                        selectedId={editManager || "__none__"}
+                        onSelect={(o) =>
+                          setEditManager(
+                            String(o.id) === "__none__" ? null : String(o.id)
+                          )
+                        }
+                        options={managerOptions}
+                      />
+                    </FormField>
+                    <FormField
+                      label="Check-in schedule"
+                      infoContent="How often this agent automatically wakes up to check for new tasks, messages, and updates. You can also wake them up manually at any time."
+                    >
+                      <Dropdown
+                        size="small"
+                        selectedId={editSchedule}
+                        onSelect={(o) => setEditSchedule(String(o.id))}
+                        options={SCHEDULE_OPTIONS}
+                      />
+                    </FormField>
+                  </div>
+                </Box>
 
-              <Box marginTop="18px" />
+                <div style={{ borderTop: "1px solid #eef1f5" }} />
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "14px 18px",
-                }}
-              >
-                <FormField
-                  label="Manager"
-                  infoContent="Who this team member reports to. Their manager can delegate tasks and review their work."
-                >
-                  <Dropdown
-                    size="small"
-                    selectedId={editManager || "__none__"}
-                    onSelect={(o) =>
-                      setEditManager(
-                        String(o.id) === "__none__" ? null : String(o.id)
-                      )
-                    }
-                    options={managerOptions}
-                  />
-                </FormField>
-                <div style={{ gridColumn: "span 2" }}>
+                <Box direction="vertical" gap="12px">
+                  <Text size="small" weight="bold" secondary>
+                    Runtime
+                  </Text>
                   <FormField
                     label="Model"
                     infoContent="This is the one editable model setting for the agent. Paperclip saves it into adapterConfig.model and uses it on future runs."
@@ -465,21 +506,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                           This adapter does not expose model selection in this UI.
                         </Text>
                       )}
-                      <Box direction="vertical" gap="2px">
-                        <Text size="tiny" secondary>
-                          Save changes, then wake the agent or wait for the next check-in for the new model to take effect.
-                        </Text>
-                        <Text size="tiny" secondary>
-                          Observed in real runs:{" "}
-                          <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
-                            {runtimeModel}
-                          </span>
-                          {runtimeModelRaw === null ? " (no completed run has reported a model yet)" : ""}
-                        </Text>
-                        <Text size="tiny" secondary>
-                          Adapter: <span style={{ fontFamily: "monospace" }}>{agent.adapterType}</span>
-                        </Text>
-                      </Box>
                       <Box direction="horizontal" gap="8px">
                         {hasUnsavedModelChange && (
                           <Badge size="tiny" skin="general">
@@ -494,35 +520,52 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                       </Box>
                     </Box>
                   </FormField>
-                </div>
-                <FormField
-                  label="Check-in schedule"
-                  infoContent="How often this agent automatically wakes up to check for new tasks, messages, and updates. You can also wake them up manually at any time."
-                >
-                  <Dropdown
-                    size="small"
-                    selectedId={editSchedule}
-                    onSelect={(o) => setEditSchedule(String(o.id))}
-                    options={SCHEDULE_OPTIONS}
-                  />
-                </FormField>
-                <FormField
-                  label="Run timeout"
-                  infoContent="Maximum time a single work session can run before it is forcefully stopped. Prevents runaway or stuck agents."
-                >
-                  <Dropdown
-                    size="small"
-                    selectedId={editTimeout}
-                    onSelect={(o) => setEditTimeout(String(o.id))}
-                    options={TIMEOUT_OPTIONS}
-                  />
-                </FormField>
-                <FormField label="Joined" infoContent="The date this team member was created.">
-                  <Text size="small">
-                    {new Date(agent.createdAt).toLocaleDateString()}
-                  </Text>
-                </FormField>
-              </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "14px 18px",
+                    }}
+                  >
+                    <FormField
+                      label="Run timeout"
+                      infoContent="Maximum time a single work session can run before it is forcefully stopped. Prevents runaway or stuck agents."
+                    >
+                      <Dropdown
+                        size="small"
+                        selectedId={editTimeout}
+                        onSelect={(o) => setEditTimeout(String(o.id))}
+                        options={TIMEOUT_OPTIONS}
+                      />
+                    </FormField>
+                    <FormField
+                      label="Runtime status"
+                      infoContent="Read-only runtime feedback from Paperclip. This helps you verify what has actually run so far."
+                    >
+                      <Box
+                        padding="12px 14px"
+                        border="1px solid #dfe5eb"
+                        borderRadius="8px"
+                        backgroundColor="#fafbfc"
+                      >
+                        <Text size="tiny" secondary>
+                          Save changes, then wake the agent or wait for the next check-in for the new model to take effect.
+                        </Text>
+                        <Text size="tiny" secondary>
+                          Observed in real runs:{" "}
+                          <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            {runtimeModel}
+                          </span>
+                          {runtimeModelRaw === null ? " (no completed run has reported a model yet)" : ""}
+                        </Text>
+                        <Text size="tiny" secondary>
+                          Adapter: <span style={{ fontFamily: "monospace" }}>{agent.adapterType}</span>
+                        </Text>
+                      </Box>
+                    </FormField>
+                  </div>
+                </Box>
+              </Box>
             </Card.Content>
           </Card>
 
