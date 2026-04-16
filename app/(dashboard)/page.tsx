@@ -471,6 +471,121 @@ function DashboardContent() {
     };
   }, []);
 
+  const archivedInboxIdSet = new Set(archivedInboxIds);
+  const attentionRequests = [...inboxIssues]
+    .filter((issue) => !archivedInboxIdSet.has(issue.id))
+    .filter((issue) => issueNeedsReply(issue, replyOverrides))
+    .sort((a, b) => {
+      if (a.status === "blocked" && b.status !== "blocked") return -1;
+      if (b.status === "blocked" && a.status !== "blocked") return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .slice(0, 3);
+  const attentionHeadline =
+    attentionRequests.length === 0
+      ? "Nothing needs your attention right now."
+      : attentionRequests.length === 1
+        ? "1 thing needs your attention to keep progress moving."
+        : `${attentionRequests.length} things need your attention to keep progress moving.`;
+  const renderedAttentionRequests = attentionRequests.map((issue) => ({
+    issue,
+    card: ceoRequestCards[issue.id] || {
+      issueId: issue.id,
+      ask: issue.title,
+      why: summarizeAttentionWhy(issue.description, issue.status),
+      quickReplies: fallbackQuickReplies(issue.status),
+    },
+  }));
+
+  useEffect(() => {
+    const requestSnapshot = attentionRequests.map((issue) => ({
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      status: issue.status,
+      priority: issue.priority,
+      updatedAt: issue.updatedAt,
+      assigneeAgentId: issue.assigneeAgentId,
+      assigneeId: issue.assigneeId,
+    }));
+    const signature = JSON.stringify(
+      requestSnapshot.map((issue) => ({
+        id: issue.id,
+        updatedAt: issue.updatedAt,
+        status: issue.status,
+      })),
+    );
+
+    if (signature === ceoRequestsSignatureRef.current) {
+      return;
+    }
+    ceoRequestsSignatureRef.current = signature;
+
+    if (!company || requestSnapshot.length === 0) {
+      setCeoRequestCards({});
+      setCeoRequestsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCeoRequestsLoading(true);
+
+    fetch("/api/ceo-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company,
+        agents: agents.map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          title: agent.title,
+          role: agent.role,
+        })),
+        issues: requestSnapshot,
+      }),
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to generate CEO requests");
+        }
+        return data as { requests?: CeoRequestCard[] };
+      })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        const nextCards: Record<string, CeoRequestCard> = {};
+        for (const item of Array.isArray(data.requests) ? data.requests : []) {
+          if (item?.issueId) {
+            nextCards[item.issueId] = {
+              issueId: item.issueId,
+              ask: item.ask,
+              why: item.why,
+              quickReplies: Array.isArray(item.quickReplies) && item.quickReplies.length > 0
+                ? item.quickReplies.slice(0, 2)
+                : fallbackQuickReplies(requestSnapshot.find((issue) => issue.id === item.issueId)?.status || "todo"),
+            };
+          }
+        }
+        setCeoRequestCards(nextCards);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCeoRequestCards({});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCeoRequestsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agents, attentionRequests, company]);
+
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -845,121 +960,6 @@ function DashboardContent() {
   const monthlyBudgetUsd = company.budgetMonthlyCents / 100;
   const projectedBudgetPct =
     monthlyBudgetUsd > 0 ? Math.round((projectedMonthlyUsage.cost / monthlyBudgetUsd) * 100) : null;
-  const archivedInboxIdSet = new Set(archivedInboxIds);
-  const attentionRequests = [...inboxIssues]
-    .filter((issue) => !archivedInboxIdSet.has(issue.id))
-    .filter((issue) => issueNeedsReply(issue, replyOverrides))
-    .sort((a, b) => {
-      if (a.status === "blocked" && b.status !== "blocked") return -1;
-      if (b.status === "blocked" && a.status !== "blocked") return 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    })
-    .slice(0, 3);
-  const attentionHeadline =
-    attentionRequests.length === 0
-      ? "Nothing needs your attention right now."
-      : attentionRequests.length === 1
-        ? "1 thing needs your attention to keep progress moving."
-        : `${attentionRequests.length} things need your attention to keep progress moving.`;
-  const renderedAttentionRequests = attentionRequests.map((issue) => ({
-    issue,
-    card: ceoRequestCards[issue.id] || {
-      issueId: issue.id,
-      ask: issue.title,
-      why: summarizeAttentionWhy(issue.description, issue.status),
-      quickReplies: fallbackQuickReplies(issue.status),
-    },
-  }));
-
-  useEffect(() => {
-    const requestSnapshot = attentionRequests.map((issue) => ({
-      id: issue.id,
-      title: issue.title,
-      description: issue.description,
-      status: issue.status,
-      priority: issue.priority,
-      updatedAt: issue.updatedAt,
-      assigneeAgentId: issue.assigneeAgentId,
-      assigneeId: issue.assigneeId,
-    }));
-    const signature = JSON.stringify(
-      requestSnapshot.map((issue) => ({
-        id: issue.id,
-        updatedAt: issue.updatedAt,
-        status: issue.status,
-      })),
-    );
-
-    if (signature === ceoRequestsSignatureRef.current) {
-      return;
-    }
-    ceoRequestsSignatureRef.current = signature;
-
-    if (!company || requestSnapshot.length === 0) {
-      setCeoRequestCards({});
-      setCeoRequestsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setCeoRequestsLoading(true);
-
-    fetch("/api/ceo-requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        company,
-        agents: agents.map((agent) => ({
-          id: agent.id,
-          name: agent.name,
-          title: agent.title,
-          role: agent.role,
-        })),
-        issues: requestSnapshot,
-      }),
-    })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to generate CEO requests");
-        }
-        return data as { requests?: CeoRequestCard[] };
-      })
-      .then((data) => {
-        if (cancelled) {
-          return;
-        }
-        const nextCards: Record<string, CeoRequestCard> = {};
-        for (const item of Array.isArray(data.requests) ? data.requests : []) {
-          if (item?.issueId) {
-            nextCards[item.issueId] = {
-              issueId: item.issueId,
-              ask: item.ask,
-              why: item.why,
-              quickReplies: Array.isArray(item.quickReplies) && item.quickReplies.length > 0
-                ? item.quickReplies.slice(0, 2)
-                : fallbackQuickReplies(requestSnapshot.find((issue) => issue.id === item.issueId)?.status || "todo"),
-            };
-          }
-        }
-        setCeoRequestCards(nextCards);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCeoRequestCards({});
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setCeoRequestsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [agents, attentionRequests, company]);
-
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim() || !company) return;
     await createIssue(company.id, {
