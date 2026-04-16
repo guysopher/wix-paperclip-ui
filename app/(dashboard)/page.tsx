@@ -351,13 +351,14 @@ function DashboardContent() {
     if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
+  const operationsAgents = sortedAgents.filter((agent) => agent.status !== "paused");
   const preferredOpsAgent =
-    sortedAgents.find((agent) => runningRuns.some((run) => run.agentId === agent.id))
-    || sortedAgents.find((agent) => agent.role === "ceo")
-    || sortedAgents[0]
+    operationsAgents.find((agent) => runningRuns.some((run) => run.agentId === agent.id))
+    || operationsAgents.find((agent) => agent.role === "ceo")
+    || operationsAgents[0]
     || null;
   const selectedOpsAgent =
-    sortedAgents.find((agent) => agent.id === selectedOpsAgentId)
+    operationsAgents.find((agent) => agent.id === selectedOpsAgentId)
     || preferredOpsAgent;
   const selectedLiveRun = selectedOpsAgent
     ? runningRuns.find((run) => run.agentId === selectedOpsAgent.id) || null
@@ -369,10 +370,10 @@ function DashboardContent() {
       return;
     }
 
-    if (!selectedOpsAgentId || !sortedAgents.some((agent) => agent.id === selectedOpsAgentId)) {
+    if (!selectedOpsAgentId || !operationsAgents.some((agent) => agent.id === selectedOpsAgentId)) {
       setSelectedOpsAgentId(selectedOpsAgent.id);
     }
-  }, [selectedOpsAgent, selectedOpsAgentId, sortedAgents]);
+  }, [operationsAgents, selectedOpsAgent, selectedOpsAgentId]);
 
   useEffect(() => {
     if (!selectedLiveRun) {
@@ -596,7 +597,7 @@ function DashboardContent() {
         .filter((run) => run.agentId === selectedOpsAgent.id && ["failed", "timed_out", "cancelled"].includes(run.status))
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null
     : null;
-  const operationsPanelHeight = Math.max(420, 52 + sortedAgents.length * 67);
+  const operationsPanelHeight = Math.max(420, 52 + operationsAgents.length * 67);
   let selectedOpsNextRunText = "";
   if (selectedOpsAgent && selectedOpsLastHeartbeat && selectedOpsInterval && selectedOpsAgent.status !== "running" && selectedOpsAgent.status !== "paused") {
     const elapsed = Math.round((Date.now() - new Date(selectedOpsLastHeartbeat).getTime()) / 1000);
@@ -1346,7 +1347,7 @@ function DashboardContent() {
                     <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span>{runningAgentCount > 0 ? `${runningAgentCount} running now` : "No active runs"}</span>
                       <span>•</span>
-                      <span>{agents.length} team member{agents.length === 1 ? "" : "s"} ready</span>
+                      <span>{operationsAgents.length} team member{operationsAgents.length === 1 ? "" : "s"} ready</span>
                     </div>
                   </div>
                 </div>
@@ -1383,7 +1384,7 @@ function DashboardContent() {
                     </div>
                   </div>
                   <div style={{ padding: "6px 0" }}>
-                {sortedAgents.map((agent, i) => {
+                {operationsAgents.map((agent, i) => {
                   const statusText = agentStatusText(agent);
                   const narrative = agentNarratives[agent.id];
                   const hasLiveRun = runningRuns.some((run) => run.agentId === agent.id);
@@ -1396,7 +1397,7 @@ function DashboardContent() {
                         alignItems: "center",
                         gap: 12,
                         padding: "12px 18px",
-                        borderBottom: i < sortedAgents.length - 1 ? "1px solid #f5f7f9" : "none",
+                        borderBottom: i < operationsAgents.length - 1 ? "1px solid #f5f7f9" : "none",
                         transition: "background 0.15s ease",
                         cursor: "pointer",
                         background: isSelected ? "#eef5ff" : "transparent",
