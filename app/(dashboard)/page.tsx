@@ -39,10 +39,20 @@ import { useCompany, useCompanyData } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import {
+  issueNeedsReply,
+  readInboxArchivedIds,
+  readInboxReplyOverrides,
+  setInboxReplyOverride,
+  subscribeInboxArchivedIds,
+  subscribeInboxReplyOverrides,
+  type InboxReplyOverrides,
+} from "@/lib/inbox-state";
 import { parseRunUsage } from "@/lib/model-pricing";
 import {
   invokeHeartbeat,
   pauseAgent,
+  postComment,
   resumeAgent,
   updateAgent,
   createIssue,
@@ -178,6 +188,50 @@ function formatHeartbeatInterval(seconds: number): string {
   return `${seconds}s`;
 }
 
+function stripMarkdownToPlainText(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstSentence(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const sentenceMatch = normalized.match(/(.+?[.!?])(\s|$)/);
+  if (sentenceMatch?.[1]) {
+    return sentenceMatch[1].trim();
+  }
+
+  return normalized.length > 180 ? `${normalized.slice(0, 177).trim()}...` : normalized;
+}
+
+function summarizeAttentionWhy(description: string, status: string): string {
+  const plain = stripMarkdownToPlainText(description);
+  const summary = firstSentence(plain);
+  if (summary) {
+    return summary;
+  }
+
+  if (status === "blocked") {
+    return "This is currently blocking progress and needs your input to unblock the team.";
+  }
+
+  return "The team needs a quick answer from you so work can keep moving.";
+}
+
 function describeActivityLevel(index: number): string {
   const ratio = index / (ACTIVITY_INTERVAL_OPTIONS.length - 1);
   if (ratio < 0.25) return "Calm";
@@ -227,6 +281,11 @@ function DashboardContent() {
   const [companyStatusSummary, setCompanyStatusSummary] = useState("");
   const [companyStatusLoading, setCompanyStatusLoading] = useState(false);
   const [companyStatusError, setCompanyStatusError] = useState("");
+  const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
+  const [archivedInboxIds, setArchivedInboxIds] = useState<string[]>([]);
+  const [requestDrafts, setRequestDrafts] = useState<Record<string, string>>({});
+  const [requestSubmittingId, setRequestSubmittingId] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
   const [workView, setWorkView] = useState<"open" | "completed">("completed");
@@ -377,6 +436,23 @@ function DashboardContent() {
       setActivitySliderIndex(nextIndex);
     }
   }, [agents, activitySliderDirty, activitySliderIndex]);
+
+  useEffect(() => {
+    setReplyOverrides(readInboxReplyOverrides());
+    setArchivedInboxIds(readInboxArchivedIds());
+
+    const unsubscribeReplies = subscribeInboxReplyOverrides(() => {
+      setReplyOverrides(readInboxReplyOverrides());
+    });
+    const unsubscribeArchived = subscribeInboxArchivedIds(() => {
+      setArchivedInboxIds(readInboxArchivedIds());
+    });
+
+    return () => {
+      unsubscribeReplies();
+      unsubscribeArchived();
+    };
+  }, []);
 
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
@@ -752,6 +828,22 @@ function DashboardContent() {
   const monthlyBudgetUsd = company.budgetMonthlyCents / 100;
   const projectedBudgetPct =
     monthlyBudgetUsd > 0 ? Math.round((projectedMonthlyUsage.cost / monthlyBudgetUsd) * 100) : null;
+  const archivedInboxIdSet = new Set(archivedInboxIds);
+  const attentionRequests = [...inboxIssues]
+    .filter((issue) => !archivedInboxIdSet.has(issue.id))
+    .filter((issue) => issueNeedsReply(issue, replyOverrides))
+    .sort((a, b) => {
+      if (a.status === "blocked" && b.status !== "blocked") return -1;
+      if (b.status === "blocked" && a.status !== "blocked") return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .slice(0, 3);
+  const attentionHeadline =
+    attentionRequests.length === 0
+      ? "Nothing needs your attention right now."
+      : attentionRequests.length === 1
+        ? "1 thing needs your attention to keep progress moving."
+        : `${attentionRequests.length} things need your attention to keep progress moving.`;
 
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim() || !company) return;
@@ -874,6 +966,34 @@ function DashboardContent() {
       setCompanyStatusSummary("");
     } finally {
       setCompanyStatusLoading(false);
+    }
+  };
+
+  const submitAttentionResponse = async (issueId: string, body: string) => {
+    const issue = inboxIssues.find((entry) => entry.id === issueId) || issues.find((entry) => entry.id === issueId);
+    if (!issue || !body.trim()) {
+      return;
+    }
+
+    setRequestSubmittingId(issueId);
+    setRequestError("");
+    const sentAt = new Date().toISOString();
+
+    try {
+      await postComment(issueId, body.trim());
+      setReplyOverrides(setInboxReplyOverride(issueId, sentAt));
+      setRequestDrafts((prev) => ({ ...prev, [issueId]: "" }));
+      const assigneeId = issue.assigneeAgentId || issue.assigneeId;
+      if (assigneeId) {
+        try {
+          await invokeHeartbeat(assigneeId);
+        } catch {}
+      }
+      await refresh();
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "Failed to send response");
+    } finally {
+      setRequestSubmittingId(null);
     }
   };
 
@@ -1236,6 +1356,182 @@ function DashboardContent() {
             </div>
           </div>
         )}
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 12, fontWeight: 600 }}>
+            Your Attention
+          </div>
+          <Card>
+            <Card.Content>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: attentionRequests.length > 0 ? 18 : 0, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: "#162d3d", marginBottom: 4 }}>
+                    CEO Requests
+                  </div>
+                  <div style={{ fontSize: 14, color: "#5f7386" }}>
+                    {attentionHeadline}
+                  </div>
+                </div>
+                <a
+                  href={companyPath("/inbox?tab=needs-reply")}
+                  style={{
+                    color: "#3899ec",
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  View full inbox
+                  <span style={{ fontSize: 16 }}>→</span>
+                </a>
+              </div>
+
+              {requestError && (
+                <div
+                  style={{
+                    borderRadius: 10,
+                    border: "1px solid #f2c9c9",
+                    background: "#fff6f6",
+                    color: "#b53d3d",
+                    padding: "12px 14px",
+                    fontSize: 13,
+                    marginBottom: 14,
+                  }}
+                >
+                  {requestError}
+                </div>
+              )}
+
+              {attentionRequests.length === 0 ? (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e6eef7",
+                    background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+                    padding: "18px 20px",
+                  }}
+                >
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#162d3d", marginBottom: 6 }}>
+                    The team can keep moving without you right now.
+                  </div>
+                  <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
+                    When the CEO or specialists genuinely need a decision, manual action, or clarification from you, it will show up here in plain language.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {attentionRequests.map((issue) => {
+                    const why = summarizeAttentionWhy(issue.description, issue.status);
+                    const isSubmitting = requestSubmittingId === issue.id;
+                    const assigneeId = issue.assigneeAgentId || issue.assigneeId;
+                    const assignee = assigneeId ? agents.find((agent) => agent.id === assigneeId) : null;
+                    return (
+                      <div
+                        key={issue.id}
+                        style={{
+                          borderRadius: 12,
+                          border: "1px solid #e6eef7",
+                          background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+                          padding: "18px 18px 16px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 19, fontWeight: 700, color: "#162d3d", lineHeight: 1.35, marginBottom: 6 }}>
+                              {issue.title}
+                            </div>
+                            <div style={{ fontSize: 14, color: "#4f6578", lineHeight: 1.6 }}>
+                              {why}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: 0.5,
+                                color: issue.status === "blocked" ? "#d04b3c" : "#b68200",
+                                background: issue.status === "blocked" ? "#fff1ef" : "#fff8df",
+                                borderRadius: 999,
+                                padding: "5px 9px",
+                              }}
+                            >
+                              {issue.status === "blocked" ? "Blocking progress" : "Reply needed"}
+                            </span>
+                            {assignee && (
+                              <div style={{ fontSize: 12, color: "#8aa0b5" }}>
+                                Requested by {assignee.title || assignee.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                          <button
+                            onClick={() => void submitAttentionResponse(issue.id, "Done.")}
+                            disabled={isSubmitting}
+                            style={{
+                              border: "1px solid #d8e6d5",
+                              background: "#f5fbf4",
+                              color: "#2b6a3f",
+                              borderRadius: 999,
+                              padding: "8px 14px",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: isSubmitting ? "default" : "pointer",
+                            }}
+                          >
+                            {isSubmitting ? "Sending..." : "Done"}
+                          </button>
+                          <button
+                            onClick={() => void submitAttentionResponse(issue.id, "Not now. Please proceed without this for now if possible.")}
+                            disabled={isSubmitting}
+                            style={{
+                              border: "1px solid #e6e8eb",
+                              background: "white",
+                              color: "#5f7386",
+                              borderRadius: 999,
+                              padding: "8px 14px",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: isSubmitting ? "default" : "pointer",
+                            }}
+                          >
+                            Not now
+                          </button>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, alignItems: "stretch", flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 260 }}>
+                            <Input
+                              value={requestDrafts[issue.id] || ""}
+                              onChange={(event) =>
+                                setRequestDrafts((prev) => ({ ...prev, [issue.id]: event.target.value }))
+                              }
+                              placeholder="Type an answer or clarification..."
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <Button
+                            size="small"
+                            disabled={isSubmitting || !(requestDrafts[issue.id] || "").trim()}
+                            onClick={() => void submitAttentionResponse(issue.id, requestDrafts[issue.id] || "")}
+                          >
+                            Send
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card.Content>
+          </Card>
+        </div>
 
         {/* Goals */}
         {goals.length > 0 && (
