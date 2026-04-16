@@ -134,6 +134,13 @@ type LiveRunFeed = {
   updatedAt?: string;
 };
 
+type CeoRequestCard = {
+  issueId: string;
+  ask: string;
+  why: string;
+  quickReplies: string[];
+};
+
 
 function timeAgo(date: string) {
   const diff = Math.round((Date.now() - new Date(date).getTime()) / 60000);
@@ -232,6 +239,12 @@ function summarizeAttentionWhy(description: string, status: string): string {
   return "The team needs a quick answer from you so work can keep moving.";
 }
 
+function fallbackQuickReplies(status: string): string[] {
+  return status === "blocked"
+    ? ["Done", "Not now"]
+    : ["Yes, do that", "Not now"];
+}
+
 function describeActivityLevel(index: number): string {
   const ratio = index / (ACTIVITY_INTERVAL_OPTIONS.length - 1);
   if (ratio < 0.25) return "Calm";
@@ -286,6 +299,8 @@ function DashboardContent() {
   const [requestDrafts, setRequestDrafts] = useState<Record<string, string>>({});
   const [requestSubmittingId, setRequestSubmittingId] = useState<string | null>(null);
   const [requestError, setRequestError] = useState("");
+  const [ceoRequestCards, setCeoRequestCards] = useState<Record<string, CeoRequestCard>>({});
+  const [ceoRequestsLoading, setCeoRequestsLoading] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
   const [workView, setWorkView] = useState<"open" | "completed">("completed");
@@ -308,14 +323,17 @@ function DashboardContent() {
   const fetchedFeedRunIdsRef = useRef<Set<string>>(new Set());
   const fetchedAgentNarrativeKeysRef = useRef<Set<string>>(new Set());
   const latestGoalProgressRunIdRef = useRef<string | null>(null);
+  const ceoRequestsSignatureRef = useRef<string>("");
 
   useEffect(() => {
     fetchedFeedRunIdsRef.current = new Set();
     fetchedAgentNarrativeKeysRef.current = new Set();
     latestGoalProgressRunIdRef.current = null;
+    ceoRequestsSignatureRef.current = "";
     setFeedNarratives({});
     setAgentNarratives({});
     setGoalProgress({});
+    setCeoRequestCards({});
   }, [companyId]);
 
   useEffect(() => {
@@ -453,6 +471,95 @@ function DashboardContent() {
       unsubscribeArchived();
     };
   }, []);
+
+  useEffect(() => {
+    const requestSnapshot = attentionRequests.map((issue) => ({
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      status: issue.status,
+      priority: issue.priority,
+      updatedAt: issue.updatedAt,
+      assigneeAgentId: issue.assigneeAgentId,
+      assigneeId: issue.assigneeId,
+    }));
+    const signature = JSON.stringify(
+      requestSnapshot.map((issue) => ({
+        id: issue.id,
+        updatedAt: issue.updatedAt,
+        status: issue.status,
+      })),
+    );
+
+    if (signature === ceoRequestsSignatureRef.current) {
+      return;
+    }
+    ceoRequestsSignatureRef.current = signature;
+
+    if (!company || requestSnapshot.length === 0) {
+      setCeoRequestCards({});
+      setCeoRequestsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCeoRequestsLoading(true);
+
+    fetch("/api/ceo-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company,
+        agents: agents.map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          title: agent.title,
+          role: agent.role,
+        })),
+        issues: requestSnapshot,
+      }),
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to generate CEO requests");
+        }
+        return data as { requests?: CeoRequestCard[] };
+      })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        const nextCards: Record<string, CeoRequestCard> = {};
+        for (const item of Array.isArray(data.requests) ? data.requests : []) {
+          if (item?.issueId) {
+            nextCards[item.issueId] = {
+              issueId: item.issueId,
+              ask: item.ask,
+              why: item.why,
+              quickReplies: Array.isArray(item.quickReplies) && item.quickReplies.length > 0
+                ? item.quickReplies.slice(0, 2)
+                : fallbackQuickReplies(requestSnapshot.find((issue) => issue.id === item.issueId)?.status || "todo"),
+            };
+          }
+        }
+        setCeoRequestCards(nextCards);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCeoRequestCards({});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCeoRequestsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agents, attentionRequests, company]);
 
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
@@ -844,6 +951,15 @@ function DashboardContent() {
       : attentionRequests.length === 1
         ? "1 thing needs your attention to keep progress moving."
         : `${attentionRequests.length} things need your attention to keep progress moving.`;
+  const renderedAttentionRequests = attentionRequests.map((issue) => ({
+    issue,
+    card: ceoRequestCards[issue.id] || {
+      issueId: issue.id,
+      ask: issue.title,
+      why: summarizeAttentionWhy(issue.description, issue.status),
+      quickReplies: fallbackQuickReplies(issue.status),
+    },
+  }));
 
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim() || !company) return;
@@ -1576,7 +1692,7 @@ function DashboardContent() {
                       CEO Requests
                     </div>
                     <div style={{ fontSize: 13, color: "#5f7386" }}>
-                      {attentionHeadline}
+                      {ceoRequestsLoading && attentionRequests.length > 0 ? "Framing the clearest asks for you..." : attentionHeadline}
                     </div>
                   </div>
                   <a
@@ -1618,8 +1734,7 @@ function DashboardContent() {
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {attentionRequests.map((issue) => {
-                      const why = summarizeAttentionWhy(issue.description, issue.status);
+                    {renderedAttentionRequests.map(({ issue, card }) => {
                       const isSubmitting = requestSubmittingId === issue.id;
                       return (
                         <div
@@ -1634,10 +1749,10 @@ function DashboardContent() {
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 8 }}>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <div style={{ fontSize: 15, fontWeight: 700, color: "#162d3d", lineHeight: 1.4, marginBottom: 4 }}>
-                                {issue.title}
+                                {card.ask}
                               </div>
                               <div style={{ fontSize: 13, color: "#5f7386", lineHeight: 1.55 }}>
-                                {why}
+                                {card.why}
                               </div>
                             </div>
                             <span
@@ -1657,45 +1772,32 @@ function DashboardContent() {
                           </div>
 
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <button
-                              onClick={() => void submitAttentionResponse(issue.id, "Done.")}
-                              disabled={isSubmitting}
-                              style={{
-                                border: "1px solid #d8e6d5",
-                                background: "#f5fbf4",
-                                color: "#2b6a3f",
-                                borderRadius: 999,
-                                padding: "6px 12px",
-                                fontSize: 12,
-                                fontWeight: 700,
-                                cursor: isSubmitting ? "default" : "pointer",
-                              }}
-                            >
-                              {isSubmitting ? "Sending..." : "Done"}
-                            </button>
-                            <button
-                              onClick={() => void submitAttentionResponse(issue.id, "Not now. Please proceed without this for now if possible.")}
-                              disabled={isSubmitting}
-                              style={{
-                                border: "1px solid #e6e8eb",
-                                background: "white",
-                                color: "#5f7386",
-                                borderRadius: 999,
-                                padding: "6px 12px",
-                                fontSize: 12,
-                                fontWeight: 700,
-                                cursor: isSubmitting ? "default" : "pointer",
-                              }}
-                            >
-                              Not now
-                            </button>
+                            {card.quickReplies.slice(0, 2).map((quickReply, index) => (
+                              <button
+                                key={`${issue.id}:${quickReply}`}
+                                onClick={() => void submitAttentionResponse(issue.id, quickReply)}
+                                disabled={isSubmitting}
+                                style={{
+                                  border: index === 0 ? "1px solid #d8e6d5" : "1px solid #e6e8eb",
+                                  background: index === 0 ? "#f5fbf4" : "white",
+                                  color: index === 0 ? "#2b6a3f" : "#5f7386",
+                                  borderRadius: 999,
+                                  padding: "6px 12px",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  cursor: isSubmitting ? "default" : "pointer",
+                                }}
+                              >
+                                {isSubmitting && index === 0 ? "Sending..." : quickReply}
+                              </button>
+                            ))}
                             <div style={{ flex: 1, minWidth: 220 }}>
                               <Input
                                 value={requestDrafts[issue.id] || ""}
                                 onChange={(event) =>
                                   setRequestDrafts((prev) => ({ ...prev, [issue.id]: event.target.value }))
                                 }
-                                placeholder="Answer..."
+                                placeholder="Type your answer..."
                                 disabled={isSubmitting}
                                 size="small"
                               />
