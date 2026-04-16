@@ -286,28 +286,6 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                   </div>
                 </div>
               </div>
-              {/* Action cards (created tasks) */}
-              {m.actions && m.actions.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 10, paddingLeft: 4 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {m.actions.map((action, j) => (
-                      <TaskLinkWithPreview
-                        key={j}
-                        href={companyPath(action.identifier ? `/tasks/${action.identifier}` : "/tasks")}
-                        issue={action.identifier ? issuesByIdentifier[action.identifier] || null : null}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "6px 12px", background: "#f0f5ff", border: "1px solid #d0e0ff",
-                          borderRadius: 8, textDecoration: "none", fontSize: 13, color: "#333",
-                        }}
-                      >
-                        <span style={{ color: "#3899ec", fontWeight: 600 }}>{action.identifier || "Task"}</span>
-                        <span>{action.title}</span>
-                      </TaskLinkWithPreview>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}

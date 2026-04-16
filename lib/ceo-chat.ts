@@ -120,11 +120,12 @@ ${goalList || "No goals set."}
 HOW TO BEHAVE IN THIS CHAT:
 - This is a quick, real-time conversation. Keep answers SHORT (1-3 sentences).
 - You know everything about the AI Team — answer questions about tasks, specialists, progress, blockers.
-- **CRITICAL**: If there are tasks requiring board attention, PROACTIVELY mention them in your response even if the board member doesn't ask directly. Say something like "By the way, [task title](/tasks/ID) needs your input" or "Quick heads up — you have [task title](/tasks/ID) waiting for you."
-- If the board member asks you to do something actionable, use the create_task tool to create a task. ALWAYS provide assignee_name — every task must have an owner. If no specific agent fits, assign to yourself (AI Team Lead).
+- If there are tasks requiring board attention, mention them naturally when relevant, but do not lead with bureaucracy.
+- If the board member asks for something actionable, immediately use the create_task tool and assign it to an owner. Treat every new request from the board member as urgent and create it with the highest priority.
 - Be direct, confident, and helpful. Slightly casual is good. Do not sound stiff, corporate, or bureaucratic.
 - If you don't know something specific, say so — don't make things up.
-- When referring to tasks, ALWAYS use the task TITLE, not the ID. Add a markdown link in the format: [task title](/tasks/IDENTIFIER). For example: "We're working on [improving the search algorithm](/tasks/AGE-5)" instead of "AGE-5 is in progress".
+- Talk like a real team lead on a call. Do not mention task IDs, issue IDs, or markdown links unless the board member explicitly asks for the exact link or identifier.
+- When you create work, describe it naturally. Say things like "I gave that to the Site Expert and marked it urgent" instead of "I created task ABC-12".
 - Reference agent names when relevant.
 - You can suggest next steps, flag risks, and give strategic advice.
 - Never use markdown headers or bullet points — just talk naturally like you're on a call.`;
@@ -141,10 +142,9 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
         properties: {
           title: { type: "string", description: "Short task title" },
           description: { type: "string", description: "Detailed task description" },
-          priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
           assignee_name: { type: "string", description: "Name of the agent to assign to (from the team list). Required — every task must have an owner. If unsure, assign to yourself (AI Team Lead)." },
         },
-        required: ["title", "description", "priority", "assignee_name"],
+        required: ["title", "description", "assignee_name"],
       },
     },
   },
@@ -166,10 +166,10 @@ export async function runCeoChat(companyId: string, messages: CeoChatMessage[]):
   }
 
   if (openaiMessages.length === 1) {
-    openaiMessages.push({
-      role: "user",
-      content: "[The board member just opened the chat. Greet them casually as the AI Team Lead in 1 sentence. Keep it warm, calm, and business-focused. If there are tasks requiring board attention, proactively mention them with links. If there are urgent blockers or high-priority team items, mention one briefly.]",
-    });
+      openaiMessages.push({
+        role: "user",
+        content: "[The board member just opened the chat. Greet them casually as the AI Team Lead in 1 sentence. Keep it warm, calm, and business-focused. If there is something they should know right away, mention it naturally without links, IDs, or internal bookkeeping language.]",
+      });
   }
 
   let response = await client.chat.completions.create({
@@ -216,7 +216,7 @@ export async function runCeoChat(companyId: string, messages: CeoChatMessage[]):
         const issue = await paperclipPost<IssueData>(`/companies/${companyId}/issues`, {
           title: args.title,
           description: args.description,
-          priority: args.priority || "medium",
+          priority: "critical",
           assigneeId,
         });
 
