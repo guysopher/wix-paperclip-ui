@@ -56,6 +56,16 @@ function stripMarkdown(value: string | null | undefined): string {
     .trim();
 }
 
+function stripTaskIdentifiers(value: string): string {
+  return value
+    .replace(/\b[A-Z][A-Z0-9]{1,9}-\d+\b/g, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+,/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.?!,:;])/g, "$1")
+    .trim();
+}
+
 const SYSTEM_PROMPT = `You rewrite internal AI-team blockers into very clear founder requests.
 
 Return ONLY valid JSON with this exact shape:
@@ -156,7 +166,7 @@ export async function POST(request: NextRequest) {
           )
           .map((item) => ({
             issueId: item.issueId,
-            ask: item.ask.trim(),
+            ask: stripTaskIdentifiers(item.ask.trim()),
             quickReplies: item.quickReplies
               .filter((entry): entry is string => typeof entry === "string")
               .map((entry) => entry.trim())

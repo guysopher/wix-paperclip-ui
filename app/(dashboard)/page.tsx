@@ -210,8 +210,18 @@ function stripMarkdownToPlainText(value: string | null | undefined): string {
     .trim();
 }
 
+function stripTaskIdentifiers(value: string): string {
+  return value
+    .replace(/\b[A-Z][A-Z0-9]{1,9}-\d+\b/g, "")
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+,/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.?!,:;])/g, "$1")
+    .trim();
+}
+
 function firstSentence(value: string): string {
-  const normalized = value.trim();
+  const normalized = stripTaskIdentifiers(value.trim());
   if (!normalized) {
     return "";
   }
@@ -1808,13 +1818,13 @@ function DashboardContent() {
                                 onClick={() => void submitAttentionResponse(issue.id, quickReply)}
                                 disabled={isSubmitting}
                                 style={{
-                                  border: "none",
-                                  background: "transparent",
-                                  color: "#315b8c",
-                                  borderRadius: 0,
-                                  padding: 0,
+                                  border: "1px solid #d8dee8",
+                                  background: "#f5f7fa",
+                                  color: "#556373",
+                                  borderRadius: 10,
+                                  padding: "8px 12px",
                                   fontSize: 13,
-                                  fontWeight: 600,
+                                  fontWeight: 500,
                                   cursor: isSubmitting ? "default" : "pointer",
                                   textAlign: "center",
                                   textDecoration: "none",
@@ -1827,13 +1837,13 @@ function DashboardContent() {
                             <a
                               href={companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`)}
                               style={{
-                                border: "none",
-                                background: "transparent",
-                                color: "#2767c7",
-                                borderRadius: 0,
-                                padding: 0,
+                                border: "1px solid #d8dee8",
+                                background: "#f5f7fa",
+                                color: "#556373",
+                                borderRadius: 10,
+                                padding: "8px 12px",
                                 fontSize: 13,
-                                fontWeight: 600,
+                                fontWeight: 500,
                                 cursor: "pointer",
                                 textDecoration: "none",
                                 display: "inline-flex",
