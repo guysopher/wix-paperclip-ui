@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Page,
   Card,
@@ -33,40 +35,34 @@ import {
   PauseFilled,
   PlayFilled,
 } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../providers";
+import { useCompany, useCompanyData } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import {
+  issueNeedsReply,
+  readInboxArchivedIds,
+  readInboxReplyOverrides,
+  setInboxReplyOverride,
+  subscribeInboxArchivedIds,
+  subscribeInboxReplyOverrides,
+  type InboxReplyOverrides,
+} from "@/lib/inbox-state";
 import { parseRunUsage } from "@/lib/model-pricing";
 import {
-  getDashboard,
-  getAgents,
-  getGoals,
-  getIssues,
   invokeHeartbeat,
   pauseAgent,
+  postComment,
   resumeAgent,
   updateAgent,
-  getRuns,
   createIssue,
   runCompanyHealthCheck,
   restartPaperclipServer,
   repairCodexAuth,
-  getCompany,
-  type Company,
-  type Dashboard,
   type Agent,
-  type Goal,
-  type Issue,
   type HeartbeatRun,
 } from "@/lib/api";
 
-const FEED_AVATAR_COLORS = ["#3899ec", "#e01f5a", "#2ca55a", "#ff6b35", "#7c4dff", "#00bcd4", "#f59e0b"];
-function feedAvatarColor(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
-  return FEED_AVATAR_COLORS[Math.abs(h) % FEED_AVATAR_COLORS.length];
-}
 function feedParseUsage(usageJson: string | null) {
   if (!usageJson) return null;
   try {
@@ -192,6 +188,50 @@ function formatHeartbeatInterval(seconds: number): string {
   return `${seconds}s`;
 }
 
+function stripMarkdownToPlainText(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstSentence(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const sentenceMatch = normalized.match(/(.+?[.!?])(\s|$)/);
+  if (sentenceMatch?.[1]) {
+    return sentenceMatch[1].trim();
+  }
+
+  return normalized.length > 180 ? `${normalized.slice(0, 177).trim()}...` : normalized;
+}
+
+function summarizeAttentionWhy(description: string, status: string): string {
+  const plain = stripMarkdownToPlainText(description);
+  const summary = firstSentence(plain);
+  if (summary) {
+    return summary;
+  }
+
+  if (status === "blocked") {
+    return "This is currently blocking progress and needs your input to unblock the team.";
+  }
+
+  return "The team needs a quick answer from you so work can keep moving.";
+}
+
 function describeActivityLevel(index: number): string {
   const ratio = index / (ACTIVITY_INTERVAL_OPTIONS.length - 1);
   if (ratio < 0.25) return "Calm";
@@ -231,18 +271,21 @@ function getCompanyActivityInterval(agents: Agent[]): number {
 function DashboardContent() {
   const router = useRouter();
   const { companyId, companies, setCompanyId, companyPath } = useCompany();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const { company, dashboard, agents, goals, issues, inboxIssues, runs, loading, refresh } = useCompanyData();
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
   const [agentNarratives, setAgentNarratives] = useState<Record<string, { title: string; time: string } | null>>({});
   const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showLearnMore, setShowLearnMore] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [companyStatusSummary, setCompanyStatusSummary] = useState("");
+  const [companyStatusLoading, setCompanyStatusLoading] = useState(false);
+  const [companyStatusError, setCompanyStatusError] = useState("");
+  const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
+  const [archivedInboxIds, setArchivedInboxIds] = useState<string[]>([]);
+  const [requestDrafts, setRequestDrafts] = useState<Record<string, string>>({});
+  const [requestSubmittingId, setRequestSubmittingId] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
   const [workView, setWorkView] = useState<"open" | "completed">("completed");
@@ -262,32 +305,45 @@ function DashboardContent() {
   const [selectedOpsAgentId, setSelectedOpsAgentId] = useState<string | null>(null);
   const liveFeedRef = useRef<HTMLDivElement>(null);
   const liveFeedStickToBottomRef = useRef(true);
+  const fetchedFeedRunIdsRef = useRef<Set<string>>(new Set());
+  const fetchedAgentNarrativeKeysRef = useRef<Set<string>>(new Set());
+  const latestGoalProgressRunIdRef = useRef<string | null>(null);
 
-  const load = async () => {
-    if (!companyId) { setLoading(false); return; }
-    const c = await getCompany(companyId);
-    setCompany(c);
-    const [dash, agentList, goalList, issueList, runList] = await Promise.all([
-      getDashboard(companyId),
-      getAgents(companyId),
-      getGoals(companyId).catch(() => []),
-      getIssues(companyId).catch(() => []),
-      getRuns(companyId),
-    ]);
-    setDashboard(dash);
-    setAgents(agentList);
-    setGoals(goalList);
-    setIssues(issueList);
-    setRuns(runList);
-    setLoading(false);
+  useEffect(() => {
+    fetchedFeedRunIdsRef.current = new Set();
+    fetchedAgentNarrativeKeysRef.current = new Set();
+    latestGoalProgressRunIdRef.current = null;
+    setFeedNarratives({});
+    setAgentNarratives({});
+    setGoalProgress({});
+  }, [companyId]);
 
+  useEffect(() => {
+    if (!companyId || !company || !dashboard) {
+      return;
+    }
     // Fetch narratives for the 3 most recent runs
-    const agentMap = new Map(agentList.map((a: Agent) => [a.id, a]));
-    const latest = [...runList]
+    const agentMap = new Map(agents.map((a: Agent) => [a.id, a]));
+    const latest = [...runs]
       .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 3);
-    setFeedNarratives(Object.fromEntries(latest.map((r: HeartbeatRun) => [r.id, r.status === "running" || r.status === "queued" ? { title: "", description: "" } : null])));
+    setFeedNarratives((prev) => {
+      const next: Record<string, { title: string; description: string } | null> = {};
+      for (const run of latest) {
+        if (run.status === "running" || run.status === "queued") {
+          next[run.id] = { title: "", description: "" };
+          continue;
+        }
+
+        next[run.id] = fetchedFeedRunIdsRef.current.has(run.id) ? prev[run.id] ?? { title: "", description: "" } : null;
+      }
+      return next;
+    });
     latest.filter((r: HeartbeatRun) => r.status !== "running" && r.status !== "queued").forEach((run: HeartbeatRun) => {
+      if (fetchedFeedRunIdsRef.current.has(run.id)) {
+        return;
+      }
+      fetchedFeedRunIdsRef.current.add(run.id);
       const agent = agentMap.get(run.agentId);
       const params = new URLSearchParams({
         agentName: agent?.name || "Unknown",
@@ -314,36 +370,44 @@ function DashboardContent() {
     });
 
     // Fetch goal progress from the most recent CEO run
-    const ceo = agentList.find((a: Agent) => a.role === "ceo");
+    const ceo = agents.find((a: Agent) => a.role === "ceo");
     if (ceo) {
-      const ceoRuns = runList
+      const ceoRuns = runs
         .filter((r: HeartbeatRun) => r.agentId === ceo.id && r.status === "succeeded")
         .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       if (ceoRuns.length > 0) {
         const latestCeoRun = ceoRuns[0];
-        fetch(`/api/run-narrative/${latestCeoRun.id}`)
-          .then((r) => r.json())
-          .then((data: { goalProgress?: Array<{ goalId: string; progress: number; comment: string }> }) => {
-            if (data.goalProgress && data.goalProgress.length > 0) {
-              const progressMap: Record<string, { progress: number; comment: string; updatedAt: string }> = {};
-              data.goalProgress.forEach((gp) => {
-                progressMap[gp.goalId] = { progress: gp.progress, comment: gp.comment, updatedAt: latestCeoRun.createdAt };
-              });
-              setGoalProgress(progressMap);
-            }
-          })
-          .catch(() => {});
+        if (latestGoalProgressRunIdRef.current !== latestCeoRun.id) {
+          latestGoalProgressRunIdRef.current = latestCeoRun.id;
+          fetch(`/api/run-narrative/${latestCeoRun.id}`)
+            .then((r) => r.json())
+            .then((data: { goalProgress?: Array<{ goalId: string; progress: number; comment: string }> }) => {
+              if (data.goalProgress && data.goalProgress.length > 0) {
+                const progressMap: Record<string, { progress: number; comment: string; updatedAt: string }> = {};
+                data.goalProgress.forEach((gp) => {
+                  progressMap[gp.goalId] = { progress: gp.progress, comment: gp.comment, updatedAt: latestCeoRun.createdAt };
+                });
+                setGoalProgress(progressMap);
+              }
+            })
+            .catch(() => {});
+        }
       }
     }
 
     // Fetch latest narrative for each agent
-    agentList.forEach((agent: Agent) => {
-      const agentRuns = runList
+    agents.forEach((agent: Agent) => {
+      const agentRuns = runs
         .filter((r: HeartbeatRun) => r.agentId === agent.id && r.status === "succeeded")
         .sort((a: HeartbeatRun, b: HeartbeatRun) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       if (agentRuns.length > 0) {
         const latestRun = agentRuns[0];
+        const narrativeKey = `${agent.id}:${latestRun.id}`;
+        if (fetchedAgentNarrativeKeysRef.current.has(narrativeKey)) {
+          return;
+        }
+        fetchedAgentNarrativeKeysRef.current.add(narrativeKey);
         const params = new URLSearchParams({
           agentName: agent.name,
           agentRole: agent.role || "",
@@ -361,23 +425,10 @@ function DashboardContent() {
           })
           .catch(() => {
             setAgentNarratives((prev) => ({ ...prev, [agent.id]: { title: "", time: latestRun.createdAt } }));
-          });
+        });
       }
     });
-  };
-
-  useEffect(() => { load(); }, [companyId]);
-
-  // Auto-refresh when agents are running (every 10 seconds)
-  useEffect(() => {
-    const runningCount = agents.filter((a) => a.status === "running").length;
-    if (runningCount > 0) {
-      const interval = setInterval(() => {
-        load();
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [agents]);
+  }, [agents, company, companyId, dashboard, runs]);
 
   useEffect(() => {
     const nextIndex = closestActivityIndex(getCompanyActivityInterval(agents));
@@ -385,6 +436,23 @@ function DashboardContent() {
       setActivitySliderIndex(nextIndex);
     }
   }, [agents, activitySliderDirty, activitySliderIndex]);
+
+  useEffect(() => {
+    setReplyOverrides(readInboxReplyOverrides());
+    setArchivedInboxIds(readInboxArchivedIds());
+
+    const unsubscribeReplies = subscribeInboxReplyOverrides(() => {
+      setReplyOverrides(readInboxReplyOverrides());
+    });
+    const unsubscribeArchived = subscribeInboxArchivedIds(() => {
+      setArchivedInboxIds(readInboxArchivedIds());
+    });
+
+    return () => {
+      unsubscribeReplies();
+      unsubscribeArchived();
+    };
+  }, []);
 
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
@@ -400,13 +468,14 @@ function DashboardContent() {
     if (aHasReports !== bHasReports) return aHasReports ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
+  const operationsAgents = sortedAgents.filter((agent) => agent.status !== "paused");
   const preferredOpsAgent =
-    sortedAgents.find((agent) => runningRuns.some((run) => run.agentId === agent.id))
-    || sortedAgents.find((agent) => agent.role === "ceo")
-    || sortedAgents[0]
+    operationsAgents.find((agent) => runningRuns.some((run) => run.agentId === agent.id))
+    || operationsAgents.find((agent) => agent.role === "ceo")
+    || operationsAgents[0]
     || null;
   const selectedOpsAgent =
-    sortedAgents.find((agent) => agent.id === selectedOpsAgentId)
+    operationsAgents.find((agent) => agent.id === selectedOpsAgentId)
     || preferredOpsAgent;
   const selectedLiveRun = selectedOpsAgent
     ? runningRuns.find((run) => run.agentId === selectedOpsAgent.id) || null
@@ -418,10 +487,10 @@ function DashboardContent() {
       return;
     }
 
-    if (!selectedOpsAgentId || !sortedAgents.some((agent) => agent.id === selectedOpsAgentId)) {
+    if (!selectedOpsAgentId || !operationsAgents.some((agent) => agent.id === selectedOpsAgentId)) {
       setSelectedOpsAgentId(selectedOpsAgent.id);
     }
-  }, [selectedOpsAgent, selectedOpsAgentId, sortedAgents]);
+  }, [operationsAgents, selectedOpsAgent, selectedOpsAgentId]);
 
   useEffect(() => {
     if (!selectedLiveRun) {
@@ -645,7 +714,7 @@ function DashboardContent() {
         .filter((run) => run.agentId === selectedOpsAgent.id && ["failed", "timed_out", "cancelled"].includes(run.status))
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null
     : null;
-  const operationsPanelHeight = Math.max(420, 52 + sortedAgents.length * 67);
+  const operationsPanelHeight = Math.max(420, 52 + operationsAgents.length * 67);
   let selectedOpsNextRunText = "";
   if (selectedOpsAgent && selectedOpsLastHeartbeat && selectedOpsInterval && selectedOpsAgent.status !== "running" && selectedOpsAgent.status !== "paused") {
     const elapsed = Math.round((Date.now() - new Date(selectedOpsLastHeartbeat).getTime()) / 1000);
@@ -759,6 +828,22 @@ function DashboardContent() {
   const monthlyBudgetUsd = company.budgetMonthlyCents / 100;
   const projectedBudgetPct =
     monthlyBudgetUsd > 0 ? Math.round((projectedMonthlyUsage.cost / monthlyBudgetUsd) * 100) : null;
+  const archivedInboxIdSet = new Set(archivedInboxIds);
+  const attentionRequests = [...inboxIssues]
+    .filter((issue) => !archivedInboxIdSet.has(issue.id))
+    .filter((issue) => issueNeedsReply(issue, replyOverrides))
+    .sort((a, b) => {
+      if (a.status === "blocked" && b.status !== "blocked") return -1;
+      if (b.status === "blocked" && a.status !== "blocked") return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .slice(0, 3);
+  const attentionHeadline =
+    attentionRequests.length === 0
+      ? "Nothing needs your attention right now."
+      : attentionRequests.length === 1
+        ? "1 thing needs your attention to keep progress moving."
+        : `${attentionRequests.length} things need your attention to keep progress moving.`;
 
   const handleCreateTask = async () => {
     if (!newTaskTitle.trim() || !company) return;
@@ -769,7 +854,7 @@ function DashboardContent() {
     setShowCreate(false);
     setNewTaskTitle("");
     setNewTaskAssignee(undefined);
-    load();
+    await refresh();
   };
 
   const handleApplyActivityLevel = async () => {
@@ -779,7 +864,7 @@ function DashboardContent() {
     setActivityError("");
     setActivityFeedback("");
     try {
-      const updatedAgents = await Promise.all(
+      await Promise.all(
         agents.map((agent) =>
           updateAgent(agent.id, {
             adapterConfig: {
@@ -789,15 +874,126 @@ function DashboardContent() {
           })
         )
       );
-      setAgents(updatedAgents);
+      await refresh();
       setActivitySliderDirty(false);
       setActivityFeedback(
-        `All ${updatedAgents.length} agent${updatedAgents.length === 1 ? "" : "s"} now check in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
+        `All ${agents.length} agent${agents.length === 1 ? "" : "s"} now check in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
       );
     } catch (error) {
       setActivityError(error instanceof Error ? error.message : "Failed to update agent activity.");
     } finally {
       setSavingActivity(false);
+    }
+  };
+
+  const handleGetCompanyStatus = async () => {
+    if (!company) {
+      return;
+    }
+
+    setShowStatusModal(true);
+    setCompanyStatusLoading(true);
+    setCompanyStatusError("");
+
+    try {
+      const response = await fetch("/api/company-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company,
+          dashboard,
+          agents: agents.map((agent) => ({
+            id: agent.id,
+            name: agent.name,
+            title: agent.title,
+            role: agent.role,
+            status: agent.status,
+            lastHeartbeatAt: agent.lastHeartbeatAt,
+          })),
+          goals: goals.slice(0, 8).map((goal) => ({
+            title: goal.title,
+            status: goal.status,
+            description: goal.description,
+          })),
+          issues: issues
+            .filter((issue) => issue.title !== "Board Inbox")
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice(0, 24)
+            .map((issue) => ({
+              identifier: issue.identifier,
+              title: issue.title,
+              status: issue.status,
+              priority: issue.priority,
+              updatedAt: issue.updatedAt,
+              assigneeAgentId: issue.assigneeAgentId,
+              assigneeId: issue.assigneeId,
+            })),
+          inboxIssues: [...inboxIssues]
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            .slice(0, 8)
+            .map((issue) => ({
+              identifier: issue.identifier,
+              title: issue.title,
+              status: issue.status,
+              priority: issue.priority,
+              updatedAt: issue.updatedAt,
+              assigneeAgentId: issue.assigneeAgentId,
+              assigneeId: issue.assigneeId,
+            })),
+          runs: [...runs]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 12)
+            .map((run) => ({
+              agentId: run.agentId,
+              status: run.status,
+              invocationSource: run.invocationSource,
+              error: run.error,
+              createdAt: run.createdAt,
+              startedAt: run.startedAt,
+              finishedAt: run.finishedAt,
+            })),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate company status");
+      }
+
+      setCompanyStatusSummary(typeof data.markdown === "string" ? data.markdown : "No status summary available.");
+    } catch (error) {
+      setCompanyStatusError(error instanceof Error ? error.message : "Failed to generate company status");
+      setCompanyStatusSummary("");
+    } finally {
+      setCompanyStatusLoading(false);
+    }
+  };
+
+  const submitAttentionResponse = async (issueId: string, body: string) => {
+    const issue = inboxIssues.find((entry) => entry.id === issueId) || issues.find((entry) => entry.id === issueId);
+    if (!issue || !body.trim()) {
+      return;
+    }
+
+    setRequestSubmittingId(issueId);
+    setRequestError("");
+    const sentAt = new Date().toISOString();
+
+    try {
+      await postComment(issueId, body.trim());
+      setReplyOverrides(setInboxReplyOverride(issueId, sentAt));
+      setRequestDrafts((prev) => ({ ...prev, [issueId]: "" }));
+      const assigneeId = issue.assigneeAgentId || issue.assigneeId;
+      if (assigneeId) {
+        try {
+          await invokeHeartbeat(assigneeId);
+        } catch {}
+      }
+      await refresh();
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "Failed to send response");
+    } finally {
+      setRequestSubmittingId(null);
     }
   };
 
@@ -808,7 +1004,7 @@ function DashboardContent() {
         title={company.name}
         actionsBar={
           <Box direction="horizontal" gap="6px" verticalAlign="middle">
-            <Button size="tiny" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
+            <Button size="tiny" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
               Refresh
             </Button>
             <PopoverMenu
@@ -891,7 +1087,7 @@ function DashboardContent() {
                       else await pauseAgent(agent.id);
                     } catch {}
                   }
-                  load();
+                  void refresh();
                 }}
               />
               <PopoverMenu.Divider />
@@ -937,10 +1133,15 @@ function DashboardContent() {
             <span style={{ fontWeight: 600 }}>{dashboard.tasks.blocked || 0}</span> blocked
           </div>
           <div style={{ height: 20, width: 1, background: "#d0d0d0" }} />
-          <div style={{ fontSize: 13, color: "#666" }}>
-            <span style={{ fontWeight: 600 }}>{runs.filter((r) => r.status === "succeeded").length}/{runs.length}</span> runs successful
-          </div>
+        <div style={{ fontSize: 13, color: "#666" }}>
+          <span style={{ fontWeight: 600 }}>{runs.filter((r) => r.status === "succeeded").length}/{runs.length}</span> runs successful
         </div>
+        <div style={{ marginLeft: "auto" }}>
+          <Button size="small" priority="secondary" onClick={handleGetCompanyStatus}>
+            {companyStatusLoading && showStatusModal ? "Updating status..." : "Get Status"}
+          </Button>
+        </div>
+      </div>
 
         {/* Health check results */}
         {healthResult && (
@@ -1156,6 +1357,182 @@ function DashboardContent() {
           </div>
         )}
 
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 12, fontWeight: 600 }}>
+            Your Attention
+          </div>
+          <Card>
+            <Card.Content>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: attentionRequests.length > 0 ? 18 : 0, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: "#162d3d", marginBottom: 4 }}>
+                    CEO Requests
+                  </div>
+                  <div style={{ fontSize: 14, color: "#5f7386" }}>
+                    {attentionHeadline}
+                  </div>
+                </div>
+                <a
+                  href={companyPath("/inbox?tab=needs-reply")}
+                  style={{
+                    color: "#3899ec",
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  View full inbox
+                  <span style={{ fontSize: 16 }}>→</span>
+                </a>
+              </div>
+
+              {requestError && (
+                <div
+                  style={{
+                    borderRadius: 10,
+                    border: "1px solid #f2c9c9",
+                    background: "#fff6f6",
+                    color: "#b53d3d",
+                    padding: "12px 14px",
+                    fontSize: 13,
+                    marginBottom: 14,
+                  }}
+                >
+                  {requestError}
+                </div>
+              )}
+
+              {attentionRequests.length === 0 ? (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e6eef7",
+                    background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+                    padding: "18px 20px",
+                  }}
+                >
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#162d3d", marginBottom: 6 }}>
+                    The team can keep moving without you right now.
+                  </div>
+                  <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
+                    When the CEO or specialists genuinely need a decision, manual action, or clarification from you, it will show up here in plain language.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {attentionRequests.map((issue) => {
+                    const why = summarizeAttentionWhy(issue.description, issue.status);
+                    const isSubmitting = requestSubmittingId === issue.id;
+                    const assigneeId = issue.assigneeAgentId || issue.assigneeId;
+                    const assignee = assigneeId ? agents.find((agent) => agent.id === assigneeId) : null;
+                    return (
+                      <div
+                        key={issue.id}
+                        style={{
+                          borderRadius: 12,
+                          border: "1px solid #e6eef7",
+                          background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+                          padding: "18px 18px 16px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 19, fontWeight: 700, color: "#162d3d", lineHeight: 1.35, marginBottom: 6 }}>
+                              {issue.title}
+                            </div>
+                            <div style={{ fontSize: 14, color: "#4f6578", lineHeight: 1.6 }}>
+                              {why}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: 0.5,
+                                color: issue.status === "blocked" ? "#d04b3c" : "#b68200",
+                                background: issue.status === "blocked" ? "#fff1ef" : "#fff8df",
+                                borderRadius: 999,
+                                padding: "5px 9px",
+                              }}
+                            >
+                              {issue.status === "blocked" ? "Blocking progress" : "Reply needed"}
+                            </span>
+                            {assignee && (
+                              <div style={{ fontSize: 12, color: "#8aa0b5" }}>
+                                Requested by {assignee.title || assignee.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                          <button
+                            onClick={() => void submitAttentionResponse(issue.id, "Done.")}
+                            disabled={isSubmitting}
+                            style={{
+                              border: "1px solid #d8e6d5",
+                              background: "#f5fbf4",
+                              color: "#2b6a3f",
+                              borderRadius: 999,
+                              padding: "8px 14px",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: isSubmitting ? "default" : "pointer",
+                            }}
+                          >
+                            {isSubmitting ? "Sending..." : "Done"}
+                          </button>
+                          <button
+                            onClick={() => void submitAttentionResponse(issue.id, "Not now. Please proceed without this for now if possible.")}
+                            disabled={isSubmitting}
+                            style={{
+                              border: "1px solid #e6e8eb",
+                              background: "white",
+                              color: "#5f7386",
+                              borderRadius: 999,
+                              padding: "8px 14px",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: isSubmitting ? "default" : "pointer",
+                            }}
+                          >
+                            Not now
+                          </button>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, alignItems: "stretch", flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 260 }}>
+                            <Input
+                              value={requestDrafts[issue.id] || ""}
+                              onChange={(event) =>
+                                setRequestDrafts((prev) => ({ ...prev, [issue.id]: event.target.value }))
+                              }
+                              placeholder="Type an answer or clarification..."
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <Button
+                            size="small"
+                            disabled={isSubmitting || !(requestDrafts[issue.id] || "").trim()}
+                            onClick={() => void submitAttentionResponse(issue.id, requestDrafts[issue.id] || "")}
+                          >
+                            Send
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card.Content>
+          </Card>
+        </div>
+
         {/* Goals */}
         {goals.length > 0 && (
           <div style={{ background: "linear-gradient(135deg, #162d3d 0%, #1a4a6e 100%)", borderRadius: 12, padding: "20px 28px", marginBottom: 20, color: "white" }}>
@@ -1225,7 +1602,7 @@ function DashboardContent() {
               onClick={async () => {
                 try {
                   await invokeHeartbeat(ceoAgent.id);
-                  setTimeout(() => load(), 2000);
+                  setTimeout(() => { void refresh(); }, 2000);
                 } catch {}
               }}
               style={{
@@ -1395,7 +1772,7 @@ function DashboardContent() {
                     <div style={{ fontSize: 13, color: "#7a92a5", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span>{runningAgentCount > 0 ? `${runningAgentCount} running now` : "No active runs"}</span>
                       <span>•</span>
-                      <span>{agents.length} team member{agents.length === 1 ? "" : "s"} ready</span>
+                      <span>{operationsAgents.length} team member{operationsAgents.length === 1 ? "" : "s"} ready</span>
                     </div>
                   </div>
                 </div>
@@ -1432,7 +1809,7 @@ function DashboardContent() {
                     </div>
                   </div>
                   <div style={{ padding: "6px 0" }}>
-                {sortedAgents.map((agent, i) => {
+                {operationsAgents.map((agent, i) => {
                   const statusText = agentStatusText(agent);
                   const narrative = agentNarratives[agent.id];
                   const hasLiveRun = runningRuns.some((run) => run.agentId === agent.id);
@@ -1445,7 +1822,7 @@ function DashboardContent() {
                         alignItems: "center",
                         gap: 12,
                         padding: "12px 18px",
-                        borderBottom: i < sortedAgents.length - 1 ? "1px solid #f5f7f9" : "none",
+                        borderBottom: i < operationsAgents.length - 1 ? "1px solid #f5f7f9" : "none",
                         transition: "background 0.15s ease",
                         cursor: "pointer",
                         background: isSelected ? "#eef5ff" : "transparent",
@@ -1560,7 +1937,7 @@ function DashboardContent() {
                             <button
                               onClick={async () => {
                                 await invokeHeartbeat(selectedOpsAgent.id);
-                                setTimeout(() => load(), 1000);
+                                setTimeout(() => { void refresh(); }, 1000);
                               }}
                               style={{
                                 background: "#f7faff",
@@ -2222,6 +2599,72 @@ function DashboardContent() {
             />
           </FormField>
         </Box>
+      </CustomModalLayout>
+    </Modal>
+
+    <Modal isOpen={showStatusModal} onRequestClose={() => setShowStatusModal(false)} shouldCloseOnOverlayClick>
+      <CustomModalLayout
+        width="760px"
+        title="Company Status"
+        primaryButtonText={companyStatusLoading ? "Updating..." : "Refresh status"}
+        primaryButtonOnClick={handleGetCompanyStatus}
+        primaryButtonProps={{ disabled: companyStatusLoading }}
+        secondaryButtonText="Close"
+        secondaryButtonOnClick={() => setShowStatusModal(false)}
+        onCloseButtonClick={() => setShowStatusModal(false)}
+      >
+        <div style={{ fontSize: 13, color: "#7a92a5", marginBottom: 14 }}>
+          Executive summary for the board. This turns the current company snapshot into a plain-language business update.
+        </div>
+        {companyStatusError ? (
+          <div
+            style={{
+              borderRadius: 10,
+              border: "1px solid #f2c9c9",
+              background: "#fff6f6",
+              color: "#b53d3d",
+              padding: "14px 16px",
+              fontSize: 14,
+            }}
+          >
+            {companyStatusError}
+          </div>
+        ) : companyStatusLoading && !companyStatusSummary ? (
+          <div
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e6eef7",
+              background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+              padding: "22px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              color: "#5f7386",
+            }}
+          >
+            <Loader size="small" />
+            <span>Generating a board-style status update...</span>
+          </div>
+        ) : (
+          <div
+            className="timeline-markdown"
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e6eef7",
+              background: "linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%)",
+              padding: "22px 22px 18px",
+              maxHeight: "68vh",
+              overflowY: "auto",
+              fontSize: 15,
+              color: "#16324a",
+              lineHeight: 1.7,
+            }}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {companyStatusSummary || "No status summary available yet."}
+            </ReactMarkdown>
+          </div>
+        )}
       </CustomModalLayout>
     </Modal>
 

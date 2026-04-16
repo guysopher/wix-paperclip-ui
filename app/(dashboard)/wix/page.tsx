@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import {
   Page,
   Card,
@@ -11,8 +10,7 @@ import {
   Badge,
 } from "@wix/design-system";
 import { Refresh, ExternalLink } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
-import { getCompany, type Company } from "@/lib/api";
+import { useCompanyData } from "../../providers";
 import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
 
 async function copyToClipboard(value: string) {
@@ -24,24 +22,7 @@ async function copyToClipboard(value: string) {
 }
 
 function WixContent() {
-  const { companyId } = useCompany();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    if (!companyId) {
-      setLoading(false);
-      return;
-    }
-
-    const nextCompany = await getCompany(companyId);
-    setCompany(nextCompany);
-    setLoading(false);
-  }, [companyId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { company, loading, refresh } = useCompanyData();
 
   if (loading) {
     return <Box align="center" verticalAlign="middle" height="400px"><Loader size="medium" /></Box>;
@@ -80,7 +61,7 @@ function WixContent() {
         subtitle={siteName}
         actionsBar={
           <Box gap="6px" direction="horizontal">
-            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
+            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
           </Box>
         }
       />

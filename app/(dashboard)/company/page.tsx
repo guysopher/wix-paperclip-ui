@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Page,
   Card,
@@ -18,17 +18,13 @@ import {
   Tooltip,
 } from "@wix/design-system";
 import { Refresh, Add, Delete } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
+import { useCompany, useCompanyData } from "../../providers";
 import {
-  getCompany,
-  getGoals,
   updateCompany,
   deleteCompany,
   archiveCompany,
   createGoal,
   deleteGoal,
-  type Company,
-  type Goal,
 } from "@/lib/api";
 import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
 
@@ -76,11 +72,10 @@ function getDescriptionValidationError(description: string): string {
 }
 
 function CompanyContent() {
-  const { companyId, setCompanyId, refreshCompanies } = useCompany();
-  const [company, setCompany] = useState<Company | null>(null);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { setCompanyId, refreshCompanies } = useCompany();
+  const { company, goals, loading, refresh } = useCompanyData();
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   // Editable company fields
   const [editName, setEditName] = useState("");
@@ -101,22 +96,25 @@ function CompanyContent() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteResultMessage, setDeleteResultMessage] = useState("");
+  const lastSyncedCompanyIdRef = useRef<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!companyId) { setLoading(false); return; }
-    const c = await getCompany(companyId);
-    setCompany(c);
-    setEditName(c.name);
-    setEditDescription(formatDescriptionForEditor(c.description));
-    setEditPrefix(c.issuePrefix);
-    setEditMaxTokensPerHour(String(c.maxTokensPerHour ?? 0));
-    setEditDisableOnDemandWakeup(c.disableOnDemandWakeup ?? false);
-    const goalList = await getGoals(c.id).catch(() => []);
-    setGoals(goalList);
-    setLoading(false);
-  }, [companyId]);
+  useEffect(() => {
+    if (!company) {
+      return;
+    }
+    const isDifferentCompany = lastSyncedCompanyIdRef.current !== company.id;
+    if (!isDifferentCompany && isDirty) {
+      return;
+    }
 
-  useEffect(() => { load(); }, [load]);
+    setEditName(company.name);
+    setEditDescription(formatDescriptionForEditor(company.description));
+    setEditPrefix(company.issuePrefix);
+    setEditMaxTokensPerHour(String(company.maxTokensPerHour ?? 0));
+    setEditDisableOnDemandWakeup(company.disableOnDemandWakeup ?? false);
+    setIsDirty(false);
+    lastSyncedCompanyIdRef.current = company.id;
+  }, [company, isDirty]);
 
   const handleSaveCompany = async () => {
     if (!company) return;
@@ -129,8 +127,10 @@ function CompanyContent() {
         maxTokensPerHour: parseInt(editMaxTokensPerHour) || 0,
         disableOnDemandWakeup: editDisableOnDemandWakeup,
       });
-      setCompany(updated);
       setEditDescription(formatDescriptionForEditor(updated.description));
+      setIsDirty(false);
+      await refreshCompanies();
+      await refresh();
     } catch { /* silent */ }
     setSaving(false);
   };
@@ -146,12 +146,12 @@ function CompanyContent() {
     setShowGoalModal(false);
     setNewGoalTitle("");
     setNewGoalDesc("");
-    load();
+    await refresh();
   };
 
   const handleDeleteGoal = async (goalId: string) => {
     await deleteGoal(goalId);
-    setGoals(goals.filter((g) => g.id !== goalId));
+    await refresh();
   };
 
   const handleDeleteCompany = async () => {
@@ -215,7 +215,7 @@ function CompanyContent() {
           title="Business"
           subtitle={company.name}
           actionsBar={
-            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
+            <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
           }
         />
         <Page.Content>
@@ -316,11 +316,11 @@ function CompanyContent() {
               <Card.Content>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <FormField label="AI Team name" infoContent="The name of your AI Team. Shown across the app and in agent communications.">
-                    <Input size="small" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                    <Input size="small" value={editName} onChange={(e) => { setEditName(e.target.value); setIsDirty(true); }} />
                   </FormField>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <FormField label="Task prefix" infoContent="Short prefix for task identifiers (e.g., AGE-1, AGE-2). Used to reference tasks across the system.">
-                      <Input size="small" value={editPrefix} onChange={(e) => setEditPrefix(e.target.value)} />
+                      <Input size="small" value={editPrefix} onChange={(e) => { setEditPrefix(e.target.value); setIsDirty(true); }} />
                     </FormField>
                     <FormField label="Tasks created">
                       <Text size="small">{company.issueCounter}</Text>
@@ -387,7 +387,7 @@ function CompanyContent() {
                       <Input
                         size="small"
                         value={editMaxTokensPerHour}
-                        onChange={(e) => setEditMaxTokensPerHour(e.target.value.replace(/[^0-9]/g, ""))}
+                        onChange={(e) => { setEditMaxTokensPerHour(e.target.value.replace(/[^0-9]/g, "")); setIsDirty(true); }}
                         placeholder="0 = unlimited"
                         suffix={<Text size="tiny" secondary>tokens/hr</Text>}
                       />
@@ -399,7 +399,7 @@ function CompanyContent() {
                       <Dropdown
                         size="small"
                         selectedId={editDisableOnDemandWakeup ? "disabled" : "enabled"}
-                        onSelect={(o) => setEditDisableOnDemandWakeup(o.id === "disabled")}
+                        onSelect={(o) => { setEditDisableOnDemandWakeup(o.id === "disabled"); setIsDirty(true); }}
                         options={[
                           { id: "enabled", value: "Allowed" },
                           { id: "disabled", value: "Blocked" },
@@ -427,7 +427,7 @@ function CompanyContent() {
                   <InputArea
                     size="small"
                     value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
+                    onChange={(e) => { setEditDescription(e.target.value); setIsDirty(true); }}
                     rows={12}
                     resizable
                     status={descriptionError ? "error" : undefined}

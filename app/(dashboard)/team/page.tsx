@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
@@ -15,17 +15,11 @@ import {
   Search,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
+import { useCompany, useCompanyData } from "../../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
-import {
-  getAgents,
-  getRuns,
-  invokeHeartbeat,
-  type Agent,
-  type HeartbeatRun,
-} from "@/lib/api";
+import { invokeHeartbeat, type Agent, type HeartbeatRun } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Active",
@@ -44,12 +38,10 @@ const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" 
 };
 
 function TeamContent() {
-  const { companyId, companyPath } = useCompany();
+  const { companyPath } = useCompany();
+  const { agents, runs, loading, refresh } = useCompanyData();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [runs, setRuns] = useState<HeartbeatRun[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [retrying, setRetrying] = useState<string | null>(null);
 
@@ -59,19 +51,6 @@ function TeamContent() {
     router.replace(companyPath(`/team/${agentParam}`));
     return null;
   }
-
-  const load = async () => {
-    if (!companyId) { setLoading(false); return; }
-    const [agentData, runData] = await Promise.all([
-      getAgents(companyId),
-      getRuns(companyId).catch(() => []),
-    ]);
-    setAgents(agentData);
-    setRuns(runData);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, [companyId]);
 
   /** Get the last failed run for an agent */
   const getLastError = (agentId: string): string | null => {
@@ -86,7 +65,10 @@ function TeamContent() {
   const handleRetry = async (agentId: string) => {
     setRetrying(agentId);
     try { await invokeHeartbeat(agentId); } catch {}
-    setTimeout(() => { setRetrying(null); load(); }, 2000);
+    setTimeout(() => {
+      setRetrying(null);
+      void refresh();
+    }, 2000);
   };
 
   const managerName = (id: string | null) => {
@@ -224,7 +206,7 @@ function TeamContent() {
   return (
     <Page>
       <Page.Header title="Team" subtitle={`${agents.length} team members`} actionsBar={
-        <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>Refresh</Button>
+        <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>Refresh</Button>
       } />
       <Page.Content>
         <Card hideOverflow>

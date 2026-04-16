@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Page,
@@ -22,15 +22,9 @@ import {
   Pagination,
 } from "@wix/design-system";
 import { Add, Refresh, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
-import { useCompany } from "../../providers";
+import { useCompany, useCompanyData } from "../../providers";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
-import {
-  getIssues,
-  getAgents,
-  createIssue,
-  type Issue,
-  type Agent,
-} from "@/lib/api";
+import { createIssue, type Issue, type Agent } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
   backlog: "Backlog",
@@ -61,11 +55,9 @@ const PRIORITY_SKINS: Record<string, "general" | "success" | "warning" | "danger
 
 function TasksContent() {
   const { companyId, companyPath } = useCompany();
+  const { issues: allIssues, agents, loading, refresh } = useCompanyData();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   // Create modal
   const [page, setPage] = useState(1);
@@ -87,31 +79,7 @@ function TasksContent() {
     router.replace(companyPath(`/tasks${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
 
-  const load = useCallback(async () => {
-    if (!companyId) { setLoading(false); return; }
-    const [issueData, agentData] = await Promise.all([
-      getIssues(companyId),
-      getAgents(companyId),
-    ]);
-    const filteredIssues = issueData.filter((i: Issue) => i.title !== "Board Inbox");
-    setIssues(filteredIssues);
-    setAgents(agentData);
-
-    // Debug: log agent IDs
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Loaded agents:', agentData.map((a: Agent) => ({ id: a.id, name: a.name })));
-      console.log('Tasks with assignees:', filteredIssues.map((i: Issue) => ({
-        id: i.identifier,
-        title: i.title.substring(0, 50),
-        assigneeAgentId: i.assigneeAgentId,
-        assigneeId: i.assigneeId,
-      })));
-    }
-
-    setLoading(false);
-  }, [companyId]);
-
-  useEffect(() => { load(); }, [load]);
+  const issues = allIssues.filter((i) => i.title !== "Board Inbox");
 
   // Redirect ?issue=AGE-8 to detail page
   const issueParam = searchParams.get("issue");
@@ -176,7 +144,7 @@ function TasksContent() {
     setNewDesc("");
     setNewPriority("medium");
     setNewAssignee(undefined);
-    load();
+    await refresh();
   };
 
   const agentDropdownOptions = agents.map((a) => ({ id: a.id, value: a.name }));
@@ -294,7 +262,7 @@ function TasksContent() {
           subtitle={`${filteredIssues.length} of ${issues.length} issues`}
           actionsBar={
             <Box direction="horizontal" gap="6px">
-              <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={load}>
+              <Button size="small" priority="secondary" prefixIcon={<Refresh />} onClick={() => void refresh()}>
                 Refresh
               </Button>
               <Button size="small" prefixIcon={<Add />} onClick={() => { setNewAssignee(ceoAgent?.id); setShowCreate(true); }}>

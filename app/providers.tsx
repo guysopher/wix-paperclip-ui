@@ -1,18 +1,25 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { WixDesignSystemProvider } from "@wix/design-system";
 import {
   getIssuesAssignedToMe,
   getCompanies,
   getCompany,
+  getDashboard,
   getApprovals,
   getMyIssues,
   getIssues,
+  getGoals,
   getRuns,
   getAgents,
   updateApproval,
   type Company,
+  type Dashboard,
+  type Goal,
+  type Issue,
+  type Agent,
+  type HeartbeatRun,
 } from "@/lib/api";
 import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
 import {
@@ -36,6 +43,36 @@ export interface BadgeCounts {
 const BadgeCountsContext = createContext<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
 
 export const useBadgeCounts = () => useContext(BadgeCountsContext);
+
+interface CompanyDataContextValue {
+  company: Company | null;
+  dashboard: Dashboard | null;
+  agents: Agent[];
+  goals: Goal[];
+  issues: Issue[];
+  inboxIssues: Issue[];
+  runs: HeartbeatRun[];
+  loading: boolean;
+  refreshing: boolean;
+  lastUpdatedAt: string | null;
+  refresh: () => Promise<void>;
+}
+
+const CompanyDataContext = createContext<CompanyDataContextValue>({
+  company: null,
+  dashboard: null,
+  agents: [],
+  goals: [],
+  issues: [],
+  inboxIssues: [],
+  runs: [],
+  loading: false,
+  refreshing: false,
+  lastUpdatedAt: null,
+  refresh: async () => {},
+});
+
+export const useCompanyData = () => useContext(CompanyDataContext);
 
 export type CompanyLookupStatus =
   | "loading"
@@ -74,6 +111,19 @@ const CompanyContext = createContext<CompanyContextValue>({
 
 export const useCompany = () => useContext(CompanyContext);
 
+const EMPTY_COMPANY_DATA: Omit<CompanyDataContextValue, "refresh"> = {
+  company: null,
+  dashboard: null,
+  agents: [],
+  goals: [],
+  issues: [],
+  inboxIssues: [],
+  runs: [],
+  loading: false,
+  refreshing: false,
+  lastUpdatedAt: null,
+};
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const { msid, companyId: workspaceCompanyId } = useWorkspaceContext();
   const [counts, setCounts] = useState<BadgeCounts>({ inbox: 0, runs: 0, tasks: 0, chat: 0, team: 0 });
@@ -81,8 +131,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [companyLookupStatus, setCompanyLookupStatus] = useState<CompanyLookupStatus>("loading");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [companyData, setCompanyData] = useState<Omit<CompanyDataContextValue, "refresh">>(EMPTY_COMPANY_DATA);
+  const refreshInFlightRef = useRef(false);
+  const activeWindowRef = useRef(true);
+  const companyDataRef = useRef(companyData);
   const openCreateWizard = useCallback(() => setWizardOpen(true), []);
   const closeCreateWizard = useCallback(() => setWizardOpen(false), []);
+
+  useEffect(() => {
+    companyDataRef.current = companyData;
+  }, [companyData]);
 
   const loadCompanies = useCallback(async () => {
     const normalizedMsid = normalizeMsid(msid);
@@ -151,6 +209,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
     loadCompanies();
   }, [loadCompanies]);
 
+  useEffect(() => {
+    if (!selectedCompanyId || companyLookupStatus !== "ready") {
+      setCompanyData((prev) =>
+        prev.loading || prev.refreshing || prev.lastUpdatedAt || prev.company || prev.dashboard || prev.agents.length || prev.goals.length || prev.issues.length || prev.inboxIssues.length || prev.runs.length
+          ? { ...EMPTY_COMPANY_DATA, loading: companyLookupStatus === "loading" }
+          : prev
+      );
+      return;
+    }
+
+    setCompanyData((prev) =>
+      prev.company?.id === selectedCompanyId && prev.lastUpdatedAt
+        ? prev
+        : { ...EMPTY_COMPANY_DATA, loading: true }
+    );
+  }, [companyLookupStatus, selectedCompanyId]);
+
   const autoApprovePendingApprovals = useCallback(async (companyId: string) => {
     const approvals = await getApprovals(companyId).catch(() => []);
     const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
@@ -171,28 +246,58 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
+      if (refreshInFlightRef.current) return;
+      refreshInFlightRef.current = true;
       const companyId = selectedCompanyId;
+      const initialLoad = !companyDataRef.current.lastUpdatedAt || companyDataRef.current.company?.id !== companyId;
+      setCompanyData((prev) => ({
+        ...prev,
+        loading: initialLoad,
+        refreshing: !initialLoad,
+      }));
       const approvalsChanged = await autoApprovePendingApprovals(companyId);
-      const [assignedToMe, myIssues, blockedIssues, allIssues, runs, agentList] = await Promise.all([
+      const [
+        currentCompany,
+        dashboard,
+        agentList,
+        goalList,
+        assignedToMe,
+        myIssues,
+        blockedIssues,
+        allIssues,
+        runs,
+      ] = await Promise.all([
+        getCompany(companyId),
+        getDashboard(companyId).catch(() => null as Dashboard | null),
+        getAgents(companyId).catch(() => [] as Agent[]),
+        getGoals(companyId).catch(() => [] as Goal[]),
         getIssuesAssignedToMe(companyId),
         getMyIssues(companyId),
         getIssues(companyId, "status=blocked"),
         getIssues(companyId),
         getRuns(companyId),
-        getAgents(companyId).catch(() => []),
       ]);
+      const seenInboxIssueIds = new Set<string>();
+      const inboxIssues: Issue[] = [];
+      for (const list of [assignedToMe, myIssues, blockedIssues]) {
+        for (const issue of list) {
+          if (issue.title === "Board Inbox" || seenInboxIssueIds.has(issue.id)) {
+            continue;
+          }
+          seenInboxIssueIds.add(issue.id);
+          inboxIssues.push(issue);
+        }
+      }
       const archivedIds = new Set(readInboxArchivedIds());
       const replyOverrides = readInboxReplyOverrides();
       // Inbox count: match the inbox page's merged visible needs-reply set.
       const inboxIds = new Set<string>();
-      for (const list of [assignedToMe, myIssues, blockedIssues]) {
-        for (const issue of list) {
-          if (issue.title === "Board Inbox" || archivedIds.has(issue.id)) {
-            continue;
-          }
-          if (issueNeedsReply(issue, replyOverrides)) {
-            inboxIds.add(issue.id);
-          }
+      for (const issue of inboxIssues) {
+        if (archivedIds.has(issue.id)) {
+          continue;
+        }
+        if (issueNeedsReply(issue, replyOverrides)) {
+          inboxIds.add(issue.id);
         }
       }
       const inboxCount = inboxIds.size;
@@ -200,18 +305,82 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const inProgressCount = allIssues.filter((i) => i.status === "in_progress").length;
       const teamSize = agentList.length;
       setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, chat: 0, team: teamSize });
+      setCompanyData({
+        company: currentCompany,
+        dashboard,
+        agents: agentList,
+        goals: goalList,
+        issues: allIssues,
+        inboxIssues,
+        runs,
+        loading: false,
+        refreshing: false,
+        lastUpdatedAt: new Date().toISOString(),
+      });
+      setCompanies((prev) => {
+        if (!currentCompany) {
+          return prev;
+        }
+        const next = prev.slice();
+        const index = next.findIndex((company) => company.id === currentCompany.id);
+        if (index >= 0) {
+          next[index] = currentCompany;
+          return next;
+        }
+        return next;
+      });
       if (approvalsChanged) {
-        void loadCompanies();
+        setCompanies((prev) =>
+          prev.map((company) => (company.id === currentCompany.id ? currentCompany : company))
+        );
       }
-    } catch { /* silent */ }
-  }, [autoApprovePendingApprovals, companyLookupStatus, loadCompanies, selectedCompanyId]);
+    } catch {
+      setCompanyData((prev) => ({ ...prev, loading: false, refreshing: false }));
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [autoApprovePendingApprovals, companyLookupStatus, selectedCompanyId]);
 
   useEffect(() => {
     if (companyLookupStatus !== "ready") {
       return;
     }
     refresh();
-    const id = setInterval(refresh, 30000);
+  }, [companyLookupStatus, refresh]);
+
+  useEffect(() => {
+    const updateWindowState = () => {
+      const nextActive = document.visibilityState === "visible" && document.hasFocus();
+      const becameActive = !activeWindowRef.current && nextActive;
+      activeWindowRef.current = nextActive;
+      if (becameActive) {
+        void refresh();
+      }
+    };
+
+    activeWindowRef.current = document.visibilityState === "visible" && document.hasFocus();
+    window.addEventListener("focus", updateWindowState);
+    window.addEventListener("blur", updateWindowState);
+    document.addEventListener("visibilitychange", updateWindowState);
+
+    return () => {
+      window.removeEventListener("focus", updateWindowState);
+      window.removeEventListener("blur", updateWindowState);
+      document.removeEventListener("visibilitychange", updateWindowState);
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    if (companyLookupStatus !== "ready" || !activeWindowRef.current) {
+      return;
+    }
+
+    const id = setInterval(() => {
+      if (activeWindowRef.current) {
+        void refresh();
+      }
+    }, 10000);
+
     return () => clearInterval(id);
   }, [companyLookupStatus, refresh]);
 
@@ -229,9 +398,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <CompanyContext.Provider value={{ companyId: selectedCompanyId, companies, msid, workspaceCompanyId, companyLookupStatus, setCompanyId: handleSetCompanyId, companyPath, refreshCompanies: loadCompanies, wizardOpen, openCreateWizard, closeCreateWizard }}>
-      <BadgeCountsContext.Provider value={counts}>
-        <WixDesignSystemProvider>{children}</WixDesignSystemProvider>
-      </BadgeCountsContext.Provider>
+      <CompanyDataContext.Provider value={{ ...companyData, refresh }}>
+        <BadgeCountsContext.Provider value={counts}>
+          <WixDesignSystemProvider>{children}</WixDesignSystemProvider>
+        </BadgeCountsContext.Provider>
+      </CompanyDataContext.Provider>
     </CompanyContext.Provider>
   );
 }
