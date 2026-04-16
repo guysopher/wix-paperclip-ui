@@ -124,6 +124,7 @@ function InboxContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialTab = Math.max(0, TAB_KEYS.indexOf(searchParams.get("tab") || DEFAULT_TAB_KEY));
+  const selectedIssueId = searchParams.get("issue");
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const updateTab = (tabId: number) => {
@@ -266,6 +267,19 @@ function InboxContent() {
     setComments(c.reverse());
     setLoadingComments(false);
   };
+
+  useEffect(() => {
+    if (!selectedIssueId) {
+      return;
+    }
+
+    const targetIssue = inboxIssues.find((issue) => issue.id === selectedIssueId);
+    if (!targetIssue || selected?.id === targetIssue.id) {
+      return;
+    }
+
+    void selectIssue(targetIssue);
+  }, [inboxIssues, selectedIssueId]);
 
   const handleReply = async () => {
     if (!replyText.trim() || !selected) return;

@@ -296,7 +296,6 @@ function DashboardContent() {
   const [companyStatusError, setCompanyStatusError] = useState("");
   const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
   const [archivedInboxIds, setArchivedInboxIds] = useState<string[]>([]);
-  const [requestDrafts, setRequestDrafts] = useState<Record<string, string>>({});
   const [requestSubmittingId, setRequestSubmittingId] = useState<string | null>(null);
   const [requestError, setRequestError] = useState("");
   const [ceoRequestCards, setCeoRequestCards] = useState<Record<string, CeoRequestCard>>({});
@@ -1098,7 +1097,6 @@ function DashboardContent() {
     try {
       await postComment(issueId, body.trim());
       setReplyOverrides(setInboxReplyOverride(issueId, sentAt));
-      setRequestDrafts((prev) => ({ ...prev, [issueId]: "" }));
       const assigneeId = issue.assigneeAgentId || issue.assigneeId;
       if (assigneeId) {
         try {
@@ -1733,25 +1731,35 @@ function DashboardContent() {
                     No decisions or replies are blocking the team right now.
                   </div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                      gap: 12,
+                      alignItems: "stretch",
+                    }}
+                  >
                     {renderedAttentionRequests.map(({ issue, card }) => {
                       const isSubmitting = requestSubmittingId === issue.id;
                       return (
                         <div
                           key={issue.id}
                           style={{
-                            borderRadius: 10,
+                            borderRadius: 14,
                             border: "1px solid #e6eef7",
                             background: "#fbfdff",
-                            padding: "12px 14px",
+                            padding: "14px 16px",
+                            minHeight: 176,
+                            display: "flex",
+                            flexDirection: "column",
                           }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: "#162d3d", lineHeight: 1.4, marginBottom: 4 }}>
+                              <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d", lineHeight: 1.35, marginBottom: 6 }}>
                                 {card.ask}
                               </div>
-                              <div style={{ fontSize: 13, color: "#5f7386", lineHeight: 1.55 }}>
+                              <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.55 }}>
                                 {card.why}
                               </div>
                             </div>
@@ -1765,13 +1773,14 @@ function DashboardContent() {
                                 background: issue.status === "blocked" ? "#fff1ef" : "#fff8df",
                                 borderRadius: 999,
                                 padding: "4px 8px",
+                                flexShrink: 0,
                               }}
                             >
                               {issue.status === "blocked" ? "Blocking" : "Reply needed"}
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap", marginTop: "auto" }}>
                             {card.quickReplies.slice(0, 2).map((quickReply, index) => (
                               <button
                                 key={`${issue.id}:${quickReply}`}
@@ -1782,33 +1791,36 @@ function DashboardContent() {
                                   background: index === 0 ? "#f5fbf4" : "white",
                                   color: index === 0 ? "#2b6a3f" : "#5f7386",
                                   borderRadius: 999,
-                                  padding: "6px 12px",
-                                  fontSize: 12,
+                                  padding: "9px 12px",
+                                  fontSize: 13,
                                   fontWeight: 700,
                                   cursor: isSubmitting ? "default" : "pointer",
+                                  minHeight: 38,
                                 }}
                               >
                                 {isSubmitting && index === 0 ? "Sending..." : quickReply}
                               </button>
                             ))}
-                            <div style={{ flex: 1, minWidth: 220 }}>
-                              <Input
-                                value={requestDrafts[issue.id] || ""}
-                                onChange={(event) =>
-                                  setRequestDrafts((prev) => ({ ...prev, [issue.id]: event.target.value }))
-                                }
-                                placeholder="Type your answer..."
-                                disabled={isSubmitting}
-                                size="small"
-                              />
-                            </div>
-                            <Button
-                              size="tiny"
-                              disabled={isSubmitting || !(requestDrafts[issue.id] || "").trim()}
-                              onClick={() => void submitAttentionResponse(issue.id, requestDrafts[issue.id] || "")}
+                            <a
+                              href={companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`)}
+                              style={{
+                                border: "1px solid #d8e4f6",
+                                background: "#f3f8ff",
+                                color: "#2767c7",
+                                borderRadius: 999,
+                                padding: "9px 12px",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: 38,
+                              }}
                             >
-                              Send
-                            </Button>
+                              Open & answer
+                            </a>
                           </div>
                         </div>
                       );
