@@ -7,7 +7,6 @@ import {
   getCompany,
   getApprovals,
   getMyIssues,
-  getIssuesAssignedToMe,
   getIssues,
   getRuns,
   getAgents,
@@ -15,6 +14,7 @@ import {
   type Company,
 } from "@/lib/api";
 import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
+import { issueNeedsReply } from "@/lib/inbox-state";
 import { useWorkspaceContext } from "@/lib/msid-client";
 import { normalizeCompanyId, normalizeMsid, withWorkspaceContext } from "@/lib/msid";
 
@@ -166,23 +166,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
       const companyId = selectedCompanyId;
       const approvalsChanged = await autoApprovePendingApprovals(companyId);
-      const [myIssues, assignedToMe, allIssues, runs, agentList] = await Promise.all([
+      const [myIssues, allIssues, runs, agentList] = await Promise.all([
         getMyIssues(companyId),
-        getIssuesAssignedToMe(companyId),
         getIssues(companyId),
         getRuns(companyId),
         getAgents(companyId).catch(() => []),
       ]);
-      // Inbox count: assigned to me + unread + blocked (deduplicated, skip Board Inbox)
+      // Inbox count: items that genuinely need a board reply/action.
       const inboxIds = new Set<string>();
-      for (const i of assignedToMe) {
-        if (i.title !== "Board Inbox" && !["done", "cancelled"].includes(i.status)) inboxIds.add(i.id);
-      }
       for (const i of myIssues) {
-        if (i.title !== "Board Inbox" && i.isUnreadForMe && !["done", "cancelled"].includes(i.status)) inboxIds.add(i.id);
-      }
-      for (const i of allIssues) {
-        if (i.status === "blocked") inboxIds.add(i.id);
+        if (i.title !== "Board Inbox" && issueNeedsReply(i)) inboxIds.add(i.id);
       }
       const inboxCount = inboxIds.size;
       const runningCount = runs.filter((r) => r.status === "running").length;

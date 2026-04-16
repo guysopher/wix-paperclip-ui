@@ -15,6 +15,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "../../providers";
 import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
+import { issueIsSent, issueNeedsReply } from "@/lib/inbox-state";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import {
   getAgents,
@@ -225,10 +226,33 @@ function InboxContent() {
   const handleReply = async () => {
     if (!replyText.trim() || !selected) return;
     setSending(true);
+    const sentAt = new Date().toISOString();
     await postComment(selected.id, replyText);
     setReplyText("");
     const c = await getComments(selected.id);
     setComments(c.reverse());
+    setIssues((prev) =>
+      prev.map((issue) =>
+        issue.id === selected.id
+          ? {
+              ...issue,
+              isUnreadForMe: false,
+              myLastTouchAt: sentAt,
+              updatedAt: sentAt,
+            }
+          : issue,
+      ),
+    );
+    setSelected((prev) =>
+      prev && prev.id === selected.id
+        ? {
+            ...prev,
+            isUnreadForMe: false,
+            myLastTouchAt: sentAt,
+            updatedAt: sentAt,
+          }
+        : prev,
+    );
     setSending(false);
     const assigneeId = selected.assigneeAgentId || selected.assigneeId;
     if (assigneeId) { try { await invokeHeartbeat(assigneeId); } catch {} }
@@ -251,14 +275,11 @@ function InboxContent() {
 
   // Filter
   const allNonArchived = issues.filter((i) => !clientArchived.has(i.id));
-  // "Needs reply" = assigned to me OR unread OR blocked
   const needsReply = allNonArchived.filter((i) =>
-    !["done", "cancelled"].includes(i.status) &&
-    (i.assigneeUserId === "local-board" || i.isUnreadForMe || i.status === "blocked")
+    issueNeedsReply(i)
   );
-  // "Sent" = issues I touched that are assigned to agents (not to me)
   const sentByMe = allNonArchived.filter((i) =>
-    i.assigneeUserId !== "local-board" && !["done", "cancelled"].includes(i.status)
+    issueIsSent(i)
   );
   const activeIssues = allNonArchived.filter((i) => !["done", "cancelled"].includes(i.status));
   const doneIssues = allNonArchived.filter((i) => ["done", "cancelled"].includes(i.status));
@@ -342,12 +363,12 @@ function InboxContent() {
               const isSelected = selected?.id === issue.id;
               const assignee = agentName(issue.assigneeAgentId || issue.assigneeId);
               const activityTime = issue.lastExternalCommentAt || issue.updatedAt;
-              const isAssignedToMe = issue.assigneeUserId === "local-board";
+              const needsReplyNow = issueNeedsReply(issue);
               const isBlocked = issue.status === "blocked";
               const isDone = issue.status === "done" || issue.status === "cancelled";
 
-              const avatarBg = isBlocked ? "#fde8e8" : isDone ? "#f0f0f0" : isAssignedToMe ? "#fff4e6" : "#ddeeff";
-              const avatarColor = isBlocked ? "#d63031" : isDone ? "#aaa" : isAssignedToMe ? "#e67e22" : "#3899ec";
+              const avatarBg = isBlocked ? "#fde8e8" : isDone ? "#f0f0f0" : needsReplyNow ? "#fff4e6" : "#ddeeff";
+              const avatarColor = isBlocked ? "#d63031" : isDone ? "#aaa" : needsReplyNow ? "#e67e22" : "#3899ec";
 
               return (
                 <div
@@ -413,7 +434,7 @@ function InboxContent() {
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                       <Text size="small" secondary>{assignee}</Text>
                       {isBlocked && <Badge size="tiny" skin="danger">Blocked</Badge>}
-                      {isAssignedToMe && !isBlocked && <Badge size="tiny" skin="warning">Needs reply</Badge>}
+                      {needsReplyNow && !isBlocked && <Badge size="tiny" skin="warning">Needs reply</Badge>}
                     </div>
                   </div>
                 </div>
