@@ -1732,44 +1732,64 @@ function DashboardContent() {
                     style={{
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                      gap: 12,
+                      gap: 16,
                       alignItems: "stretch",
                     }}
                   >
                     {renderedAttentionRequests.map(({ issue, card }) => {
                       const isSubmitting = requestSubmittingId === issue.id;
+                      const isBlocking = issue.status === "blocked";
                       return (
                         <div
                           key={issue.id}
                           style={{
-                            borderRadius: 18,
-                            border: "1px solid #e6eef7",
-                            background: "linear-gradient(180deg, #fbfdff 0%, #f7fbff 100%)",
-                            padding: "18px",
-                            minHeight: 168,
+                            borderRadius: 24,
+                            border: "1px solid rgba(205, 220, 238, 0.95)",
+                            background: isBlocking
+                              ? "radial-gradient(circle at top right, rgba(238, 89, 81, 0.08), transparent 32%), linear-gradient(180deg, #ffffff 0%, #fbfdff 62%, #f5f9ff 100%)"
+                              : "radial-gradient(circle at top right, rgba(56, 153, 236, 0.10), transparent 34%), linear-gradient(180deg, #ffffff 0%, #fbfdff 62%, #f5f9ff 100%)",
+                            boxShadow: "0 18px 40px rgba(22, 45, 61, 0.06)",
+                            padding: "18px 18px 16px",
+                            minHeight: 200,
                             display: "flex",
                             flexDirection: "column",
                           }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 18 }}>
-                            <div style={{ minWidth: 0, flex: 1, fontSize: 20, fontWeight: 700, color: "#162d3d", lineHeight: 1.4 }}>
-                              {card.ask}
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 18 }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: "#7890a6" }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: isBlocking ? "#ee5951" : "#f5a623", boxShadow: isBlocking ? "0 0 0 4px rgba(238, 89, 81, 0.12)" : "0 0 0 4px rgba(245, 166, 35, 0.14)" }} />
+                              Needs your input
                             </div>
                             <span
                               style={{
                                 fontSize: 10,
                                 fontWeight: 700,
                                 textTransform: "uppercase",
-                                letterSpacing: 0.5,
-                                color: issue.status === "blocked" ? "#d04b3c" : "#b68200",
-                                background: issue.status === "blocked" ? "#fff1ef" : "#fff8df",
+                                letterSpacing: 0.7,
+                                color: isBlocking ? "#d04b3c" : "#b68200",
+                                background: isBlocking ? "#fff1ef" : "#fff8df",
                                 borderRadius: 999,
-                                padding: "4px 8px",
+                                padding: "6px 10px",
                                 flexShrink: 0,
                               }}
                             >
-                              {issue.status === "blocked" ? "Blocking" : "Reply needed"}
+                              {isBlocking ? "Blocking" : "Reply needed"}
                             </span>
+                          </div>
+
+                          <div
+                            style={{
+                              minWidth: 0,
+                              flex: 1,
+                              fontSize: 19,
+                              fontWeight: 700,
+                              color: "#162d3d",
+                              lineHeight: 1.45,
+                              letterSpacing: "-0.03em",
+                              marginBottom: 18,
+                            }}
+                          >
+                            {card.ask}
                           </div>
 
                           <div
@@ -1778,6 +1798,10 @@ function DashboardContent() {
                               gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                               gap: 8,
                               marginTop: "auto",
+                              padding: 8,
+                              borderRadius: 18,
+                              background: "rgba(232, 240, 250, 0.75)",
+                              border: "1px solid rgba(214, 227, 242, 0.95)",
                             }}
                           >
                             {card.quickReplies.slice(0, 2).map((quickReply, index) => (
@@ -1786,16 +1810,17 @@ function DashboardContent() {
                                 onClick={() => void submitAttentionResponse(issue.id, quickReply)}
                                 disabled={isSubmitting}
                                 style={{
-                                  border: "1px solid #d9e3f2",
+                                  border: "1px solid rgba(214, 227, 242, 0.95)",
                                   background: "white",
                                   color: "#315b8c",
-                                  borderRadius: 12,
-                                  padding: "10px 12px",
+                                  borderRadius: 14,
+                                  padding: "11px 12px",
                                   fontSize: 13,
                                   fontWeight: 600,
                                   cursor: isSubmitting ? "default" : "pointer",
-                                  minHeight: 44,
+                                  minHeight: 46,
                                   textAlign: "center",
+                                  boxShadow: "0 2px 6px rgba(22, 45, 61, 0.04)",
                                 }}
                               >
                                 {isSubmitting && index === 0 ? "Sending..." : quickReply}
@@ -1804,11 +1829,11 @@ function DashboardContent() {
                             <a
                               href={companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`)}
                               style={{
-                                border: "1px solid #3d7ee8",
-                                background: "#3d7ee8",
+                                border: "1px solid #3167d6",
+                                background: "linear-gradient(135deg, #3d7ee8 0%, #2f5dd1 100%)",
                                 color: "white",
-                                borderRadius: 12,
-                                padding: "10px 12px",
+                                borderRadius: 14,
+                                padding: "11px 12px",
                                 fontSize: 13,
                                 fontWeight: 600,
                                 cursor: "pointer",
@@ -1816,7 +1841,8 @@ function DashboardContent() {
                                 display: "inline-flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                minHeight: 44,
+                                minHeight: 46,
+                                boxShadow: "0 10px 20px rgba(61, 126, 232, 0.24)",
                               }}
                             >
                               Answer fully
