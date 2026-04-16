@@ -37,7 +37,6 @@ type CeoRequestOutput = {
   requests: Array<{
     issueId: string;
     ask: string;
-    why: string;
     quickReplies: string[];
   }>;
 };
@@ -57,15 +56,14 @@ function stripMarkdown(value: string | null | undefined): string {
     .trim();
 }
 
-const SYSTEM_PROMPT = `You rewrite internal AI-team blockers into very clear requests for the business owner.
+const SYSTEM_PROMPT = `You rewrite internal AI-team blockers into very clear founder requests.
 
 Return ONLY valid JSON with this exact shape:
 {
   "requests": [
     {
       "issueId": "string",
-      "ask": "short plain-language ask",
-      "why": "one sentence explaining why it matters now",
+      "ask": "one clear request sentence",
       "quickReplies": ["reply option 1", "reply option 2"]
     }
   ]
@@ -73,21 +71,26 @@ Return ONLY valid JSON with this exact shape:
 
 Rules:
 - Each request must be easy for a founder to understand in under 5 seconds.
+- The ask must be a single direct sentence that already includes the needed context.
 - The ask must clearly say what the founder needs to decide, send, confirm, approve, or do.
-- Never use task IDs in the ask or why.
+- Prefer a question when the founder needs to choose or confirm something.
+- Prefer a direct request when the founder needs to send or do something.
+- Never use task IDs in the ask.
 - Never mention internal workflow words like issue, inbox, board, heartbeat, run, blocker, or ticket.
 - Prefer business language over technical language.
-- The quick replies must be directly relevant to the ask.
+- Do not split the request into a title and explanation.
+- The quick replies must read like natural answers to the exact ask.
+- Quick replies must not be generic UI labels unless they are truly the best answer.
+- Avoid "Done" unless the ask is literally about completing a manual action.
 - Good quick replies are things like:
-  - "Yes, do that"
-  - "No, skip that for now"
+  - "Yes, launch in Hebrew"
+  - "No, English only"
   - "Use the Instagram feed"
-  - "Launch in Hebrew too"
-  - "Start with the first 8 products"
+  - "Start with 8 products"
+  - "Skip that for now"
 - Keep each quick reply under 8 words.
-- If the best answer depends on a specific piece of information, one quick reply can be a good default and the other can be "Not now".
-- Keep "ask" under 90 characters when possible.
-- Keep "why" to one short sentence.
+- The two quick replies should usually represent the two most likely answers.
+- Keep "ask" under 120 characters when possible.
 - Output at most 3 requests.`;
 
 export async function POST(request: NextRequest) {
@@ -149,13 +152,11 @@ export async function POST(request: NextRequest) {
             !!item &&
             typeof item.issueId === "string" &&
             typeof item.ask === "string" &&
-            typeof item.why === "string" &&
             Array.isArray(item.quickReplies),
           )
           .map((item) => ({
             issueId: item.issueId,
             ask: item.ask.trim(),
-            why: item.why.trim(),
             quickReplies: item.quickReplies
               .filter((entry): entry is string => typeof entry === "string")
               .map((entry) => entry.trim())

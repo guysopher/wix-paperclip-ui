@@ -137,7 +137,6 @@ type LiveRunFeed = {
 type CeoRequestCard = {
   issueId: string;
   ask: string;
-  why: string;
   quickReplies: string[];
 };
 
@@ -491,8 +490,7 @@ function DashboardContent() {
     issue,
     card: ceoRequestCards[issue.id] || {
       issueId: issue.id,
-      ask: issue.title,
-      why: summarizeAttentionWhy(issue.description, issue.status),
+      ask: summarizeAttentionWhy(issue.description, issue.status) || issue.title,
       quickReplies: fallbackQuickReplies(issue.status),
     },
   }));
@@ -561,7 +559,6 @@ function DashboardContent() {
             nextCards[item.issueId] = {
               issueId: item.issueId,
               ask: item.ask,
-              why: item.why,
               quickReplies: Array.isArray(item.quickReplies) && item.quickReplies.length > 0
                 ? item.quickReplies.slice(0, 2)
                 : fallbackQuickReplies(requestSnapshot.find((issue) => issue.id === item.issueId)?.status || "todo"),
@@ -1745,23 +1742,18 @@ function DashboardContent() {
                         <div
                           key={issue.id}
                           style={{
-                            borderRadius: 14,
+                            borderRadius: 18,
                             border: "1px solid #e6eef7",
-                            background: "#fbfdff",
-                            padding: "14px 16px",
-                            minHeight: 176,
+                            background: "linear-gradient(180deg, #fbfdff 0%, #f7fbff 100%)",
+                            padding: "18px",
+                            minHeight: 168,
                             display: "flex",
                             flexDirection: "column",
                           }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d", lineHeight: 1.35, marginBottom: 6 }}>
-                                {card.ask}
-                              </div>
-                              <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.55 }}>
-                                {card.why}
-                              </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 18 }}>
+                            <div style={{ minWidth: 0, flex: 1, fontSize: 20, fontWeight: 700, color: "#162d3d", lineHeight: 1.4 }}>
+                              {card.ask}
                             </div>
                             <span
                               style={{
@@ -1780,22 +1772,30 @@ function DashboardContent() {
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap", marginTop: "auto" }}>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                              gap: 8,
+                              marginTop: "auto",
+                            }}
+                          >
                             {card.quickReplies.slice(0, 2).map((quickReply, index) => (
                               <button
                                 key={`${issue.id}:${quickReply}`}
                                 onClick={() => void submitAttentionResponse(issue.id, quickReply)}
                                 disabled={isSubmitting}
                                 style={{
-                                  border: index === 0 ? "1px solid #d8e6d5" : "1px solid #e6e8eb",
-                                  background: index === 0 ? "#f5fbf4" : "white",
-                                  color: index === 0 ? "#2b6a3f" : "#5f7386",
-                                  borderRadius: 999,
-                                  padding: "9px 12px",
+                                  border: "1px solid #d9e3f2",
+                                  background: "white",
+                                  color: "#315b8c",
+                                  borderRadius: 12,
+                                  padding: "10px 12px",
                                   fontSize: 13,
-                                  fontWeight: 700,
+                                  fontWeight: 600,
                                   cursor: isSubmitting ? "default" : "pointer",
-                                  minHeight: 38,
+                                  minHeight: 44,
+                                  textAlign: "center",
                                 }}
                               >
                                 {isSubmitting && index === 0 ? "Sending..." : quickReply}
@@ -1804,22 +1804,22 @@ function DashboardContent() {
                             <a
                               href={companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`)}
                               style={{
-                                border: "1px solid #d8e4f6",
-                                background: "#f3f8ff",
-                                color: "#2767c7",
-                                borderRadius: 999,
-                                padding: "9px 12px",
+                                border: "1px solid #3d7ee8",
+                                background: "#3d7ee8",
+                                color: "white",
+                                borderRadius: 12,
+                                padding: "10px 12px",
                                 fontSize: 13,
-                                fontWeight: 700,
+                                fontWeight: 600,
                                 cursor: "pointer",
                                 textDecoration: "none",
                                 display: "inline-flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                minHeight: 38,
+                                minHeight: 44,
                               }}
                             >
-                              Open & answer
+                              Answer fully
                             </a>
                           </div>
                         </div>
