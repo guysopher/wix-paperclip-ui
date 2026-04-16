@@ -257,6 +257,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     agent.role === "ceo" ? "#3899ec" : agent.role === "pm" ? "#7b61ff" : "#44b5b0";
   const runtimeModel = getRuntimeModelLabel(getRuntimeModel(agent, runs));
   const configuredModel = editModel.trim();
+  const savedConfiguredModel = String(agent.adapterConfig?.model || "").trim();
   const runtimeModelRaw = getRuntimeModel(agent, runs);
   const modelDropdownOptions = (() => {
     const known = new Map<string, { id: string; value: string }>();
@@ -278,6 +279,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const showModelInput = supportsModelSelection && !showModelDropdown;
   const hasPendingModelChange =
     configuredModel.length > 0 && runtimeModelRaw !== null && configuredModel !== runtimeModelRaw;
+  const hasUnsavedModelChange = configuredModel !== savedConfiguredModel;
 
   return (
     <>
@@ -430,64 +432,69 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                     options={managerOptions}
                   />
                 </FormField>
-                <FormField
-                  label="Model for next runs"
-                  infoContent="Choose the model Paperclip should save into adapterConfig.model for this agent. This is the editable setting."
-                >
-                  <Box direction="vertical" gap="6px">
-                    {loadingModels ? (
-                      <Loader size="tiny" />
-                    ) : showModelDropdown ? (
-                      <Dropdown
-                        size="small"
-                        selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
-                        onSelect={(option) => setEditModel(String(option.id))}
-                        options={modelDropdownOptions}
-                      />
-                    ) : showModelInput ? (
-                      <Input
-                        size="small"
-                        value={editModel}
-                        onChange={(e) => setEditModel(e.target.value)}
-                        placeholder={
-                          agent.adapterType === "opencode_local"
-                            ? "openai/gpt-5.4"
-                            : agent.adapterType === "claude_local"
-                              ? "claude-sonnet-4-6"
-                              : "gpt-5.4"
-                        }
-                      />
-                    ) : (
-                      <Text size="small" secondary>
-                        This adapter does not expose model selection in this UI.
-                      </Text>
-                    )}
-                    <Text size="tiny" secondary>
-                      This takes effect after you save, then wake the agent or wait for the next check-in.
-                    </Text>
-                    <Text size="tiny" secondary style={{ fontFamily: "monospace" }}>
-                      Adapter: {agent.adapterType}
-                    </Text>
-                    {hasPendingModelChange && (
-                      <Badge size="tiny" skin="warning">
-                        Pending change: latest run still used {runtimeModel}
-                      </Badge>
-                    )}
-                  </Box>
-                </FormField>
-                <FormField
-                  label="Last observed runtime model"
-                  infoContent="This is the model seen in the latest actual run. It is read-only and can lag behind the configured model until the agent runs again."
-                >
-                  <Box direction="vertical" gap="6px">
-                    <Text size="small" weight="bold" style={{ fontFamily: "monospace" }}>
-                      {runtimeModel}
-                    </Text>
-                    <Text size="tiny" secondary>
-                      Read-only. Updated from real run usage.
-                    </Text>
-                  </Box>
-                </FormField>
+                <div style={{ gridColumn: "span 2" }}>
+                  <FormField
+                    label="Model"
+                    infoContent="This is the one editable model setting for the agent. Paperclip saves it into adapterConfig.model and uses it on future runs."
+                  >
+                    <Box direction="vertical" gap="8px">
+                      {loadingModels ? (
+                        <Loader size="tiny" />
+                      ) : showModelDropdown ? (
+                        <Dropdown
+                          size="small"
+                          selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
+                          onSelect={(option) => setEditModel(String(option.id))}
+                          options={modelDropdownOptions}
+                        />
+                      ) : showModelInput ? (
+                        <Input
+                          size="small"
+                          value={editModel}
+                          onChange={(e) => setEditModel(e.target.value)}
+                          placeholder={
+                            agent.adapterType === "opencode_local"
+                              ? "openai/gpt-5.4"
+                              : agent.adapterType === "claude_local"
+                                ? "claude-sonnet-4-6"
+                                : "gpt-5.4"
+                          }
+                        />
+                      ) : (
+                        <Text size="small" secondary>
+                          This adapter does not expose model selection in this UI.
+                        </Text>
+                      )}
+                      <Box direction="vertical" gap="2px">
+                        <Text size="tiny" secondary>
+                          Save changes, then wake the agent or wait for the next check-in for the new model to take effect.
+                        </Text>
+                        <Text size="tiny" secondary>
+                          Observed in real runs:{" "}
+                          <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            {runtimeModel}
+                          </span>
+                          {runtimeModelRaw === null ? " (no completed run has reported a model yet)" : ""}
+                        </Text>
+                        <Text size="tiny" secondary>
+                          Adapter: <span style={{ fontFamily: "monospace" }}>{agent.adapterType}</span>
+                        </Text>
+                      </Box>
+                      <Box direction="horizontal" gap="8px">
+                        {hasUnsavedModelChange && (
+                          <Badge size="tiny" skin="general">
+                            Unsaved model change
+                          </Badge>
+                        )}
+                        {hasPendingModelChange && (
+                          <Badge size="tiny" skin="warning">
+                            Real runs still show {runtimeModel}
+                          </Badge>
+                        )}
+                      </Box>
+                    </Box>
+                  </FormField>
+                </div>
                 <FormField
                   label="Check-in schedule"
                   infoContent="How often this agent automatically wakes up to check for new tasks, messages, and updates. You can also wake them up manually at any time."
