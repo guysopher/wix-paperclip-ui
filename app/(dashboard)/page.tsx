@@ -1684,7 +1684,7 @@ function DashboardContent() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: attentionRequests.length > 0 || requestError ? 12 : 0, flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d", marginBottom: 2 }}>
-                      What I Need From You
+                      Please Review
                     </div>
                     <div style={{ fontSize: 13, color: "#5f7386" }}>
                       {ceoRequestsLoading && attentionRequests.length > 0 ? "Framing the clearest asks for you..." : attentionHeadline}
@@ -1781,11 +1781,11 @@ function DashboardContent() {
                             style={{
                               minWidth: 0,
                               flex: 1,
-                              fontSize: 19,
-                              fontWeight: 700,
+                              fontSize: 18,
+                              fontWeight: 500,
                               color: "#162d3d",
                               lineHeight: 1.45,
-                              letterSpacing: "-0.03em",
+                              letterSpacing: "-0.02em",
                               marginBottom: 18,
                             }}
                           >
@@ -1794,14 +1794,12 @@ function DashboardContent() {
 
                           <div
                             style={{
-                              display: "grid",
-                              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                              gap: 8,
+                              display: "flex",
+                              gap: 14,
+                              flexWrap: "wrap",
                               marginTop: "auto",
-                              padding: 8,
-                              borderRadius: 18,
-                              background: "rgba(232, 240, 250, 0.75)",
-                              border: "1px solid rgba(214, 227, 242, 0.95)",
+                              paddingTop: 14,
+                              borderTop: "1px solid rgba(214, 227, 242, 0.75)",
                             }}
                           >
                             {card.quickReplies.slice(0, 2).map((quickReply, index) => (
@@ -1810,17 +1808,17 @@ function DashboardContent() {
                                 onClick={() => void submitAttentionResponse(issue.id, quickReply)}
                                 disabled={isSubmitting}
                                 style={{
-                                  border: "1px solid rgba(214, 227, 242, 0.95)",
-                                  background: "white",
+                                  border: "none",
+                                  background: "transparent",
                                   color: "#315b8c",
-                                  borderRadius: 14,
-                                  padding: "11px 12px",
+                                  borderRadius: 0,
+                                  padding: 0,
                                   fontSize: 13,
                                   fontWeight: 600,
                                   cursor: isSubmitting ? "default" : "pointer",
-                                  minHeight: 46,
                                   textAlign: "center",
-                                  boxShadow: "0 2px 6px rgba(22, 45, 61, 0.04)",
+                                  textDecoration: "none",
+                                  lineHeight: 1.4,
                                 }}
                               >
                                 {isSubmitting && index === 0 ? "Sending..." : quickReply}
@@ -1829,11 +1827,11 @@ function DashboardContent() {
                             <a
                               href={companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`)}
                               style={{
-                                border: "1px solid #3167d6",
-                                background: "linear-gradient(135deg, #3d7ee8 0%, #2f5dd1 100%)",
-                                color: "white",
-                                borderRadius: 14,
-                                padding: "11px 12px",
+                                border: "none",
+                                background: "transparent",
+                                color: "#2767c7",
+                                borderRadius: 0,
+                                padding: 0,
                                 fontSize: 13,
                                 fontWeight: 600,
                                 cursor: "pointer",
@@ -1841,8 +1839,7 @@ function DashboardContent() {
                                 display: "inline-flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                minHeight: 46,
-                                boxShadow: "0 10px 20px rgba(61, 126, 232, 0.24)",
+                                lineHeight: 1.4,
                               }}
                             >
                               Answer fully
