@@ -1982,10 +1982,11 @@ function DashboardContent() {
                                 if (!companyId) {
                                   return;
                                 }
+                                const taskRef = issue.identifier || "this task";
                                 openCeoChatDiscussion({
                                   companyId,
                                   issueId: card.issueId,
-                                  text: `Let's discuss and resolve "${card.ask}"`,
+                                  text: `Let's discuss how to resolve ${taskRef}. Ask me how I would like to resolve it, then make the necessary changes based on my direction.`,
                                 });
                               }}
                               style={{
