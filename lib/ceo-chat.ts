@@ -67,7 +67,16 @@ async function paperclipPost<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-async function buildSystemPrompt(companyId: string): Promise<string> {
+async function paperclipPatch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${PAPERCLIP_API}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+async function buildSystemPrompt(companyId: string, sourceIssueId?: string | null): Promise<string> {
   const [company, agents, issues, goals] = await Promise.all([
     paperclip<CompanyData>(`/companies/${companyId}`),
     paperclip<AgentData[]>(`/companies/${companyId}/agents`),
@@ -100,6 +109,10 @@ async function buildSystemPrompt(companyId: string): Promise<string> {
     .map((goal) => `- ${goal.title}`)
     .join("\n");
 
+  const sourceIssue = sourceIssueId
+    ? issues.find((issue) => issue.id === sourceIssueId) || null
+    : null;
+
   return `You are the AI Team Lead of ${company.name}. The board member (human) is calling you for a quick chat. This is like a phone call — be fast, direct, helpful, and easy to talk to.
 
 ABOUT THE AI TEAM:
@@ -117,11 +130,21 @@ ${taskList || "No active team tasks."}
 AI TEAM GOALS:
 ${goalList || "No goals set."}
 
+${sourceIssue ? `SOURCE REQUEST BEING DISCUSSED:
+- issueId: ${sourceIssue.id}
+- identifier: ${sourceIssue.identifier}
+- title: ${sourceIssue.title}
+- status: ${sourceIssue.status}
+- current owner: ${sourceIssue.assigneeAgentId ? agentMap.get(sourceIssue.assigneeAgentId) || "Unknown" : sourceIssue.assigneeUserId || "Unassigned"}
+
+When this chat started from a source request, prefer updating or reassigning that existing request instead of creating a duplicate task.` : ""}
+
 HOW TO BEHAVE IN THIS CHAT:
 - This is a quick, real-time conversation. Keep answers SHORT (1-3 sentences).
 - You know everything about the AI Team — answer questions about tasks, specialists, progress, blockers.
 - If there are tasks requiring board attention, mention them naturally when relevant, but do not lead with bureaucracy.
 - If the board member asks for something actionable, immediately use the create_task tool and assign it to an owner. Treat every new request from the board member as urgent and create it with the highest priority.
+- If this chat started from an existing request, resolve that request by updating or reassigning it first. Only create a new task if the work is genuinely separate.
 - Be direct, confident, and helpful. Slightly casual is good. Do not sound stiff, corporate, or bureaucratic.
 - If you don't know something specific, say so — don't make things up.
 - Talk like a real team lead on a call. Do not mention task IDs, issue IDs, or markdown links unless the board member explicitly asks for the exact link or identifier.
@@ -148,10 +171,26 @@ const TOOLS: OpenAI.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "update_task",
+      description: "Update an existing task/issue, especially when resolving a board request from this discussion. Use this to assign the existing request to the right agent, update its status, or both.",
+      parameters: {
+        type: "object",
+        properties: {
+          issue_id: { type: "string", description: "The id of the existing issue/task to update." },
+          assignee_name: { type: "string", description: "Name of the agent who should own this task after the discussion." },
+          status: { type: "string", description: "Optional new status such as backlog, todo, in_progress, blocked, done, or cancelled." },
+        },
+        required: ["issue_id"],
+      },
+    },
+  },
 ];
 
-export async function runCeoChat(companyId: string, messages: CeoChatMessage[]): Promise<CeoChatResult> {
-  const systemPrompt = await buildSystemPrompt(companyId);
+export async function runCeoChat(companyId: string, messages: CeoChatMessage[], sourceIssueId?: string | null): Promise<CeoChatResult> {
+  const systemPrompt = await buildSystemPrompt(companyId, sourceIssueId);
 
   const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
@@ -188,7 +227,7 @@ export async function runCeoChat(companyId: string, messages: CeoChatMessage[]):
     const agents = await paperclip<AgentData[]>(`/companies/${companyId}/agents`);
 
     for (const toolCall of toolCalls) {
-      if (toolCall.type !== "function" || toolCall.function.name !== "create_task") {
+      if (toolCall.type !== "function") {
         continue;
       }
 
@@ -213,19 +252,43 @@ export async function runCeoChat(companyId: string, messages: CeoChatMessage[]):
           }
         }
 
-        const issue = await paperclipPost<IssueData>(`/companies/${companyId}/issues`, {
-          title: args.title,
-          description: args.description,
-          priority: "critical",
-          assigneeId,
-        });
+        if (toolCall.function.name === "create_task") {
+          const issue = await paperclipPost<IssueData>(`/companies/${companyId}/issues`, {
+            title: args.title,
+            description: args.description,
+            priority: "critical",
+            assigneeAgentId: assigneeId || null,
+          });
 
-        actions.push({ type: "create_task", title: args.title, identifier: issue.identifier });
-        openaiMessages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: JSON.stringify({ success: true, identifier: issue.identifier, title: args.title }),
-        });
+          actions.push({ type: "create_task", title: args.title, identifier: issue.identifier });
+          openaiMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({ success: true, identifier: issue.identifier, title: args.title }),
+          });
+          continue;
+        }
+
+        if (toolCall.function.name === "update_task") {
+          const nextStatus = typeof args.status === "string" && args.status.trim() ? args.status.trim() : undefined;
+          const issue = await paperclipPatch<IssueData>(`/issues/${args.issue_id}`, {
+            assigneeAgentId: assigneeId || null,
+            ...(nextStatus ? { status: nextStatus } : {}),
+          });
+
+          actions.push({ type: "update_task", title: issue.title, identifier: issue.identifier });
+          openaiMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({
+              success: true,
+              identifier: issue.identifier,
+              title: issue.title,
+              assigneeAgentId: issue.assigneeAgentId,
+              status: issue.status,
+            }),
+          });
+        }
       } catch (error) {
         openaiMessages.push({
           role: "tool",

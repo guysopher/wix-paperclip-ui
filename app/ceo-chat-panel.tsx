@@ -152,7 +152,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
       const res = await fetch("/api/ceo-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId, messages: updatedMessages }),
+        body: JSON.stringify({ companyId, messages: updatedMessages, sourceIssueId: sourceIssueId || null }),
       });
       const data = await res.json();
       if (data.text) {

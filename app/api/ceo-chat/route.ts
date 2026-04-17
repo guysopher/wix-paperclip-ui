@@ -3,9 +3,9 @@ import { runCeoChat } from "@/lib/ceo-chat";
 
 export async function POST(request: NextRequest) {
   try {
-    const { companyId, messages } = await request.json();
+    const { companyId, messages, sourceIssueId } = await request.json();
     if (!companyId) return NextResponse.json({ error: "Missing companyId" }, { status: 400 });
-    const result = await runCeoChat(companyId, messages || []);
+    const result = await runCeoChat(companyId, messages || [], sourceIssueId || null);
     return NextResponse.json(result);
   } catch (e: unknown) {
     console.error("AI Business Manager chat error:", e);
