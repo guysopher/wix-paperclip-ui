@@ -1849,69 +1849,36 @@ function DashboardContent() {
           </div>
           </div>
 
-          <div>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
-              Your Attention
-            </div>
-            <Card>
-              <Card.Content>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: attentionRequests.length > 0 ? 12 : 0, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d" }}>
-                      Needs Your Input
-                    </div>
-                  </div>
-                  <a
-                    href={companyPath("/inbox?tab=needs-reply")}
-                    style={{
-                      color: "#3899ec",
-                      textDecoration: "none",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    Open inbox
-                    <span style={{ fontSize: 16 }}>→</span>
-                  </a>
-                </div>
-
-                {attentionRequests.length === 0 ? (
-                  <div
-                    style={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(177, 222, 193, 0.9)",
-                      background:
-                        "radial-gradient(circle at top right, rgba(0, 194, 120, 0.10), transparent 34%), linear-gradient(180deg, #ffffff 0%, #f7fffb 100%)",
-                      boxShadow: "0 12px 28px rgba(22, 45, 61, 0.04)",
-                      padding: "18px 20px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        background: "#00c278",
-                        boxShadow: "0 0 0 6px rgba(0, 194, 120, 0.12)",
-                        flexShrink: 0,
-                      }}
-                    />
+          {attentionRequests.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
+                Your Attention
+              </div>
+              <Card>
+                <Card.Content>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1f5136", marginBottom: 2 }}>
-                        The AI Team has it covered
-                      </div>
-                      <div style={{ fontSize: 14, color: "#4d6b5a", lineHeight: 1.6 }}>
-                        No decisions or replies are blocking progress right now. The team is moving work forward without needing anything from you.
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d" }}>
+                        Needs Your Input
                       </div>
                     </div>
+                    <a
+                      href={companyPath("/inbox?tab=needs-reply")}
+                      style={{
+                        color: "#3899ec",
+                        textDecoration: "none",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      Open inbox
+                      <span style={{ fontSize: 16 }}>→</span>
+                    </a>
                   </div>
-                ) : (
+
                   <div
                     style={{
                       display: "grid",
@@ -2043,10 +2010,10 @@ function DashboardContent() {
                       );
                     })}
                   </div>
-                )}
-              </Card.Content>
-            </Card>
-          </div>
+                </Card.Content>
+              </Card>
+            </div>
+          )}
 
           <div>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
