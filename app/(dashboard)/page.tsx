@@ -57,7 +57,6 @@ import {
   runCompanyHealthCheck,
   restartPaperclipServer,
   repairCodexAuth,
-  backfillAgentPrompts,
   type Agent,
   type HeartbeatRun,
 } from "@/lib/api";
@@ -1086,7 +1085,21 @@ function DashboardContent() {
 
     setBackfillingAgentPrompts(true);
     try {
-      const result = await backfillAgentPrompts(companyId);
+      const response = await fetch("/api/health/backfill-agent-prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      });
+      const result = (await response.json().catch(() => ({ error: response.statusText }))) as {
+        ok?: boolean;
+        updatedCount: number;
+        skippedCount: number;
+        errorCount: number;
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error || response.statusText);
+      }
       await refresh();
       setHealthResult({
         status: result.errorCount > 0 ? "warning" : "repaired",
