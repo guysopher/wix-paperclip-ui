@@ -228,14 +228,24 @@ function summarizeAttentionWhy(description: string, status: string): string {
   const plain = stripMarkdownToPlainText(description);
   const summary = firstSentence(plain);
   if (summary) {
-    return summary;
+    const normalized = summary.replace(/^the founder\s+/i, "");
+    if (/^review\b/i.test(normalized)) {
+      return `Please ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`;
+    }
+    if (/^turn\b/i.test(normalized)) {
+      return `Should we ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}?`;
+    }
+    if (/^approved\b/i.test(normalized) || /^approve\b/i.test(normalized)) {
+      return `Please confirm: ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`;
+    }
+    return normalized.endsWith("?") ? normalized : `Please confirm: ${normalized}`;
   }
 
   if (status === "blocked") {
-    return "This is currently blocking progress and needs your input to unblock the team.";
+    return "What would you like us to do next so the team can unblock this work?";
   }
 
-  return "The team needs a quick answer from you so work can keep moving.";
+  return "What would you like us to do next so work can keep moving?";
 }
 
 function fallbackQuickReplies(status: string): string[] {

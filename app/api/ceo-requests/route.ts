@@ -71,10 +71,19 @@ Return ONLY valid JSON with this exact shape:
 
 Rules:
 - Each request must be easy for a founder to understand in under 5 seconds.
+- Write every ask directly to the founder in natural second-person language.
+- The ask must sound like the AI Team is asking the founder for something concrete right now.
 - The ask must be a single direct sentence that already includes the needed context.
 - The ask must clearly say what the founder needs to decide, send, confirm, approve, or do.
 - Prefer a question when the founder needs to choose or confirm something.
 - Prefer a direct request when the founder needs to send or do something.
+- Never phrase the ask as an internal status update, a summary of what happened, or a statement about "the founder".
+- Bad: "The founder approved the AI Team Lead proposal for Sweet Marley."
+- Good: "Do you want us to start executing the approved Sweet Marley plan now?"
+- Bad: "Turn the approved site proposal into the first real version of the business site for Sweet Marley."
+- Good: "Should we turn the approved Sweet Marley site proposal into the first live version now?"
+- Bad: "Review the founder's Instagram and current collection to define positioning, audience feel, messaging direction..."
+- Good: "Please send the Instagram account and current collection you want us to use for Sweet Marley's positioning."
 - Never use task IDs, issue identifiers, or internal reference codes in the ask.
 - If the source contains task IDs or codes, translate them into plain language instead of copying them.
 - Never mention internal workflow words like issue, inbox, board, heartbeat, run, blocker, or ticket.
