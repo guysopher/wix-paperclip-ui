@@ -52,6 +52,25 @@ export function parseRunLog(raw: string): LogEntry[] {
         } else if (type === "result") {
           const result = (chunk.result as string) || "";
           if (result) items.push({ kind: "result", text: result, ts });
+        } else if (type === "item.completed" || type === "item.started") {
+          const item = chunk.item as Record<string, unknown> | undefined;
+          const itemType = typeof item?.type === "string" ? item.type : "";
+
+          if (itemType === "agent_message" && type === "item.completed") {
+            const text = typeof item?.text === "string" ? item.text.trim() : "";
+            if (text) items.push({ kind: "text", text, ts });
+          }
+
+          if (itemType === "command_execution") {
+            items.push({ kind: "tool", text: "", toolName: "Bash", ts });
+
+            if (type === "item.completed") {
+              const output = typeof item?.aggregated_output === "string" ? item.aggregated_output.trim() : "";
+              if (output) {
+                items.push({ kind: "result", text: output, ts });
+              }
+            }
+          }
         }
       }
     } catch { /* skip */ }
@@ -177,6 +196,50 @@ export function parseDetailedRunLog(raw: string): DetailedRunEvent[] {
           }
         }
         continue;
+      }
+
+      if (type === "item.started" || type === "item.completed") {
+        const item = chunk.item as Record<string, any> | undefined;
+        const itemType = typeof item?.type === "string" ? item.type : undefined;
+
+        if (itemType === "agent_message" && type === "item.completed" && typeof item?.text === "string") {
+          events.push({
+            kind: "assistant",
+            timestamp: ts,
+            text: item.text,
+          });
+          continue;
+        }
+
+        if (itemType === "command_execution") {
+          const command = typeof item?.command === "string" ? item.command : "";
+          const output =
+            typeof item?.aggregated_output === "string"
+              ? item.aggregated_output.trim()
+              : "";
+          const exitCode = item?.exit_code;
+
+          if (type === "item.started") {
+            events.push({
+              kind: "tool_use",
+              timestamp: ts,
+              toolName: "Bash",
+              title: "Ran command",
+              input: command,
+            });
+            continue;
+          }
+
+          if (output || exitCode !== null && exitCode !== undefined) {
+            events.push({
+              kind: "tool_result",
+              timestamp: ts,
+              title: exitCode !== null && exitCode !== undefined ? `Exit code: ${String(exitCode)}` : "Command output",
+              output: output || "Command completed with no captured output.",
+            });
+            continue;
+          }
+        }
       }
 
       if (type === "user" && chunk.message?.content) {
