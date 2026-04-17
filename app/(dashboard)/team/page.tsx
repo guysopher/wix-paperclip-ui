@@ -137,7 +137,8 @@ function TeamContent() {
     },
     { title: "Manager", render: (row: Agent) => <Text size="small">{managerName(row.reportsTo)}</Text>, width: "15%" },
     { title: "Model", render: (row: Agent) => {
-      const model = getRuntimeModelLabel(getRuntimeModel(row, runs));
+      const configuredModel = String(row.adapterConfig?.model || "").trim();
+      const model = configuredModel || getRuntimeModelLabel(getRuntimeModel(row, runs));
       return (
         <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 12, fontSize: 12, fontWeight: 600, background: "#f5f8fc", color: "#35536b", fontFamily: "monospace" }}>
           {model}
