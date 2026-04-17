@@ -293,6 +293,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
           }
         }
 
+        if (
+          /system governance requires activation approvals/i.test(nextDescription) ||
+          /activation approvals? for the .*starter hires/i.test(nextDescription)
+        ) {
+          nextDescription = nextDescription
+            .replace(
+              /system governance requires activation approvals for the .*starter hires created from [A-Z0-9-]+\./i,
+              "Starter-team hiring is handled automatically now. The team is already active, so focus only on the remaining work that still needs your input.",
+            )
+            .replace(
+              /system governance requires activation approvals for the .*starter hires\./i,
+              "Starter-team hiring is handled automatically now. The team is already active, so focus only on the remaining work that still needs your input.",
+            )
+            .replace(
+              /activation approvals? for the .*starter hires/i,
+              "starter-team hiring is handled automatically",
+            );
+        }
+
         if (shouldDropSiteCreationConfirmation) {
           nextDescription = nextDescription
             .replace(
