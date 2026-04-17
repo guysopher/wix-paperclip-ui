@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  appendGeneralWixOperationalProtocol,
+  appendSiteExpertOperationalProtocol,
+  GENERAL_WIX_MCP_PROTOCOL_MARKER,
+  SITE_EXPERT_PROTOCOL_MARKER,
+} from "@/lib/agent-templates";
 
 const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
@@ -16,6 +22,8 @@ interface PaperclipAgent {
   id: string;
   name: string;
   companyId: string;
+  role?: string;
+  title?: string;
   adapterConfig?: Record<string, unknown>;
 }
 
@@ -37,6 +45,68 @@ interface BackfillSummary {
   updated: Array<{ id: string; name: string; length: number }>;
   skipped: Array<{ id: string; name: string; reason: string }>;
   errors: Array<{ id: string; name?: string; error: string }>;
+}
+
+function isSiteExpert(agent: PaperclipAgent): boolean {
+  const role = typeof agent.role === "string" ? agent.role.trim().toLowerCase() : "";
+  const title = typeof agent.title === "string" ? agent.title.trim().toLowerCase() : "";
+  const name = typeof agent.name === "string" ? agent.name.trim().toLowerCase() : "";
+  return role === "site_lead" || title === "wix site expert" || name === "wix site expert";
+}
+
+async function upgradeAgentPrompts(agents: PaperclipAgent[]) {
+  const updated: BackfillSummary["updated"] = [];
+  const skipped: BackfillSummary["skipped"] = [];
+  const errors: BackfillSummary["errors"] = [];
+
+  for (const agent of agents) {
+    const promptTemplate =
+      typeof agent.adapterConfig?.promptTemplate === "string"
+        ? agent.adapterConfig.promptTemplate.trim()
+        : "";
+
+    if (!promptTemplate) {
+      skipped.push({ id: agent.id, name: agent.name, reason: "promptTemplate missing; handled by backfill if possible" });
+      continue;
+    }
+
+    const siteExpert = isSiteExpert(agent);
+    const hasGeneralProtocol = promptTemplate.includes(GENERAL_WIX_MCP_PROTOCOL_MARKER);
+    const hasSiteExpertProtocol = !siteExpert || promptTemplate.includes(SITE_EXPERT_PROTOCOL_MARKER);
+
+    if (hasGeneralProtocol && hasSiteExpertProtocol) {
+      skipped.push({
+        id: agent.id,
+        name: agent.name,
+        reason: siteExpert ? "WixMCP protocols already present" : "general WixMCP protocol already present",
+      });
+      continue;
+    }
+
+    const nextPrompt = siteExpert
+      ? appendSiteExpertOperationalProtocol(promptTemplate)
+      : appendGeneralWixOperationalProtocol(promptTemplate);
+    try {
+      await paperclip(`/agents/${agent.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          adapterConfig: {
+            ...(agent.adapterConfig || {}),
+            promptTemplate: nextPrompt,
+          },
+        }),
+      });
+      updated.push({ id: agent.id, name: agent.name, length: nextPrompt.length });
+    } catch (error) {
+      errors.push({
+        id: agent.id,
+        name: agent.name,
+        error: error instanceof Error ? error.message : "Failed to upgrade site expert prompt.",
+      });
+    }
+  }
+
+  return { updated, skipped, errors };
 }
 
 async function paperclip(path: string, options?: RequestInit) {
@@ -289,6 +359,15 @@ export async function POST(request: NextRequest) {
 
     for (const company of targetCompanies) {
       const agents = (await paperclip(`/companies/${company.id}/agents`)) as PaperclipAgent[];
+      const companyResult: BackfillSummary = {
+        companyId: company.id,
+        companyName: company.name,
+        targeted: 0,
+        updated: [],
+        skipped: [],
+        errors: [],
+      };
+
       const targets = agents
         .filter((agent) => !requestedAgentId || agent.id === requestedAgentId)
         .map((agent) => {
@@ -312,11 +391,25 @@ export async function POST(request: NextRequest) {
         })
         .filter((target): target is BackfillTarget => Boolean(target));
 
-      if (!targets.length) {
-        continue;
+      if (targets.length) {
+        const backfillResult = await runCompanyBackfill(company, targets);
+        companyResult.targeted += backfillResult.targeted;
+        companyResult.updated.push(...backfillResult.updated);
+        companyResult.skipped.push(...backfillResult.skipped);
+        companyResult.errors.push(...backfillResult.errors);
       }
 
-      results.push(await runCompanyBackfill(company, targets));
+      const refreshedAgents = (await paperclip(`/companies/${company.id}/agents`)) as PaperclipAgent[];
+      const upgradeCandidates = refreshedAgents.filter((agent) => !requestedAgentId || agent.id === requestedAgentId);
+      const upgradeResult = await upgradeAgentPrompts(upgradeCandidates);
+      companyResult.targeted += upgradeResult.updated.length + upgradeResult.skipped.length + upgradeResult.errors.length;
+      companyResult.updated.push(...upgradeResult.updated);
+      companyResult.skipped.push(...upgradeResult.skipped);
+      companyResult.errors.push(...upgradeResult.errors);
+
+      if (companyResult.targeted > 0) {
+        results.push(companyResult);
+      }
     }
 
     const updatedCount = results.reduce((sum, result) => sum + result.updated.length, 0);

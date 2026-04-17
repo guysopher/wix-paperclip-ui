@@ -46,6 +46,50 @@ const ROLE_NAME_RULES = [
   "  - heartbeat.intervalSec: 1800",
 ];
 
+const GENERAL_WIX_MCP_PROTOCOL = [
+  "When your task touches the Wix site, Wix business data, or any site-connected app, treat WixMCP as the first operational surface instead of guessing or asking the board for technical details.",
+  "Start with WixREADME when it is available so you inherit the current site context and recipes before improvising.",
+  "For multi-step business setups, try WixBusinessFlowsDocumentation first. If there is no fitting flow, use SearchWixRESTDocumentation for the exact endpoint or capability you need.",
+  "After you find the best docs hit, read it with ReadFullDocsArticle before calling the API. If the article is still too thin, use ReadFullDocsMethodSchema for the full request and response shape.",
+  "Use CallWixSiteAPI for site and business entities. Always operate on the locked company site identity from wixBinding when one exists.",
+  "Use ManageWixSite only for account-level site operations such as creating, updating, or publishing a site, and only with an absolute URL taken from docs. Never guess the site-management URL.",
+  "Use ListWixSites only to confirm account context or locate a newly created site when there is still no locked site identity. Never silently adopt a random discovered site as the company site.",
+  "For missing-app errors or WDE0110 (Wix Code not enabled), read the installer docs, install the missing app or capability, and retry.",
+  "If a write call returns a consent flow and consent is granted, immediately repeat the same call without re-asking or changing the payload.",
+  "If WixMCP tools are unavailable in the runtime, log the exact tooling blocker clearly. Treat that as a team-owned technical blocker, not a business decision.",
+];
+
+const SITE_EXPERT_WIX_MCP_PROTOCOL = [
+  "Treat WixMCP as the main operational surface for the real business site.",
+  "Start any non-trivial Wix task with WixREADME when it is available, so you inherit the current site context and recipes before improvising.",
+  "For multi-step business setups, try WixBusinessFlowsDocumentation first. If there is no fitting flow, use SearchWixRESTDocumentation for the exact API you need.",
+  "After finding the best REST article, read it with ReadFullDocsArticle before calling the API. If the article is still too thin, use ReadFullDocsMethodSchema for the full request and response shape.",
+  "Use CallWixSiteAPI for site and business entities on the locked company site. Always pass the locked wixBinding.siteId when one exists.",
+  "Use ManageWixSite only for account-level site operations such as create, update, or publish, and only with absolute URLs taken from docs. Never guess the URL.",
+  "Use ListWixSites only to confirm account context or locate the newly created main site when there is still no locked site identity. Never adopt a random discovered site as the company site.",
+  "Before every mutating API call, know exactly which endpoint, method, and body you are using from the docs. Do not guess or cargo-cult a Wix API call.",
+  "For read-only work, inspect first and act second. For write work, make one deliberate change at a time and record exactly what changed.",
+];
+
+const SITE_EXPERT_WIX_ERROR_PROTOCOL = [
+  "If CallWixSiteAPI returns a missing-app error or WDE0110 (Wix Code not enabled), treat that as a fixable tooling dependency. Read the installer article, install the missing app or capability, and retry.",
+  "If CallWixSiteAPI returns a consent flow response for a write operation and consent is granted, immediately repeat the same call without re-asking or changing the payload.",
+  "For any other API error, read the error, re-check the docs, correct the request, and retry once. Do not keep retrying blind.",
+  "If WixMCP / Harmony tools are unavailable in the runtime, log that as a team-owned tooling blocker. Do not convert it into a board confirmation request.",
+];
+
+const SITE_EXPERT_PICASSO_PROTOCOL = [
+  "Picasso Bridge is only for an optional experimental vibe site, never the production business site.",
+  'Use the bridge through POST /jobs with mode \"create_site\", the approved brief as the prompt, designer \"none\" unless explicitly directed otherwise, and identifying company context such as companyId and issueId.',
+  "Treat Picasso work as asynchronous. Capture the jobId immediately, poll GET /jobs/:jobId until a terminal status, and read logs when the result is unclear.",
+  "If the bridge succeeds, record the result separately as vibe-site metadata such as vibeSiteJobId, vibeSiteStatus, vibeSiteId, vibeSiteUrl, and vibeSiteDevelopmentUrl.",
+  "Never write Picasso result fields into wixBinding and never promote a vibe site to the company site unless the board explicitly approves that promotion.",
+  "If the bridge is unreachable, unauthorized, or unhealthy, record the exact tooling blocker and continue moving the main site through WixMCP / Harmony wherever possible.",
+];
+
+export const GENERAL_WIX_MCP_PROTOCOL_MARKER = "WixMCP base operating protocol";
+export const SITE_EXPERT_PROTOCOL_MARKER = "WixMCP operating protocol";
+
 const AGENT_BLUEPRINTS: AgentBlueprint[] = [
   {
     id: "site-lead",
@@ -126,6 +170,18 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
           "Capture the vibe-site jobId immediately, poll GET /jobs/:jobId to terminal state, and record vibeSiteId, vibeSiteUrl, vibeSiteDevelopmentUrl, vibeSiteStatus, and useful logs.",
           "In EXISTING SITE mode, browse the live site first and review homepage, navigation, CTA clarity, trust signals, offer explanation, mobile usability, page hierarchy, and obvious friction.",
         ],
+      },
+      {
+        title: SITE_EXPERT_PROTOCOL_MARKER,
+        bullets: SITE_EXPERT_WIX_MCP_PROTOCOL,
+      },
+      {
+        title: "WixMCP error and consent handling",
+        bullets: SITE_EXPERT_WIX_ERROR_PROTOCOL,
+      },
+      {
+        title: "Picasso Bridge operating protocol",
+        bullets: SITE_EXPERT_PICASSO_PROTOCOL,
       },
       {
         title: "Site identity contract",
@@ -755,6 +811,48 @@ export const CANONICAL_AGENT_TITLES = AGENT_TEMPLATES.map((template) => template
 
 function renderBullets(lines: string[]): string {
   return lines.map((line) => `- ${line}`).join("\n");
+}
+
+export function appendSiteExpertOperationalProtocol(prompt: string): string {
+  const trimmed = appendGeneralWixOperationalProtocol(prompt);
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (trimmed.includes(SITE_EXPERT_PROTOCOL_MARKER)) {
+    return trimmed;
+  }
+
+  return `${trimmed}
+
+Additional mandatory site execution protocol
+
+${SITE_EXPERT_PROTOCOL_MARKER}
+${renderBullets(SITE_EXPERT_WIX_MCP_PROTOCOL)}
+
+WixMCP error and consent handling
+${renderBullets(SITE_EXPERT_WIX_ERROR_PROTOCOL)}
+
+Picasso Bridge operating protocol
+${renderBullets(SITE_EXPERT_PICASSO_PROTOCOL)}`;
+}
+
+export function appendGeneralWixOperationalProtocol(prompt: string): string {
+  const trimmed = prompt.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (trimmed.includes(GENERAL_WIX_MCP_PROTOCOL_MARKER)) {
+    return trimmed;
+  }
+
+  return `${trimmed}
+
+Additional mandatory Wix execution protocol
+
+${GENERAL_WIX_MCP_PROTOCOL_MARKER}
+${renderBullets(GENERAL_WIX_MCP_PROTOCOL)}`;
 }
 
 function renderCustomSections(
