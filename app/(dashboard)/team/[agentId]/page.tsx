@@ -111,6 +111,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [saving, setSaving] = useState(false);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [modelOptions, setModelOptions] = useState<AdapterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
@@ -223,9 +224,14 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const handleDelete = async () => {
     if (!agent) return;
     setActing(true);
+    setDeleteError("");
     try {
       await deleteAgent(agent.id);
       router.push(companyPath("/team"));
+      return true;
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to remove team member.");
+      return false;
     } finally {
       setActing(false);
     }
@@ -649,7 +655,10 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   placement="right"
                 >
                   <button
-                    onClick={() => setShowDeleteConfirm(true)}
+                    onClick={() => {
+                      setDeleteError("");
+                      setShowDeleteConfirm(true);
+                    }}
                     disabled={acting}
                     style={{
                       background: "none",
@@ -709,17 +718,33 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           subtitle={`${agent.name} will be removed from this AI Team permanently.`}
           primaryButtonText={acting ? "Removing..." : "Fire permanently"}
           primaryButtonOnClick={async () => {
-            await handleDelete();
-            setShowDeleteConfirm(false);
+            const deleted = await handleDelete();
+            if (deleted) {
+              setShowDeleteConfirm(false);
+            }
           }}
-          primaryButtonProps={{ skin: "destructive" } as Record<string, unknown>}
+          primaryButtonProps={{ skin: "destructive", disabled: acting } as Record<string, unknown>}
           secondaryButtonText="Cancel"
           secondaryButtonOnClick={() => setShowDeleteConfirm(false)}
           onCloseButtonClick={() => setShowDeleteConfirm(false)}
         >
-          <Text size="small">
-            This permanently removes {agent.name} from the company. Their profile page will no longer be available after this action.
-          </Text>
+          <Box direction="vertical" gap="12px">
+            <Text size="small">
+              This permanently removes {agent.name} from the company. Their profile page will no longer be available after this action.
+            </Text>
+            {deleteError && (
+              <Box
+                padding="10px 12px"
+                border="1px solid #f2c9c9"
+                borderRadius="8px"
+                backgroundColor="#fff6f6"
+              >
+                <Text size="small" skin="error">
+                  {deleteError}
+                </Text>
+              </Box>
+            )}
+          </Box>
         </CustomModalLayout>
       </Modal>
     </>

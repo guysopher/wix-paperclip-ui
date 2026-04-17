@@ -14,10 +14,27 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
+    const errText = await res.text().catch(() => "");
+    const err = errText
+      ? (() => {
+          try {
+            return JSON.parse(errText) as { error?: string };
+          } catch {
+            return { error: errText };
+          }
+        })()
+      : { error: res.statusText };
     throw new Error(err.error || res.statusText);
   }
-  return res.json();
+  const text = await res.text().catch(() => "");
+  if (!text) {
+    return {} as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as T;
+  }
 }
 
 async function bridgeRequest<T>(path: string, options?: RequestInit): Promise<T> {
