@@ -8,6 +8,7 @@ import {
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { buildCompanyDescription } from "@/lib/company-metadata";
 import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_TEAM_LEAD_MODEL } from "@/lib/paperclip-runtime-defaults";
+import { repairCompanyState } from "@/lib/server/company-repair";
 
 const client = new OpenAI();
 
@@ -660,6 +661,14 @@ export async function POST(request: NextRequest) {
         description: nextDescription,
       }),
     });
+
+    const repairResult = await repairCompanyState(updatedCompany.id, { startup: true });
+    if (!repairResult.ready) {
+      throw new Error(
+        repairResult.binding.problems[0] ||
+          "Company startup verification failed before the first run.",
+      );
+    }
 
     await paperclip(`/agents/${ceoAgent.id}/heartbeat/invoke`, {
       method: "POST",

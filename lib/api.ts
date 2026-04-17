@@ -100,6 +100,18 @@ export const backfillAgentPrompts = (companyId: string) =>
       results: Array<{ companyId: string; companyName: string; targeted: number; updated: Array<unknown> }>;
     };
   });
+export const repairCompanyState = (companyId: string, startup = false) =>
+  fetch("/api/health/repair-company-state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId, startup }),
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({ error: r.statusText }));
+    if (!r.ok) {
+      throw new Error(data.error || r.statusText);
+    }
+    return data as CompanyRepairStatus;
+  });
 
 // Companies
 export const getCompanies = () => request<Company[]>("/companies");
@@ -222,6 +234,30 @@ export interface HeartbeatRun {
   contextSnapshot: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CompanyRepairStatus {
+  ok: boolean;
+  ready: boolean;
+  checkedAt: string;
+  companyId: string;
+  companyName: string;
+  startup: boolean;
+  approvalsApproved: number;
+  staleTasksUpdated: number;
+  promptSync: {
+    updatedCount: number;
+    skippedCount: number;
+    errorCount: number;
+  };
+  instructionFilesSynced: number;
+  binding: {
+    mode: "existing_site" | "new_site" | null;
+    hasSiteIdentity: boolean;
+    activationIssueId: string | null;
+    problems: string[];
+  };
+  notes: string[];
 }
 
 // Company

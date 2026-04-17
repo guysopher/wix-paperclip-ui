@@ -20,6 +20,7 @@ import {
   getHeartbeatRuns,
   invokeHeartbeat,
   postComment,
+  repairCompanyState,
   updateCompany,
   updateIssue,
   type Agent,
@@ -560,6 +561,8 @@ function NewCompanyPageContent() {
             },
           }),
         }).catch(() => undefined);
+
+        await repairCompanyState(company.id, true);
 
         try {
           await invokeHeartbeat(ceoAgent.id);

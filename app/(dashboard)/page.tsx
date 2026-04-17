@@ -293,7 +293,7 @@ function getCompanyActivityInterval(agents: Agent[]): number {
 function DashboardContent() {
   const router = useRouter();
   const { companyId, companies, setCompanyId, companyPath } = useCompany();
-  const { company, dashboard, agents, goals, issues, inboxIssues, runs, loading, refresh } = useCompanyData();
+  const { company, dashboard, agents, goals, issues, inboxIssues, runs, repairStatus, loading, refresh } = useCompanyData();
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
   const [agentNarratives, setAgentNarratives] = useState<Record<string, { title: string; time: string } | null>>({});
   const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
@@ -1159,32 +1159,30 @@ function DashboardContent() {
         updatedCount: number;
         skippedCount: number;
         errorCount: number;
+        results?: Array<{ notes?: string[] }>;
         error?: string;
       };
       if (!response.ok) {
         throw new Error(result.error || response.statusText);
       }
+      const summaryDetail =
+        result.results?.flatMap((entry) => entry.notes || []).find((note) => typeof note === "string" && note.trim()) ||
+        null;
       await refresh();
       setHealthResult({
         status: result.errorCount > 0 ? "warning" : "repaired",
         checks: [
           {
-            name: "agent_prompts",
+            name: "company_repair",
             status: result.errorCount > 0 ? "warning" : "repaired",
             detail:
               result.updatedCount > 0
-                ? `Backfilled ${result.updatedCount} agent prompt${result.updatedCount === 1 ? "" : "s"}.`
-                : "All agent promptTemplate fields are already present.",
+                ? `Repaired ${result.updatedCount} company setup item${result.updatedCount === 1 ? "" : "s"}.`
+                : "Company setup is already in sync.",
           },
         ],
         actions:
-          result.updatedCount > 0
-            ? [
-                `Copied ${result.updatedCount} managed instruction bundle${
-                  result.updatedCount === 1 ? "" : "s"
-                } into agent promptTemplate`,
-              ]
-            : ["No missing agent promptTemplate fields found"],
+          summaryDetail ? [summaryDetail] : result.updatedCount > 0 ? ["Company setup was repaired and re-verified."] : ["No repair work was needed."],
         controls: healthResult?.controls,
       });
     } catch (error) {
@@ -1192,12 +1190,12 @@ function DashboardContent() {
         status: "error",
         checks: [
           {
-            name: "agent_prompts",
+            name: "company_repair",
             status: "error",
             detail:
               error instanceof Error
                 ? error.message
-                : "Agent prompt backfill failed",
+                : "Company setup repair failed",
           },
         ],
         actions: [],
@@ -1284,8 +1282,8 @@ function DashboardContent() {
                 }}
               />
               <PopoverMenu.MenuItem
-                text={backfillingAgentPrompts ? "Backfilling agent prompts..." : "Backfill Agent Prompts"}
-                subtitle="Copies managed instructions into stored promptTemplate fields"
+                text={backfillingAgentPrompts ? "Repairing company setup..." : "Repair Company Setup"}
+                subtitle="Repairs prompts, runtime instructions, approvals, and stale startup state"
                 disabled={backfillingAgentPrompts}
                 onClick={handleBackfillAgentPrompts}
               />
@@ -1581,7 +1579,7 @@ function DashboardContent() {
                   color: "#2f6fed",
                 }}
               >
-                {backfillingAgentPrompts ? "Backfilling prompts..." : "Backfill Agent Prompts"}
+                {backfillingAgentPrompts ? "Repairing setup..." : "Repair Company Setup"}
               </button>
             </div>
           </div>
@@ -1625,6 +1623,63 @@ function DashboardContent() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {repairStatus && (
+          <div style={{ marginBottom: 20 }}>
+            <div
+              style={{
+                borderRadius: 14,
+                border: repairStatus.ready
+                  ? "1px solid rgba(177, 222, 193, 0.95)"
+                  : "1px solid rgba(255, 190, 92, 0.7)",
+                background: repairStatus.ready
+                  ? "linear-gradient(180deg, #ffffff 0%, #f7fffb 100%)"
+                  : "linear-gradient(180deg, #fffdf7 0%, #fff8ea 100%)",
+                boxShadow: "0 10px 24px rgba(22, 45, 61, 0.04)",
+                padding: "16px 18px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: repairStatus.ready ? "#1f5136" : "#8a5a00",
+                    marginBottom: 4,
+                  }}
+                >
+                  {repairStatus.ready ? "Startup verified" : "Startup needs repair"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    color: repairStatus.ready ? "#4d6b5a" : "#6f5b2c",
+                  }}
+                >
+                  {repairStatus.ready
+                    ? repairStatus.notes[0] || "Wix binding, prompts, and agent runtime instructions were checked before work continued."
+                    : repairStatus.binding.problems[0] || "Company startup is missing required Wix binding or runtime state."}
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#7a92a5",
+                  whiteSpace: "nowrap",
+                  paddingTop: 2,
+                }}
+              >
+                {timeAgo(repairStatus.checkedAt)}
+              </div>
             </div>
           </div>
         )}

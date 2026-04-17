@@ -7,22 +7,21 @@ import {
   getCompanies,
   getCompany,
   getDashboard,
-  getApprovals,
   getMyIssues,
   getIssues,
   getGoals,
   getRuns,
   getAgents,
-  updateApproval,
-  updateIssue,
+  repairCompanyState,
   type Company,
   type Dashboard,
   type Goal,
   type Issue,
   type Agent,
   type HeartbeatRun,
+  type CompanyRepairStatus,
 } from "@/lib/api";
-import { findCompanyByMsid, getCompanyActivation, getCompanyWixBinding } from "@/lib/company-metadata";
+import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
 import {
   issueNeedsReply,
   readInboxArchivedIds,
@@ -53,6 +52,7 @@ interface CompanyDataContextValue {
   issues: Issue[];
   inboxIssues: Issue[];
   runs: HeartbeatRun[];
+  repairStatus: CompanyRepairStatus | null;
   loading: boolean;
   refreshing: boolean;
   lastUpdatedAt: string | null;
@@ -67,6 +67,7 @@ const CompanyDataContext = createContext<CompanyDataContextValue>({
   issues: [],
   inboxIssues: [],
   runs: [],
+  repairStatus: null,
   loading: false,
   refreshing: false,
   lastUpdatedAt: null,
@@ -120,6 +121,7 @@ const EMPTY_COMPANY_DATA: Omit<CompanyDataContextValue, "refresh"> = {
   issues: [],
   inboxIssues: [],
   runs: [],
+  repairStatus: null,
   loading: false,
   refreshing: false,
   lastUpdatedAt: null,
@@ -227,118 +229,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
     );
   }, [companyLookupStatus, selectedCompanyId]);
 
-  const autoApprovePendingApprovals = useCallback(async (companyId: string) => {
-    const approvals = await getApprovals(companyId).catch(() => []);
-    const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
-
-    if (pendingApprovals.length === 0) {
-      return false;
-    }
-
-    await Promise.all(
-      pendingApprovals.map((approval) =>
-        updateApproval(approval.id, { status: "approved" }).catch(() => null),
-      ),
-    );
-
-    return true;
-  }, []);
-
-  const autoRepairAgentsAndApprovals = useCallback(async (companyId: string) => {
-    const [approvalsChanged] = await Promise.all([
-      autoApprovePendingApprovals(companyId).catch(() => false),
-      fetch("/api/health/backfill-agent-prompts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId }),
-      }).catch(() => null),
-    ]);
-
-    return approvalsChanged;
-  }, [autoApprovePendingApprovals]);
-
-  const autoCleanStaleBoardTasks = useCallback(async (company: Company, issues: Issue[]) => {
-    const activation = getCompanyActivation(company.description);
-    const wixBinding = getCompanyWixBinding(company.description);
-    const shouldDropSiteCreationConfirmation =
-      activation?.mode === "new_site" &&
-      !wixBinding?.metaSiteId &&
-      !wixBinding?.siteId &&
-      !wixBinding?.siteUrl;
-
-    let changed = false;
-
-    await Promise.all(
-      issues.map(async (issue) => {
-        if (issue.assigneeUserId !== "local-board") {
-          return;
-        }
-        if (issue.status === "done" || issue.status === "cancelled") {
-          return;
-        }
-
-        let nextTitle = issue.title;
-        let nextDescription = issue.description;
-
-        if (
-          /starter-team hires are already approved and live/i.test(nextDescription) &&
-          /approve starter-team hires/i.test(nextTitle)
-        ) {
-          nextTitle = nextTitle
-            .replace(/^approve starter-team hires and\s*/i, "")
-            .replace(/^approve starter-team hires\s*/i, "")
-            .trim();
-          if (nextTitle.length > 0) {
-            nextTitle = nextTitle.charAt(0).toUpperCase() + nextTitle.slice(1);
-          }
-        }
-
-        if (
-          /system governance requires activation approvals/i.test(nextDescription) ||
-          /activation approvals? for the .*starter hires/i.test(nextDescription)
-        ) {
-          nextDescription = nextDescription
-            .replace(
-              /system governance requires activation approvals for the .*starter hires created from [A-Z0-9-]+\./i,
-              "Starter-team hiring is handled automatically now. The team is already active, so focus only on the remaining work that still needs your input.",
-            )
-            .replace(
-              /system governance requires activation approvals for the .*starter hires\./i,
-              "Starter-team hiring is handled automatically now. The team is already active, so focus only on the remaining work that still needs your input.",
-            )
-            .replace(
-              /activation approvals? for the .*starter hires/i,
-              "starter-team hiring is handled automatically",
-            );
-        }
-
-        if (shouldDropSiteCreationConfirmation) {
-          nextDescription = nextDescription
-            .replace(
-              /\n-\s*if there is no Wix site yet: confirm that the team should create the main[^\n]*/i,
-              "",
-            )
-            .replace(
-              /\n-\s*if .* already has a Wix site:[^\n]*/i,
-              "\n- if there is already a Wix site: send the canonical `metaSiteId`, `siteId`, or live `siteUrl` (any one is enough to lock the company record)",
-            );
-        }
-
-        nextDescription = nextDescription.replace(/\n{3,}/g, "\n\n").trim();
-
-        if (nextTitle !== issue.title || nextDescription !== issue.description) {
-          changed = true;
-          await updateIssue(issue.id, {
-            title: nextTitle || issue.title,
-            description: nextDescription || issue.description,
-          }).catch(() => null);
-        }
-      }),
-    );
-
-    return changed;
-  }, []);
-
   const refresh = useCallback(async () => {
     try {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
@@ -351,7 +241,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         loading: initialLoad,
         refreshing: !initialLoad,
       }));
-      const approvalsChanged = await autoRepairAgentsAndApprovals(companyId);
+      const repairStatus = await repairCompanyState(companyId).catch(() => null);
       const [
         currentCompany,
         dashboard,
@@ -373,20 +263,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         getIssues(companyId),
         getRuns(companyId),
       ]);
-      const boardTasksChanged = await autoCleanStaleBoardTasks(currentCompany, allIssues);
-      const [
-        finalAssignedToMe,
-        finalMyIssues,
-        finalBlockedIssues,
-        finalAllIssues,
-      ] = boardTasksChanged
-        ? await Promise.all([
-            getIssuesAssignedToMe(companyId),
-            getMyIssues(companyId),
-            getIssues(companyId, "status=blocked"),
-            getIssues(companyId),
-          ])
-        : [assignedToMe, myIssues, blockedIssues, allIssues];
+      const finalAssignedToMe = assignedToMe;
+      const finalMyIssues = myIssues;
+      const finalBlockedIssues = blockedIssues;
+      const finalAllIssues = allIssues;
 
       const seenInboxIssueIds = new Set<string>();
       const inboxIssues: Issue[] = [];
@@ -424,6 +304,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         issues: finalAllIssues,
         inboxIssues,
         runs,
+        repairStatus,
         loading: false,
         refreshing: false,
         lastUpdatedAt: new Date().toISOString(),
@@ -440,17 +321,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         }
         return next;
       });
-      if (approvalsChanged) {
-        setCompanies((prev) =>
-          prev.map((company) => (company.id === currentCompany.id ? currentCompany : company))
-        );
-      }
     } catch {
       setCompanyData((prev) => ({ ...prev, loading: false, refreshing: false }));
     } finally {
       refreshInFlightRef.current = false;
     }
-  }, [autoCleanStaleBoardTasks, autoRepairAgentsAndApprovals, companyLookupStatus, selectedCompanyId]);
+  }, [companyLookupStatus, selectedCompanyId]);
 
   useEffect(() => {
     if (companyLookupStatus !== "ready") {

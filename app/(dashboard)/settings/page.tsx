@@ -158,13 +158,13 @@ function SettingsContent() {
         type: result.errorCount > 0 ? "error" : "success",
         text:
           result.updatedCount > 0
-            ? `Backfilled ${result.updatedCount} agent prompt${result.updatedCount === 1 ? "" : "s"} for this company.`
-            : "All agent promptTemplate fields are already present for this company.",
+            ? `Repaired ${result.updatedCount} company setup item${result.updatedCount === 1 ? "" : "s"} for this company.`
+            : "Company setup is already in sync for this company.",
       });
     } catch (err) {
       setStatusMessage({
         type: "error",
-        text: err instanceof Error ? err.message : "Failed to backfill agent prompts.",
+        text: err instanceof Error ? err.message : "Failed to repair company setup.",
       });
     } finally {
       setBackfillingPrompts(false);
@@ -307,14 +307,14 @@ function SettingsContent() {
 
           <Card>
             <Card.Header
-              title="Agent Prompt Repair"
-              subtitle="Copies managed agent instruction bundles into stored promptTemplate fields for the current company"
+              title="Company Setup Repair"
+              subtitle="Repairs prompts, managed runtime instructions, approvals, and stale startup state for the current company"
             />
             <Card.Divider />
             <Card.Content>
               <Box direction="vertical" gap="12px">
                 <Text size="small" secondary>
-                  Use this if agents appear to have blank role descriptions in the Team view. This repair keeps their effective instructions on the agent record so the deployed UI can read them reliably.
+                  Use this if startup looks half-finished. It re-syncs effective agent instructions, approves pending startup approvals, and cleans stale board tasks so the team can keep working.
                 </Text>
                 <Box gap="12px" verticalAlign="middle">
                   <Button
@@ -323,7 +323,7 @@ function SettingsContent() {
                     onClick={handleBackfillPrompts}
                     disabled={!companyId || backfillingPrompts}
                   >
-                    {backfillingPrompts ? "Backfilling..." : "Backfill Agent Prompts"}
+                    {backfillingPrompts ? "Repairing..." : "Repair Company Setup"}
                   </Button>
                   {!companyId && (
                     <Text size="small" secondary>
