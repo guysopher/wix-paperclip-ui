@@ -391,13 +391,14 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
             <Card.Content>
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1.5fr) minmax(320px, 1fr)",
+                  display: "flex",
+                  justifyContent: "space-between",
                   gap: 20,
-                  alignItems: "start",
+                  alignItems: "center",
+                  flexWrap: "wrap",
                 }}
               >
-                <Box direction="horizontal" gap="16px" verticalAlign="middle">
+                <Box direction="horizontal" gap="16px" verticalAlign="middle" style={{ flex: "1 1 280px" }}>
                   <AgentAvatar
                     agentName={displayTitle}
                     agentRole={agent.role}
@@ -426,8 +427,10 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
                     gap: 12,
+                    flex: "1 1 460px",
+                    width: "min(100%, 520px)",
                   }}
                 >
                   {[
