@@ -5,6 +5,7 @@ import {
   GENERAL_WIX_MCP_PROTOCOL_MARKER,
   SITE_EXPERT_PROTOCOL_MARKER,
 } from "@/lib/agent-templates";
+import { renderPromptTemplate } from "@/lib/prompt-render";
 
 const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
@@ -54,7 +55,7 @@ function isSiteExpert(agent: PaperclipAgent): boolean {
   return role === "site_lead" || title === "wix site expert" || name === "wix site expert";
 }
 
-async function upgradeAgentPrompts(agents: PaperclipAgent[]) {
+async function upgradeAgentPrompts(company: PaperclipCompany, agents: PaperclipAgent[]) {
   const updated: BackfillSummary["updated"] = [];
   const skipped: BackfillSummary["skipped"] = [];
   const errors: BackfillSummary["errors"] = [];
@@ -74,18 +75,28 @@ async function upgradeAgentPrompts(agents: PaperclipAgent[]) {
     const hasGeneralProtocol = promptTemplate.includes(GENERAL_WIX_MCP_PROTOCOL_MARKER);
     const hasSiteExpertProtocol = !siteExpert || promptTemplate.includes(SITE_EXPERT_PROTOCOL_MARKER);
 
-    if (hasGeneralProtocol && hasSiteExpertProtocol) {
+    const protocolPrompt = siteExpert
+      ? appendSiteExpertOperationalProtocol(promptTemplate)
+      : appendGeneralWixOperationalProtocol(promptTemplate);
+    const nextPrompt = renderPromptTemplate(protocolPrompt, {
+      name: company.name,
+      description: "",
+    });
+
+    if (nextPrompt.trim() === promptTemplate.trim()) {
       skipped.push({
         id: agent.id,
         name: agent.name,
-        reason: siteExpert ? "WixMCP protocols already present" : "general WixMCP protocol already present",
+        reason:
+          hasGeneralProtocol && hasSiteExpertProtocol
+            ? siteExpert
+              ? "WixMCP protocols already present"
+              : "general WixMCP protocol already present"
+            : "prompt already concrete",
       });
       continue;
     }
 
-    const nextPrompt = siteExpert
-      ? appendSiteExpertOperationalProtocol(promptTemplate)
-      : appendGeneralWixOperationalProtocol(promptTemplate);
     try {
       await paperclip(`/agents/${agent.id}`, {
         method: "PATCH",
@@ -401,7 +412,7 @@ export async function POST(request: NextRequest) {
 
       const refreshedAgents = (await paperclip(`/companies/${company.id}/agents`)) as PaperclipAgent[];
       const upgradeCandidates = refreshedAgents.filter((agent) => !requestedAgentId || agent.id === requestedAgentId);
-      const upgradeResult = await upgradeAgentPrompts(upgradeCandidates);
+      const upgradeResult = await upgradeAgentPrompts(company, upgradeCandidates);
       companyResult.targeted += upgradeResult.updated.length + upgradeResult.skipped.length + upgradeResult.errors.length;
       companyResult.updated.push(...upgradeResult.updated);
       companyResult.skipped.push(...upgradeResult.skipped);

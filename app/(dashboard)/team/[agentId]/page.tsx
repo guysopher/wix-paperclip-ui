@@ -27,6 +27,7 @@ import { AgentAvatar } from "@/components/agent-avatar";
 import { IconPicker } from "@/components/icon-picker";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
+import { renderPromptTemplate } from "@/lib/prompt-render";
 import {
   getAgent,
   getAgents,
@@ -116,7 +117,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [deleteError, setDeleteError] = useState("");
   const [modelOptions, setModelOptions] = useState<AdapterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [showRolePreview, setShowRolePreview] = useState(false);
+  const [showRolePreview, setShowRolePreview] = useState(true);
 
   // Editable fields
   const [editTitle, setEditTitle] = useState("");
@@ -213,7 +214,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
         ...agent.adapterConfig,
         heartbeatIntervalSec: parseInt(editSchedule),
         timeoutSec: parseInt(editTimeout),
-        promptTemplate: editPrompt,
+        promptTemplate: renderPromptTemplate(editPrompt, company),
         model: editModel.trim() || null,
       },
     });
@@ -337,6 +338,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     || (editSchedule ? `${Math.round(parseInt(editSchedule, 10) / 60)} min` : "Manual");
   const modelSummary = configuredModel || runtimeModel;
   const displayTitle = editTitle.trim() || agent.title || agent.name;
+  const renderedPromptPreview = renderPromptTemplate(editPrompt, company);
 
   return (
     <>
@@ -505,7 +507,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                     >
                       {editPrompt.trim() ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {editPrompt}
+                          {renderedPromptPreview}
                         </ReactMarkdown>
                       ) : (
                         <Text size="small" secondary>
