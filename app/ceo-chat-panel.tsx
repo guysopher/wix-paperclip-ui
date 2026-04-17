@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { Loader } from "@wix/design-system";
-import { Send, X } from "@wix/wix-ui-icons-common";
+import { Refresh, Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "./providers";
@@ -237,12 +237,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
             opacity: sending ? 0.5 : 1,
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 10h2v8H7v-8zm-1 10h12l1-12H5l1 12z"
-              fill="currentColor"
-            />
-          </svg>
+          <Refresh size="16px" />
         </button>
         {showCloseButton && (
           <button
