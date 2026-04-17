@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Loader } from "@wix/design-system";
 import { Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "./providers";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
+import { CEO_CHAT_DISCUSS_EVENT, type CeoChatDiscussDetail } from "@/lib/ceo-chat-events";
 import { getIssues, type Issue } from "@/lib/api";
 import { TaskLinkWithPreview, extractTaskIdentifierFromHref } from "@/components/task-link-with-preview";
 
@@ -25,6 +26,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   const [issuesByIdentifier, setIssuesByIdentifier] = useState<Record<string, Issue>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const [initialized, setInitialized] = useState(false);
 
   const loadOpeningMessage = async (targetCompanyId: string) => {
@@ -86,6 +88,10 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   }, [messages, companyId]);
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
     if (!companyId) {
       setIssuesByIdentifier({});
       return;
@@ -132,15 +138,11 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     if (!sending && !loading) inputRef.current?.focus();
   }, [sending, loading]);
 
-  const handleSend = async () => {
-    if (!message.trim() || sending || !companyId) return;
-    const userText = message.trim();
-    setMessage("");
-
+  const sendUserMessage = useCallback(async (userText: string) => {
+    if (!userText.trim() || !companyId) return;
     const userMsg: ChatMessage = { role: "user", text: userText };
-    const updatedMessages = [...messages, userMsg];
+    const updatedMessages = [...messagesRef.current, userMsg];
     setMessages(updatedMessages);
-
     setSending(true);
     try {
       const res = await fetch("/api/ceo-chat", {
@@ -160,6 +162,29 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
       setMessages((prev) => [...prev, { role: "ceo", text: "Sorry, I couldn't process that. Try again?" }]);
     }
     setSending(false);
+  }, [companyId]);
+
+  useEffect(() => {
+    const handleDiscuss = (event: Event) => {
+      const detail = (event as CustomEvent<CeoChatDiscussDetail>).detail;
+      if (!detail?.text || !companyId || detail.companyId !== companyId || sending) {
+        return;
+      }
+      setMessage("");
+      void sendUserMessage(detail.text.trim());
+    };
+
+    window.addEventListener(CEO_CHAT_DISCUSS_EVENT, handleDiscuss as EventListener);
+    return () => {
+      window.removeEventListener(CEO_CHAT_DISCUSS_EVENT, handleDiscuss as EventListener);
+    };
+  }, [companyId, sendUserMessage, sending]);
+
+  const handleSend = async () => {
+    if (!message.trim() || sending || !companyId) return;
+    const userText = message.trim();
+    setMessage("");
+    await sendUserMessage(userText);
   };
 
   const handleClearChat = async () => {

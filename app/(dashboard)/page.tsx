@@ -39,6 +39,7 @@ import { useCompany, useCompanyData } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { openCeoChatDiscussion } from "@/lib/ceo-chat-events";
 import {
   issueNeedsReply,
   readInboxArchivedIds,
@@ -1780,7 +1781,7 @@ function DashboardContent() {
                       const reviewHref = issue.identifier
                         ? companyPath(`/tasks/${issue.identifier}`)
                         : companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`);
-                      const reviewLabel = issue.identifier ? "Go to task" : "Open request";
+                      const reviewLabel = issue.identifier ? "View Task" : "Open Request";
                       return (
                         <div
                           key={issue.id}
@@ -1837,11 +1838,39 @@ function DashboardContent() {
                           <div
                             style={{
                               display: "flex",
+                              gap: 10,
+                              flexWrap: "wrap",
                               marginTop: "auto",
                               paddingTop: 14,
                               borderTop: "1px solid rgba(214, 227, 242, 0.75)",
                             }}
                           >
+                            <button
+                              onClick={() => {
+                                if (!companyId) {
+                                  return;
+                                }
+                                openCeoChatDiscussion({
+                                  companyId,
+                                  text: `Let's discuss and resolve "${card.ask}"`,
+                                });
+                              }}
+                              style={{
+                                border: "1px solid #d8dee8",
+                                background: "#f5f7fa",
+                                color: "#556373",
+                                borderRadius: 10,
+                                padding: "8px 12px",
+                                fontSize: 13,
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                textDecoration: "none",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              Discuss
+                            </button>
                             <a
                               href={reviewHref}
                               style={{
