@@ -173,22 +173,6 @@ async function request(apiBase, path, options = {}) {
 NODE`;
 }
 
-function tryParseJson<T>(value: string): T | null {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    const match = value.match(/\{[\s\S]*\}$/);
-    if (!match) {
-      return null;
-    }
-    try {
-      return JSON.parse(match[0]) as T;
-    } catch {
-      return null;
-    }
-  }
-}
-
 async function runCompanyBackfill(company: PaperclipCompany, targets: BackfillTarget[]) {
   let helperAgentId: string | null = null;
 
@@ -240,19 +224,42 @@ async function runCompanyBackfill(company: PaperclipCompany, targets: BackfillTa
       throw new Error(helperRun.error || `Backfill helper ended with status ${helperRun.status}.`);
     }
 
-    const output = await getRunOutput(helperRun.id);
-    const parsed = tryParseJson<Omit<BackfillSummary, "companyId" | "companyName" | "targeted">>(output);
-    if (!parsed) {
-      throw new Error("Backfill helper completed, but no JSON summary was returned.");
+    await getRunOutput(helperRun.id).catch(() => "");
+    const refreshedAgents = (await paperclip(`/companies/${company.id}/agents`)) as PaperclipAgent[];
+    const refreshedById = new Map(refreshedAgents.map((agent) => [agent.id, agent]));
+    const updated: BackfillSummary["updated"] = [];
+    const skipped: BackfillSummary["skipped"] = [];
+    const errors: BackfillSummary["errors"] = [];
+
+    for (const target of targets) {
+      const agent = refreshedById.get(target.id);
+      if (!agent) {
+        errors.push({ id: target.id, error: "Agent disappeared after backfill." });
+        continue;
+      }
+
+      const promptTemplate =
+        typeof agent.adapterConfig?.promptTemplate === "string"
+          ? agent.adapterConfig.promptTemplate.trim()
+          : "";
+      if (promptTemplate) {
+        updated.push({ id: agent.id, name: agent.name, length: promptTemplate.length });
+      } else {
+        errors.push({
+          id: agent.id,
+          name: agent.name,
+          error: "Backfill helper completed but promptTemplate is still missing.",
+        });
+      }
     }
 
     return {
       companyId: company.id,
       companyName: company.name,
       targeted: targets.length,
-      updated: parsed.updated || [],
-      skipped: parsed.skipped || [],
-      errors: parsed.errors || [],
+      updated,
+      skipped,
+      errors,
     } satisfies BackfillSummary;
   } finally {
     if (helperAgentId) {
