@@ -3,6 +3,7 @@ export const CEO_CHAT_DISCUSS_EVENT = "paperclip:ceo-chat-discuss";
 export interface CeoChatDiscussDetail {
   companyId: string;
   text: string;
+  issueId?: string;
 }
 
 export function openCeoChatDiscussion(detail: CeoChatDiscussDetail) {

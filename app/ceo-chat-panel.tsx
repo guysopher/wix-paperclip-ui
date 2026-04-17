@@ -6,6 +6,7 @@ import { Refresh, Send, X } from "@wix/wix-ui-icons-common";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useCompany } from "./providers";
+import { setInboxReplyOverride } from "@/lib/inbox-state";
 import { ensureWorkspaceHref } from "@/lib/workspace-links";
 import { CEO_CHAT_DISCUSS_EVENT, type CeoChatDiscussDetail } from "@/lib/ceo-chat-events";
 import { getIssues, type Issue } from "@/lib/api";
@@ -138,13 +139,16 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     if (!sending && !loading) inputRef.current?.focus();
   }, [sending, loading]);
 
-  const sendUserMessage = useCallback(async (userText: string) => {
+  const sendUserMessage = useCallback(async (userText: string, sourceIssueId?: string) => {
     if (!userText.trim() || !companyId) return;
     const userMsg: ChatMessage = { role: "user", text: userText };
     const updatedMessages = [...messagesRef.current, userMsg];
     setMessages(updatedMessages);
     setSending(true);
     try {
+      if (sourceIssueId) {
+        setInboxReplyOverride(sourceIssueId, new Date().toISOString());
+      }
       const res = await fetch("/api/ceo-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -171,7 +175,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
         return;
       }
       setMessage("");
-      void sendUserMessage(detail.text.trim());
+      void sendUserMessage(detail.text.trim(), detail.issueId);
     };
 
     window.addEventListener(CEO_CHAT_DISCUSS_EVENT, handleDiscuss as EventListener);

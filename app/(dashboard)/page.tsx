@@ -1955,6 +1955,7 @@ function DashboardContent() {
                                 }
                                 openCeoChatDiscussion({
                                   companyId,
+                                  issueId: card.issueId,
                                   text: `Let's discuss and resolve "${card.ask}"`,
                                 });
                               }}
