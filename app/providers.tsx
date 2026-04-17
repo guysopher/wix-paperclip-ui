@@ -14,6 +14,7 @@ import {
   getRuns,
   getAgents,
   updateApproval,
+  updateIssue,
   type Company,
   type Dashboard,
   type Goal,
@@ -21,7 +22,7 @@ import {
   type Agent,
   type HeartbeatRun,
 } from "@/lib/api";
-import { findCompanyByMsid, getCompanyWixBinding } from "@/lib/company-metadata";
+import { findCompanyByMsid, getCompanyActivation, getCompanyWixBinding } from "@/lib/company-metadata";
 import {
   issueNeedsReply,
   readInboxArchivedIds,
@@ -256,6 +257,69 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return approvalsChanged;
   }, [autoApprovePendingApprovals]);
 
+  const autoCleanStaleBoardTasks = useCallback(async (company: Company, issues: Issue[]) => {
+    const activation = getCompanyActivation(company.description);
+    const wixBinding = getCompanyWixBinding(company.description);
+    const shouldDropSiteCreationConfirmation =
+      activation?.mode === "new_site" &&
+      !wixBinding?.metaSiteId &&
+      !wixBinding?.siteId &&
+      !wixBinding?.siteUrl;
+
+    let changed = false;
+
+    await Promise.all(
+      issues.map(async (issue) => {
+        if (issue.assigneeUserId !== "local-board") {
+          return;
+        }
+        if (issue.status === "done" || issue.status === "cancelled") {
+          return;
+        }
+
+        let nextTitle = issue.title;
+        let nextDescription = issue.description;
+
+        if (
+          /starter-team hires are already approved and live/i.test(nextDescription) &&
+          /approve starter-team hires/i.test(nextTitle)
+        ) {
+          nextTitle = nextTitle
+            .replace(/^approve starter-team hires and\s*/i, "")
+            .replace(/^approve starter-team hires\s*/i, "")
+            .trim();
+          if (nextTitle.length > 0) {
+            nextTitle = nextTitle.charAt(0).toUpperCase() + nextTitle.slice(1);
+          }
+        }
+
+        if (shouldDropSiteCreationConfirmation) {
+          nextDescription = nextDescription
+            .replace(
+              /\n-\s*if there is no Wix site yet: confirm that the team should create the main[^\n]*/i,
+              "",
+            )
+            .replace(
+              /\n-\s*if .* already has a Wix site:[^\n]*/i,
+              "\n- if there is already a Wix site: send the canonical `metaSiteId`, `siteId`, or live `siteUrl` (any one is enough to lock the company record)",
+            );
+        }
+
+        nextDescription = nextDescription.replace(/\n{3,}/g, "\n\n").trim();
+
+        if (nextTitle !== issue.title || nextDescription !== issue.description) {
+          changed = true;
+          await updateIssue(issue.id, {
+            title: nextTitle || issue.title,
+            description: nextDescription || issue.description,
+          }).catch(() => null);
+        }
+      }),
+    );
+
+    return changed;
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
@@ -290,9 +354,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
         getIssues(companyId),
         getRuns(companyId),
       ]);
+      const boardTasksChanged = await autoCleanStaleBoardTasks(currentCompany, allIssues);
+      const [
+        finalAssignedToMe,
+        finalMyIssues,
+        finalBlockedIssues,
+        finalAllIssues,
+      ] = boardTasksChanged
+        ? await Promise.all([
+            getIssuesAssignedToMe(companyId),
+            getMyIssues(companyId),
+            getIssues(companyId, "status=blocked"),
+            getIssues(companyId),
+          ])
+        : [assignedToMe, myIssues, blockedIssues, allIssues];
+
       const seenInboxIssueIds = new Set<string>();
       const inboxIssues: Issue[] = [];
-      for (const list of [assignedToMe, myIssues, blockedIssues]) {
+      for (const list of [finalAssignedToMe, finalMyIssues, finalBlockedIssues]) {
         for (const issue of list) {
           if (issue.title === "Board Inbox" || seenInboxIssueIds.has(issue.id)) {
             continue;
@@ -315,7 +394,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }
       const inboxCount = inboxIds.size;
       const runningCount = runs.filter((r) => r.status === "running").length;
-      const inProgressCount = allIssues.filter((i) => i.status === "in_progress").length;
+      const inProgressCount = finalAllIssues.filter((i) => i.status === "in_progress").length;
       const teamSize = agentList.length;
       setCounts({ inbox: inboxCount, runs: runningCount, tasks: inProgressCount, chat: 0, team: teamSize });
       setCompanyData({
@@ -323,7 +402,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         dashboard,
         agents: agentList,
         goals: goalList,
-        issues: allIssues,
+        issues: finalAllIssues,
         inboxIssues,
         runs,
         loading: false,
@@ -352,7 +431,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } finally {
       refreshInFlightRef.current = false;
     }
-  }, [autoRepairAgentsAndApprovals, companyLookupStatus, selectedCompanyId]);
+  }, [autoCleanStaleBoardTasks, autoRepairAgentsAndApprovals, companyLookupStatus, selectedCompanyId]);
 
   useEffect(() => {
     if (companyLookupStatus !== "ready") {
