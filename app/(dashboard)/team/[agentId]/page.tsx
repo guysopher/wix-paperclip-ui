@@ -2,6 +2,8 @@
 
 import { useEffect, useState, Suspense, use } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Page,
   Card,
@@ -469,18 +471,48 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
             />
             <Card.Divider />
             <Card.Content>
-              <FormField
-                label="Role description"
-                infoContent="Defines how this team member thinks and works. This is their core instruction set."
-              >
-                <InputArea
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  rows={10}
-                  placeholder="Describe this team member's responsibilities, how they work, and their personality..."
-                  resizable
-                />
-              </FormField>
+              <Box direction="vertical" gap="18px">
+                <FormField
+                  label="Rendered preview"
+                  infoContent="How the role description reads when rendered as Markdown."
+                >
+                  <div
+                    style={{
+                      border: "1px solid #dfe5eb",
+                      borderRadius: 12,
+                      background: "#f8fbff",
+                      padding: "18px 20px",
+                      minHeight: 140,
+                      fontSize: 14,
+                      lineHeight: 1.65,
+                      color: "#162d3d",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {editPrompt.trim() ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {editPrompt}
+                      </ReactMarkdown>
+                    ) : (
+                      <Text size="small" secondary>
+                        No role description yet.
+                      </Text>
+                    )}
+                  </div>
+                </FormField>
+                <FormField
+                  label="Markdown source"
+                  infoContent="Edit the raw role description prompt. The preview above updates as you type."
+                >
+                  <InputArea
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    rows={10}
+                    placeholder="Describe this team member's responsibilities, how they work, and their personality..."
+                    resizable
+                  />
+                </FormField>
+              </Box>
             </Card.Content>
           </Card>
 
