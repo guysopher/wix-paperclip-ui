@@ -533,7 +533,7 @@ function DashboardContent() {
     .slice(0, 3);
   const attentionHeadline =
     attentionRequests.length === 0
-      ? "Nothing needs your attention right now."
+      ? "The AI Team is handling everything right now."
       : attentionRequests.length === 1
         ? "1 thing needs your attention to keep progress moving."
         : `${attentionRequests.length} things need your attention to keep progress moving.`;
@@ -1817,8 +1817,37 @@ function DashboardContent() {
                 </div>
 
                 {attentionRequests.length === 0 ? (
-                  <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
-                    No decisions or replies are blocking the team right now.
+                  <div
+                    style={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(177, 222, 193, 0.9)",
+                      background:
+                        "radial-gradient(circle at top right, rgba(0, 194, 120, 0.10), transparent 34%), linear-gradient(180deg, #ffffff 0%, #f7fffb 100%)",
+                      boxShadow: "0 12px 28px rgba(22, 45, 61, 0.04)",
+                      padding: "18px 20px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: "50%",
+                        background: "#00c278",
+                        boxShadow: "0 0 0 6px rgba(0, 194, 120, 0.12)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1f5136", marginBottom: 2 }}>
+                        The AI Team has it covered
+                      </div>
+                      <div style={{ fontSize: 14, color: "#4d6b5a", lineHeight: 1.6 }}>
+                        No decisions or replies are blocking progress right now. The team is moving work forward without needing anything from you.
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div
