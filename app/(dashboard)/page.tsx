@@ -43,7 +43,6 @@ import {
   issueNeedsReply,
   readInboxArchivedIds,
   readInboxReplyOverrides,
-  setInboxReplyOverride,
   subscribeInboxArchivedIds,
   subscribeInboxReplyOverrides,
   type InboxReplyOverrides,
@@ -52,13 +51,13 @@ import { parseRunUsage } from "@/lib/model-pricing";
 import {
   invokeHeartbeat,
   pauseAgent,
-  postComment,
   resumeAgent,
   updateAgent,
   createIssue,
   runCompanyHealthCheck,
   restartPaperclipServer,
   repairCodexAuth,
+  backfillAgentPrompts,
   type Agent,
   type HeartbeatRun,
 } from "@/lib/api";
@@ -295,8 +294,6 @@ function DashboardContent() {
   const [companyStatusError, setCompanyStatusError] = useState("");
   const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
   const [archivedInboxIds, setArchivedInboxIds] = useState<string[]>([]);
-  const [requestSubmittingId, setRequestSubmittingId] = useState<string | null>(null);
-  const [requestError, setRequestError] = useState("");
   const [ceoRequestCards, setCeoRequestCards] = useState<Record<string, CeoRequestCard>>({});
   const [ceoRequestsLoading, setCeoRequestsLoading] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -313,6 +310,7 @@ function DashboardContent() {
   const [healthLoading, setHealthLoading] = useState(false);
   const [restartingServer, setRestartingServer] = useState(false);
   const [repairingCodexAuth, setRepairingCodexAuth] = useState(false);
+  const [backfillingAgentPrompts, setBackfillingAgentPrompts] = useState(false);
   const [liveRunFeed, setLiveRunFeed] = useState<LiveRunFeed | null>(null);
   const [liveRunLoading, setLiveRunLoading] = useState(false);
   const [selectedOpsAgentId, setSelectedOpsAgentId] = useState<string | null>(null);
@@ -1081,30 +1079,55 @@ function DashboardContent() {
     }
   };
 
-  const submitAttentionResponse = async (issueId: string, body: string) => {
-    const issue = inboxIssues.find((entry) => entry.id === issueId) || issues.find((entry) => entry.id === issueId);
-    if (!issue || !body.trim()) {
+  const handleBackfillAgentPrompts = async () => {
+    if (!companyId || backfillingAgentPrompts) {
       return;
     }
 
-    setRequestSubmittingId(issueId);
-    setRequestError("");
-    const sentAt = new Date().toISOString();
-
+    setBackfillingAgentPrompts(true);
     try {
-      await postComment(issueId, body.trim());
-      setReplyOverrides(setInboxReplyOverride(issueId, sentAt));
-      const assigneeId = issue.assigneeAgentId || issue.assigneeId;
-      if (assigneeId) {
-        try {
-          await invokeHeartbeat(assigneeId);
-        } catch {}
-      }
+      const result = await backfillAgentPrompts(companyId);
       await refresh();
+      setHealthResult({
+        status: result.errorCount > 0 ? "warning" : "repaired",
+        checks: [
+          {
+            name: "agent_prompts",
+            status: result.errorCount > 0 ? "warning" : "repaired",
+            detail:
+              result.updatedCount > 0
+                ? `Backfilled ${result.updatedCount} agent prompt${result.updatedCount === 1 ? "" : "s"}.`
+                : "All agent promptTemplate fields are already present.",
+          },
+        ],
+        actions:
+          result.updatedCount > 0
+            ? [
+                `Copied ${result.updatedCount} managed instruction bundle${
+                  result.updatedCount === 1 ? "" : "s"
+                } into agent promptTemplate`,
+              ]
+            : ["No missing agent promptTemplate fields found"],
+        controls: healthResult?.controls,
+      });
     } catch (error) {
-      setRequestError(error instanceof Error ? error.message : "Failed to send response");
+      setHealthResult({
+        status: "error",
+        checks: [
+          {
+            name: "agent_prompts",
+            status: "error",
+            detail:
+              error instanceof Error
+                ? error.message
+                : "Agent prompt backfill failed",
+          },
+        ],
+        actions: [],
+        controls: healthResult?.controls,
+      });
     } finally {
-      setRequestSubmittingId(null);
+      setBackfillingAgentPrompts(false);
     }
   };
 
@@ -1182,6 +1205,12 @@ function DashboardContent() {
                   }
                   setRestartingServer(false);
                 }}
+              />
+              <PopoverMenu.MenuItem
+                text={backfillingAgentPrompts ? "Backfilling agent prompts..." : "Backfill Agent Prompts"}
+                subtitle="Copies managed instructions into stored promptTemplate fields"
+                disabled={backfillingAgentPrompts}
+                onClick={handleBackfillAgentPrompts}
               />
               <PopoverMenu.MenuItem
                 text={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Resume All Agents" : "Pause All Agents"}
@@ -1461,6 +1490,22 @@ function DashboardContent() {
                   {repairingCodexAuth ? "Repairing Codex auth..." : "Repair Codex Auth"}
                 </button>
               )}
+              <button
+                onClick={handleBackfillAgentPrompts}
+                disabled={backfillingAgentPrompts}
+                style={{
+                  border: "1px solid #d6d6d6",
+                  background: "white",
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: backfillingAgentPrompts ? "default" : "pointer",
+                  color: "#2f6fed",
+                }}
+              >
+                {backfillingAgentPrompts ? "Backfilling prompts..." : "Backfill Agent Prompts"}
+              </button>
             </div>
           </div>
         )}
@@ -1678,7 +1723,7 @@ function DashboardContent() {
             </div>
             <Card>
               <Card.Content>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: attentionRequests.length > 0 || requestError ? 12 : 0, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: attentionRequests.length > 0 ? 12 : 0, flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d", marginBottom: 2 }}>
                       Please Review
@@ -1704,22 +1749,6 @@ function DashboardContent() {
                   </a>
                 </div>
 
-                {requestError && (
-                  <div
-                    style={{
-                      borderRadius: 8,
-                      border: "1px solid #f2c9c9",
-                      background: "#fff6f6",
-                      color: "#b53d3d",
-                      padding: "10px 12px",
-                      fontSize: 12,
-                      marginBottom: 12,
-                    }}
-                  >
-                    {requestError}
-                  </div>
-                )}
-
                 {attentionRequests.length === 0 ? (
                   <div style={{ fontSize: 14, color: "#5f7386", lineHeight: 1.6 }}>
                     No decisions or replies are blocking the team right now.
@@ -1734,8 +1763,11 @@ function DashboardContent() {
                     }}
                   >
                     {renderedAttentionRequests.map(({ issue, card }) => {
-                      const isSubmitting = requestSubmittingId === issue.id;
                       const isBlocking = issue.status === "blocked";
+                      const reviewHref = issue.identifier
+                        ? companyPath(`/tasks/${issue.identifier}`)
+                        : companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`);
+                      const reviewLabel = issue.identifier ? "Go to task" : "Open request";
                       return (
                         <div
                           key={issue.id}
@@ -1792,37 +1824,13 @@ function DashboardContent() {
                           <div
                             style={{
                               display: "flex",
-                              gap: 14,
-                              flexWrap: "wrap",
                               marginTop: "auto",
                               paddingTop: 14,
                               borderTop: "1px solid rgba(214, 227, 242, 0.75)",
                             }}
                           >
-                            {card.quickReplies.slice(0, 2).map((quickReply, index) => (
-                              <button
-                                key={`${issue.id}:${quickReply}`}
-                                onClick={() => void submitAttentionResponse(issue.id, quickReply)}
-                                disabled={isSubmitting}
-                                style={{
-                                  border: "1px solid #d8dee8",
-                                  background: "#f5f7fa",
-                                  color: "#556373",
-                                  borderRadius: 10,
-                                  padding: "8px 12px",
-                                  fontSize: 13,
-                                  fontWeight: 500,
-                                  cursor: isSubmitting ? "default" : "pointer",
-                                  textAlign: "center",
-                                  textDecoration: "none",
-                                  lineHeight: 1.4,
-                                }}
-                              >
-                                {isSubmitting && index === 0 ? "Sending..." : quickReply}
-                              </button>
-                            ))}
                             <a
-                              href={companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`)}
+                              href={reviewHref}
                               style={{
                                 border: "1px solid #d8dee8",
                                 background: "#f5f7fa",
@@ -1839,7 +1847,7 @@ function DashboardContent() {
                                 lineHeight: 1.4,
                               }}
                             >
-                              Answer fully
+                              {reviewLabel}
                             </a>
                           </div>
                         </div>
