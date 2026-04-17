@@ -50,6 +50,7 @@ import {
 } from "@/lib/inbox-state";
 import { parseRunUsage } from "@/lib/model-pricing";
 import {
+  getComments,
   invokeHeartbeat,
   pauseAgent,
   resumeAgent,
@@ -294,6 +295,9 @@ function DashboardContent() {
   const [companyStatusError, setCompanyStatusError] = useState("");
   const [replyOverrides, setReplyOverrides] = useState<InboxReplyOverrides>({});
   const [archivedInboxIds, setArchivedInboxIds] = useState<string[]>([]);
+  const [attentionLatestAuthorByIssue, setAttentionLatestAuthorByIssue] = useState<
+    Record<string, string | null>
+  >({});
   const [ceoRequestCards, setCeoRequestCards] = useState<Record<string, CeoRequestCard>>({});
   const [ceoRequestsLoading, setCeoRequestsLoading] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -469,7 +473,7 @@ function DashboardContent() {
   }, []);
 
   const archivedInboxIdSet = new Set(archivedInboxIds);
-  const attentionRequests = [...inboxIssues]
+  const attentionCandidateRequests = [...inboxIssues]
     .filter((issue) => !archivedInboxIdSet.has(issue.id))
     .filter((issue) => issueNeedsReply(issue, replyOverrides))
     .sort((a, b) => {
@@ -477,6 +481,55 @@ function DashboardContent() {
       if (b.status === "blocked" && a.status !== "blocked") return 1;
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     })
+    .slice(0, 6);
+
+  useEffect(() => {
+    if (attentionCandidateRequests.length === 0) {
+      setAttentionLatestAuthorByIssue({});
+      return;
+    }
+
+    let cancelled = false;
+    const nextIds = new Set(attentionCandidateRequests.map((issue) => issue.id));
+
+    setAttentionLatestAuthorByIssue((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([issueId]) => nextIds.has(issueId))),
+    );
+
+    void Promise.all(
+      attentionCandidateRequests.map(async (issue) => {
+        try {
+          const comments = await getComments(issue.id);
+          const latestComment = comments[0];
+          return [issue.id, latestComment?.authorUserId ?? (latestComment?.authorAgentId ? "__agent__" : null)] as const;
+        } catch {
+          return [issue.id, null] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) {
+        return;
+      }
+      setAttentionLatestAuthorByIssue((prev) => ({
+        ...prev,
+        ...Object.fromEntries(entries),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    JSON.stringify(
+      attentionCandidateRequests.map((issue) => ({
+        id: issue.id,
+        updatedAt: issue.updatedAt,
+      })),
+    ),
+  ]);
+
+  const attentionRequests = attentionCandidateRequests
+    .filter((issue) => attentionLatestAuthorByIssue[issue.id] !== "local-board")
     .slice(0, 3);
   const attentionHeadline =
     attentionRequests.length === 0
