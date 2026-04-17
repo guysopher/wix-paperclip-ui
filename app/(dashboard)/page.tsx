@@ -1856,13 +1856,13 @@ function DashboardContent() {
                                 });
                               }}
                               style={{
-                                border: "1px solid #d8dee8",
-                                background: "#f5f7fa",
-                                color: "#556373",
-                                borderRadius: 10,
-                                padding: "8px 12px",
+                                border: "none",
+                                background: "transparent",
+                                color: "#2b6ed2",
+                                borderRadius: 8,
+                                padding: "0",
                                 fontSize: 13,
-                                fontWeight: 500,
+                                fontWeight: 600,
                                 cursor: "pointer",
                                 textAlign: "center",
                                 textDecoration: "none",
@@ -1874,11 +1874,11 @@ function DashboardContent() {
                             <a
                               href={reviewHref}
                               style={{
-                                border: "1px solid #d8dee8",
-                                background: "#f5f7fa",
-                                color: "#556373",
-                                borderRadius: 10,
-                                padding: "8px 12px",
+                                border: "none",
+                                background: "transparent",
+                                color: "#7a8da5",
+                                borderRadius: 8,
+                                padding: "0",
                                 fontSize: 13,
                                 fontWeight: 500,
                                 cursor: "pointer",
