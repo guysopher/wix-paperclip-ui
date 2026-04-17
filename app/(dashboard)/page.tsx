@@ -1840,37 +1840,12 @@ function DashboardContent() {
                               display: "flex",
                               gap: 10,
                               flexWrap: "wrap",
+                              justifyContent: "flex-end",
                               marginTop: "auto",
                               paddingTop: 14,
                               borderTop: "1px solid rgba(214, 227, 242, 0.75)",
                             }}
                           >
-                            <button
-                              onClick={() => {
-                                if (!companyId) {
-                                  return;
-                                }
-                                openCeoChatDiscussion({
-                                  companyId,
-                                  text: `Let's discuss and resolve "${card.ask}"`,
-                                });
-                              }}
-                              style={{
-                                border: "none",
-                                background: "transparent",
-                                color: "#2b6ed2",
-                                borderRadius: 8,
-                                padding: "0",
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                textAlign: "center",
-                                textDecoration: "none",
-                                lineHeight: 1.4,
-                              }}
-                            >
-                              Discuss
-                            </button>
                             <a
                               href={reviewHref}
                               style={{
@@ -1891,6 +1866,33 @@ function DashboardContent() {
                             >
                               {reviewLabel}
                             </a>
+                            <button
+                              onClick={() => {
+                                if (!companyId) {
+                                  return;
+                                }
+                                openCeoChatDiscussion({
+                                  companyId,
+                                  text: `Let's discuss and resolve "${card.ask}"`,
+                                });
+                              }}
+                              style={{
+                                border: "1px solid #d5e0f0",
+                                background: "#f4f8ff",
+                                color: "#2b6ed2",
+                                borderRadius: 999,
+                                padding: "6px 12px",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                textDecoration: "none",
+                                lineHeight: 1.4,
+                                boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
+                              }}
+                            >
+                              Discuss
+                            </button>
                           </div>
                         </div>
                       );
