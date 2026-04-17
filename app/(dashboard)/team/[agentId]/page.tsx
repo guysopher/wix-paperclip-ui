@@ -783,52 +783,102 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
             <Card.Content>
               <Box direction="vertical" gap="16px">
                 {agent.status !== "paused" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      padding: 18,
+                      border: "1px solid #f3e3a1",
+                      borderRadius: 14,
+                      background: "#fff8e1",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 720 }}>
+                      <Text weight="bold" style={{ color: "#7a5c00" }}>
+                        Put on leave
+                      </Text>
+                      <Text size="small" secondary>
+                        Pause this agent temporarily. They will stop scheduled check-ins, mentions, and new task work until you bring them back.
+                      </Text>
+                    </div>
+                    <Tooltip
+                      content="Pause this agent. They won't respond to scheduled check-ins, mentions, or task assignments until brought back."
+                      placement="right"
+                    >
+                      <button
+                        onClick={() => setShowPauseConfirm(true)}
+                        disabled={acting}
+                        style={{
+                          appearance: "none",
+                          border: "1px solid #d6a800",
+                          background: acting ? "#f6dc84" : "#ffcc00",
+                          color: "#1f2b3d",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: acting ? "not-allowed" : "pointer",
+                          padding: "10px 16px",
+                          borderRadius: 999,
+                          minWidth: 140,
+                          opacity: acting ? 0.7 : 1,
+                        }}
+                      >
+                        Put on leave
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    padding: 18,
+                    border: "1px solid #f2c6c3",
+                    borderRadius: 14,
+                    background: "#fff5f5",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 720 }}>
+                    <Text weight="bold" style={{ color: "#aa2e25" }}>
+                      Fire permanently
+                    </Text>
+                    <Text size="small" secondary>
+                      Remove this agent from the company for good. Their task history stays, but the agent will no longer participate in the team.
+                    </Text>
+                  </div>
                   <Tooltip
-                    content="Pause this agent. They won't respond to scheduled check-ins, mentions, or task assignments until brought back."
+                    content="Remove this agent permanently from the company."
                     placement="right"
                   >
                     <button
-                      onClick={() => setShowPauseConfirm(true)}
+                      onClick={() => {
+                        setDeleteError("");
+                        setShowDeleteConfirm(true);
+                      }}
                       disabled={acting}
                       style={{
-                        background: "none",
-                        border: "none",
-                        color: "#ee5951",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        padding: 0,
-                        width: "fit-content",
+                        appearance: "none",
+                        border: "1px solid #d6453d",
+                        background: acting ? "#f0a9a4" : "#ee5951",
+                        color: "#ffffff",
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: acting ? "not-allowed" : "pointer",
+                        padding: "10px 16px",
+                        borderRadius: 999,
+                        minWidth: 160,
+                        opacity: acting ? 0.7 : 1,
                       }}
-                    >
-                      Put on leave
-                    </button>
-                  </Tooltip>
-                )}
-                <Tooltip
-                  content="Remove this agent permanently from the company."
-                  placement="right"
-                >
-                  <button
-                    onClick={() => {
-                      setDeleteError("");
-                      setShowDeleteConfirm(true);
-                    }}
-                    disabled={acting}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#ee5951",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      padding: 0,
-                      width: "fit-content",
-                    }}
                   >
                     Fire permanently
                   </button>
                 </Tooltip>
+                </div>
               </Box>
             </Card.Content>
           </Card>
