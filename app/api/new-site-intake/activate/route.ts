@@ -449,11 +449,13 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     summary.firstBuildBrief,
     "",
     "Execution rules:",
-    "1. Build and manage the main business site through the standard Wix/Harmony tool path. That main site becomes the canonical company site in wixBinding.",
-    "2. If a Picasso vibe site would help with experimentation or creative direction, create it as a separate experimental site only.",
-    "3. Record any Picasso experimental site separately as vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
-    "4. Never overwrite wixBinding with vibe-site data.",
-    "5. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
+    "1. This is a build task, not a planning task.",
+    "2. On the first Wix Site Expert run, if neither site exists yet, create the main business site through the standard Wix/Harmony path and also create the separate Picasso vibe site.",
+    "3. The main business site becomes the canonical company site in wixBinding.",
+    "4. Record the Picasso experimental site separately as vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
+    "5. Never overwrite wixBinding with vibe-site data.",
+    "6. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
+    "7. Do not complete this task with architecture-only recommendations if no site exists yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
   ];
 
   return {
