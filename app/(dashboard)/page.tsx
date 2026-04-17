@@ -1740,7 +1740,7 @@ function DashboardContent() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: attentionRequests.length > 0 ? 12 : 0, flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d", marginBottom: 2 }}>
-                      Please Review
+                      Needs Your Input
                     </div>
                     <div style={{ fontSize: 13, color: "#5f7386" }}>
                       {ceoRequestsLoading && attentionRequests.length > 0 ? "Framing the clearest asks for you..." : attentionHeadline}
