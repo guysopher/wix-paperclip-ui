@@ -1289,7 +1289,7 @@ function DashboardContent() {
         </div>
         <div style={{ marginLeft: "auto" }}>
           <Button size="small" priority="secondary" onClick={handleGetCompanyStatus}>
-            {companyStatusLoading && showStatusModal ? "Updating status..." : "Get Status"}
+            {companyStatusLoading && showStatusModal ? "Updating status..." : "Get Status Report"}
           </Button>
         </div>
       </div>
