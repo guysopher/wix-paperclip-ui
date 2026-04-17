@@ -116,7 +116,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [loadingModels, setLoadingModels] = useState(false);
 
   // Editable fields
-  const [editName, setEditName] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editIcon, setEditIcon] = useState<string | undefined>(undefined);
   const [editSchedule, setEditSchedule] = useState("");
@@ -175,8 +174,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   };
 
   const populateForm = async (a: Agent) => {
-    setEditName(a.name);
-    setEditTitle(a.title);
+    setEditTitle((a.title || a.name || "").trim());
     setEditIcon(a.icon);
     setEditSchedule(String(getHeartbeatPolicy(a).intervalSec || 600));
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
@@ -202,9 +200,10 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const handleSave = async () => {
     if (!agent) return;
     setSaving(true);
+    const normalizedTitle = editTitle.trim() || agent.title || agent.name;
     await updateAgent(agent.id, {
-      name: editName,
-      title: editTitle,
+      name: normalizedTitle,
+      title: normalizedTitle,
       icon: editIcon,
       reportsTo: editManager,
       adapterConfig: {
@@ -263,7 +262,9 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
 
   const managerOptions = [
     { id: "__none__", value: "No manager" },
-    ...agents.filter((a) => a.id !== agentId).map((a) => ({ id: a.id, value: a.name })),
+    ...agents
+      .filter((a) => a.id !== agentId)
+      .map((a) => ({ id: a.id, value: (a.title || a.name || "").trim() || "Untitled agent" })),
   ];
 
   if (loading) {
@@ -324,12 +325,15 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     configuredModel.length > 0 && runtimeModelRaw !== null && configuredModel !== runtimeModelRaw;
   const hasUnsavedModelChange = configuredModel !== savedConfiguredModel;
   const managerSummary = editManager
-    ? agents.find((candidate) => candidate.id === editManager)?.name || "Unknown"
+    ? agents.find((candidate) => candidate.id === editManager)?.title
+      || agents.find((candidate) => candidate.id === editManager)?.name
+      || "Unknown"
     : "No manager";
   const scheduleSummary =
     SCHEDULE_OPTIONS.find((option) => option.id === editSchedule)?.value.replace(/^Every\s+/, "")
     || (editSchedule ? `${Math.round(parseInt(editSchedule, 10) / 60)} min` : "Manual");
   const modelSummary = configuredModel || runtimeModel;
+  const displayTitle = editTitle.trim() || agent.title || agent.name;
 
   return (
     <>
@@ -339,7 +343,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
             <Breadcrumbs
               items={[
                 { label: "Team", href: "/team" },
-                { label: agent.name },
+                { label: displayTitle },
               ]}
             />
           }
@@ -382,7 +386,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           }
         />
         <Page.Content>
-          {/* Header card with avatar, name, title, status, last active */}
+          {/* Header card with avatar, status, and operating summary */}
           <Card>
             <Card.Content>
               <div
@@ -395,7 +399,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
               >
                 <Box direction="horizontal" gap="16px" verticalAlign="middle">
                   <AgentAvatar
-                    agentName={agent.name}
+                    agentName={displayTitle}
                     agentRole={agent.role}
                     icon={agent.icon}
                     size={56}
@@ -403,10 +407,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   />
                   <Box direction="vertical" gap="4px">
                     <Text weight="bold" size="medium">
-                      {agent.name}
-                    </Text>
-                    <Text size="small" secondary>
-                      {agent.title}
+                      {displayTitle}
                     </Text>
                     <Box direction="horizontal" gap="8px" verticalAlign="middle">
                       <Badge
@@ -458,9 +459,33 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
 
           <Box marginTop="24px" />
 
+          <Card>
+            <Card.Header
+              title="Role description"
+              subtitle="This is the core instruction set that defines how this agent thinks, works, and contributes."
+            />
+            <Card.Divider />
+            <Card.Content>
+              <FormField
+                label="Role description"
+                infoContent="Defines how this team member thinks and works. This is their core instruction set."
+              >
+                <InputArea
+                  value={editPrompt}
+                  onChange={(e) => setEditPrompt(e.target.value)}
+                  rows={10}
+                  placeholder="Describe this team member's responsibilities, how they work, and their personality..."
+                  resizable
+                />
+              </FormField>
+            </Card.Content>
+          </Card>
+
+          <Box marginTop="24px" />
+
           {/* Editable details card */}
           <Card>
-            <Card.Header title="Details" subtitle="Edit the agent profile and working setup." />
+            <Card.Header title="Details" subtitle="Edit the working setup for this agent." />
             <Card.Divider />
             <Card.Content>
               <Box direction="vertical" gap="18px">
@@ -471,34 +496,34 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "14px 18px",
+                      gridTemplateColumns: "minmax(0, 1.5fr) 260px",
+                      gap: "18px 24px",
+                      alignItems: "start",
                     }}
                   >
-                    <FormField label="Name" infoContent="The primary identifier for this team member (e.g., 'Sarah', 'Mike', 'AI Team Lead'). Shown in bold across the dashboard.">
-                      <Input
-                        size="small"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                      />
-                    </FormField>
-                    <FormField label="Title" infoContent="The job description shown below the name (e.g., 'AI Business Manager', 'Senior Engineer', 'Marketing Manager').">
+                    <FormField
+                      label="Title"
+                      infoContent="The single visible identity for this team member across the dashboard."
+                    >
                       <Input
                         size="small"
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                       />
                     </FormField>
-                    <div style={{ gridColumn: "1 / span 2" }}>
-                    <FormField label="Icon" infoContent="Choose an icon to represent this team member. Icons appear in the activity feed, team list, and other places.">
-                      <IconPicker
-                        selectedIcon={editIcon}
-                        onSelect={setEditIcon}
-                        avatarColor={avatarColor}
-                        agentName={editName}
-                        agentRole={agent.role}
-                      />
-                    </FormField>
+                    <div>
+                      <FormField
+                        label="Icon"
+                        infoContent="Choose an icon to represent this team member. Icons appear in the activity feed, team list, and other places."
+                      >
+                        <IconPicker
+                          selectedIcon={editIcon}
+                          onSelect={setEditIcon}
+                          avatarColor={avatarColor}
+                          agentName={displayTitle}
+                          agentRole={agent.role}
+                        />
+                      </FormField>
                     </div>
                   </div>
                 </Box>
@@ -630,8 +655,8 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                  gap: "14px 18px",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: "18px 22px",
                 }}
               >
                 {[
@@ -684,28 +709,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   </Box>
                 ))}
               </div>
-            </Card.Content>
-          </Card>
-
-          <Box marginTop="24px" />
-
-          {/* Role description card */}
-          <Card>
-            <Card.Header title="Role description" />
-            <Card.Divider />
-            <Card.Content>
-              <FormField
-                label="Role description"
-                infoContent="Defines how this team member thinks and works. This is their core instruction set."
-              >
-                <InputArea
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  rows={8}
-                  placeholder="Describe this team member's responsibilities, how they work, and their personality..."
-                  resizable
-                />
-              </FormField>
             </Card.Content>
           </Card>
 
@@ -789,7 +792,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
       >
         <CustomModalLayout
           title="Put team member on leave?"
-          subtitle={`${agent.name} will stop all scheduled work until brought back.`}
+          subtitle={`${displayTitle} will stop all scheduled work until brought back.`}
           primaryButtonText="Yes, put on leave"
           primaryButtonOnClick={async () => {
             await handleTogglePause();
@@ -801,7 +804,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           onCloseButtonClick={() => setShowPauseConfirm(false)}
         >
           <Text size="small">
-            This will immediately pause {agent.name}. They will not wake up for
+            This will immediately pause {displayTitle}. They will not wake up for
             scheduled check-ins or respond to mentions until you bring them back.
           </Text>
         </CustomModalLayout>
@@ -814,7 +817,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
       >
         <CustomModalLayout
           title="Fire team member?"
-          subtitle={`${agent.name} will be removed from this AI Team permanently.`}
+          subtitle={`${displayTitle} will be removed from this AI Team permanently.`}
           primaryButtonText={acting ? "Removing..." : "Fire permanently"}
           primaryButtonOnClick={async () => {
             const deleted = await handleDelete();
@@ -829,7 +832,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
         >
           <Box direction="vertical" gap="12px">
             <Text size="small">
-              This permanently removes {agent.name} from the company. Their profile page will no longer be available after this action.
+              This permanently removes {displayTitle} from the company. Their profile page will no longer be available after this action.
             </Text>
             {deleteError && (
               <Box
