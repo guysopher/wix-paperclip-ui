@@ -24,7 +24,7 @@ import {
 import { Add, Checklist as ChecklistIcon } from "@wix/wix-ui-icons-common";
 import { useCompany, useCompanyData } from "../../providers";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
-import { createIssue, type Issue, type Agent } from "@/lib/api";
+import { createIssue, updateIssue, type Issue } from "@/lib/api";
 
 const STATUS_LABELS: Record<string, string> = {
   backlog: "Backlog",
@@ -67,15 +67,21 @@ function TasksContent() {
   const [newDesc, setNewDesc] = useState("");
   const [newPriority, setNewPriority] = useState("medium");
   const [newAssignee, setNewAssignee] = useState<string | undefined>();
+  const [completingIssueId, setCompletingIssueId] = useState<string | null>(null);
   const ceoAgent = agents.find((a) => a.role === "ceo");
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>(searchParams.get("status") || "all");
+  const [filterAssignee, setFilterAssignee] = useState<string>(searchParams.get("assignee") || "all");
 
-  const updateFilterUrl = (status: string) => {
+  const updateFilterUrl = (next: { status?: string; assignee?: string }) => {
     const params = new URLSearchParams(searchParams.toString());
+    const status = next.status ?? filterStatus;
+    const assignee = next.assignee ?? filterAssignee;
     if (status === "all") params.delete("status");
     else params.set("status", status);
+    if (assignee === "all") params.delete("assignee");
+    else params.set("assignee", assignee);
     router.replace(companyPath(`/tasks${params.toString() ? `?${params}` : ""}`), { scroll: false });
   };
 
@@ -120,6 +126,15 @@ function TasksContent() {
 
   const filteredIssues = issues
     .filter((i) => filterStatus === "all" || i.status === filterStatus)
+    .filter((i) => {
+      if (filterAssignee === "all") return true;
+      if (filterAssignee === "board") return i.assigneeUserId === "local-board";
+      if (filterAssignee === "unassigned") {
+        return !i.assigneeAgentId && !i.assigneeId && !i.assigneeUserId;
+      }
+      const assignedAgentId = i.assigneeAgentId || i.assigneeId;
+      return assignedAgentId === filterAssignee;
+    })
     .filter((i) =>
       !searchTerm || i.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -128,7 +143,7 @@ function TasksContent() {
   const pageIssues = filteredIssues.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [filterStatus, searchTerm]);
+  useEffect(() => { setPage(1); }, [filterStatus, filterAssignee, searchTerm]);
 
   const handleCreate = async () => {
     if (!newTitle.trim() || !companyId || !newAssignee) return;
@@ -147,7 +162,24 @@ function TasksContent() {
     await refresh();
   };
 
+  const handleMarkDone = async (issueId: string) => {
+    if (completingIssueId) return;
+    setCompletingIssueId(issueId);
+    try {
+      await updateIssue(issueId, { status: "done" });
+      await refresh();
+    } finally {
+      setCompletingIssueId(null);
+    }
+  };
+
   const agentDropdownOptions = agents.map((a) => ({ id: a.id, value: a.name }));
+  const assigneeDropdownOptions = [
+    { id: "all", value: "All assignees" },
+    { id: "board", value: "My tasks" },
+    ...agents.map((a) => ({ id: a.id, value: a.title || a.name })),
+    { id: "unassigned", value: "Unassigned" },
+  ];
 
   const statusDropdownOptions = Object.entries(STATUS_LABELS).map(([id, value]) => ({
     id,
@@ -241,15 +273,41 @@ function TasksContent() {
     },
     {
       title: "",
-      render: (row: Issue) => (
-        <TaskLinkWithPreview
-          href={companyPath(`/tasks/${row.identifier}`)}
-          issue={row}
-          style={{ color: "#3899ec", textDecoration: "none", fontSize: 14 }}
-        >
-          View
-        </TaskLinkWithPreview>
-      ),
+      render: (row: Issue) => {
+        const isBoardTask = row.assigneeUserId === "local-board";
+        const canMarkDone = isBoardTask && !["done", "cancelled"].includes(row.status);
+
+        return (
+          <Box direction="horizontal" gap="12px" verticalAlign="middle">
+            <TaskLinkWithPreview
+              href={companyPath(`/tasks/${row.identifier}`)}
+              issue={row}
+              style={{ color: "#3899ec", textDecoration: "none", fontSize: 14, whiteSpace: "nowrap" }}
+            >
+              View
+            </TaskLinkWithPreview>
+            {canMarkDone && (
+              <button
+                onClick={() => void handleMarkDone(row.id)}
+                disabled={completingIssueId === row.id}
+                style={{
+                  border: "1px solid #d6d6d6",
+                  background: "#fff",
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#5f6b7a",
+                  cursor: completingIssueId === row.id ? "default" : "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {completingIssueId === row.id ? "Marking..." : "Mark done"}
+              </button>
+            )}
+          </Box>
+        );
+      },
       width: "10%",
     },
   ];
@@ -288,11 +346,25 @@ function TasksContent() {
                     <Dropdown
                       size="small"
                       selectedId={filterStatus}
-                      onSelect={(o) => { const s = String(o.id); setFilterStatus(s); updateFilterUrl(s); }}
+                      onSelect={(o) => { const s = String(o.id); setFilterStatus(s); updateFilterUrl({ status: s }); }}
                       options={[
                         { id: "all", value: "All statuses" },
                         ...statusDropdownOptions,
                       ]}
+                      border="round"
+                      popoverProps={{ placement: "bottom-start" }}
+                    />
+                  </TableToolbar.Item>
+                  <TableToolbar.Item>
+                    <Dropdown
+                      size="small"
+                      selectedId={filterAssignee}
+                      onSelect={(o) => {
+                        const assignee = String(o.id);
+                        setFilterAssignee(assignee);
+                        updateFilterUrl({ assignee });
+                      }}
+                      options={assigneeDropdownOptions}
                       border="round"
                       popoverProps={{ placement: "bottom-start" }}
                     />
@@ -325,7 +397,7 @@ function TasksContent() {
                   </div>
                   {filterStatus !== "all" && issues.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilterUrl("all"); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
+                      <a href="#" onClick={(e) => { e.preventDefault(); setFilterStatus("all"); updateFilterUrl({ status: "all" }); }} style={{ color: "#3899ec", fontSize: 13, textDecoration: "none" }}>
                         View all tasks
                       </a>
                     </div>
