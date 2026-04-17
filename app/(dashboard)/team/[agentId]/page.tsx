@@ -140,7 +140,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setAgents(allAgents);
     setCompany(companyData);
     setRuns(runData);
-    populateForm(agentData);
+    await populateForm(agentData);
     setLoadingModels(true);
     const adapterModels = await getAdapterModels(companyId, agentData.adapterType).catch(
       () => [] as AdapterModel[],
@@ -150,14 +150,38 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setLoading(false);
   };
 
-  const populateForm = (a: Agent) => {
+  const resolveAgentPrompt = async (a: Agent) => {
+    const promptTemplate = typeof a.adapterConfig?.promptTemplate === "string"
+      ? a.adapterConfig.promptTemplate
+      : "";
+    if (promptTemplate.trim().length > 0) {
+      return promptTemplate;
+    }
+
+    const instructionsFilePath = typeof a.adapterConfig?.instructionsFilePath === "string"
+      ? a.adapterConfig.instructionsFilePath
+      : "";
+    if (!instructionsFilePath) {
+      return "";
+    }
+
+    try {
+      const res = await fetch(`/api/agent-instructions?path=${encodeURIComponent(instructionsFilePath)}`);
+      const data = (await res.json().catch(() => ({ content: "" }))) as { content?: string };
+      return typeof data.content === "string" ? data.content : "";
+    } catch {
+      return "";
+    }
+  };
+
+  const populateForm = async (a: Agent) => {
     setEditName(a.name);
     setEditTitle(a.title);
     setEditIcon(a.icon);
     setEditSchedule(String(getHeartbeatPolicy(a).intervalSec || 600));
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
     setEditManager(a.reportsTo);
-    setEditPrompt((a.adapterConfig?.promptTemplate as string) || "");
+    setEditPrompt(await resolveAgentPrompt(a));
     setEditModel(String(a.adapterConfig?.model || ""));
   };
 
@@ -299,6 +323,13 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const hasPendingModelChange =
     configuredModel.length > 0 && runtimeModelRaw !== null && configuredModel !== runtimeModelRaw;
   const hasUnsavedModelChange = configuredModel !== savedConfiguredModel;
+  const managerSummary = editManager
+    ? agents.find((candidate) => candidate.id === editManager)?.name || "Unknown"
+    : "No manager";
+  const scheduleSummary =
+    SCHEDULE_OPTIONS.find((option) => option.id === editSchedule)?.value.replace(/^Every\s+/, "")
+    || (editSchedule ? `${Math.round(parseInt(editSchedule, 10) / 60)} min` : "Manual");
+  const modelSummary = configuredModel || runtimeModel;
 
   return (
     <>
@@ -354,34 +385,74 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
           {/* Header card with avatar, name, title, status, last active */}
           <Card>
             <Card.Content>
-              <Box direction="horizontal" gap="16px" verticalAlign="middle">
-                <AgentAvatar
-                  agentName={agent.name}
-                  agentRole={agent.role}
-                  icon={agent.icon}
-                  size={56}
-                  fontSize={22}
-                />
-                <Box direction="vertical" gap="4px">
-                  <Text weight="bold" size="medium">
-                    {agent.name}
-                  </Text>
-                  <Text size="small" secondary>
-                    {agent.title}
-                  </Text>
-                  <Box direction="horizontal" gap="8px" verticalAlign="middle">
-                    <Badge
-                      size="tiny"
-                      skin={STATUS_SKINS[agent.status] || "general"}
-                    >
-                      {STATUS_LABELS[agent.status] || agent.status}
-                    </Badge>
-                    <Text size="tiny" secondary>
-                      Last active: {getLastActive(agent)}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1.5fr) minmax(320px, 1fr)",
+                  gap: 20,
+                  alignItems: "start",
+                }}
+              >
+                <Box direction="horizontal" gap="16px" verticalAlign="middle">
+                  <AgentAvatar
+                    agentName={agent.name}
+                    agentRole={agent.role}
+                    icon={agent.icon}
+                    size={56}
+                    fontSize={22}
+                  />
+                  <Box direction="vertical" gap="4px">
+                    <Text weight="bold" size="medium">
+                      {agent.name}
                     </Text>
+                    <Text size="small" secondary>
+                      {agent.title}
+                    </Text>
+                    <Box direction="horizontal" gap="8px" verticalAlign="middle">
+                      <Badge
+                        size="tiny"
+                        skin={STATUS_SKINS[agent.status] || "general"}
+                      >
+                        {STATUS_LABELS[agent.status] || agent.status}
+                      </Badge>
+                      <Text size="tiny" secondary>
+                        Last active: {getLastActive(agent)}
+                      </Text>
+                    </Box>
                   </Box>
                 </Box>
-              </Box>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  {[
+                    { label: "Manager", value: managerSummary },
+                    { label: "Schedule", value: scheduleSummary },
+                    { label: "Model", value: modelSummary },
+                  ].map((item) => (
+                    <Box
+                      key={item.label}
+                      padding="12px 14px"
+                      border="1px solid #e7edf3"
+                      borderRadius="12px"
+                      backgroundColor="#fafcfe"
+                    >
+                      <Text size="tiny" secondary>
+                        {item.label}
+                      </Text>
+                      <div style={{ marginTop: 4 }}>
+                        <Text size="small" weight="bold">
+                          {item.value}
+                        </Text>
+                      </div>
+                    </Box>
+                  ))}
+                </div>
+              </div>
             </Card.Content>
           </Card>
 
@@ -389,7 +460,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
 
           {/* Editable details card */}
           <Card>
-            <Card.Header title="Details" />
+            <Card.Header title="Details" subtitle="Edit the agent profile and working setup." />
             <Card.Divider />
             <Card.Content>
               <Box direction="vertical" gap="18px">
@@ -418,6 +489,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                         onChange={(e) => setEditTitle(e.target.value)}
                       />
                     </FormField>
+                    <div style={{ gridColumn: "1 / span 2" }}>
                     <FormField label="Icon" infoContent="Choose an icon to represent this team member. Icons appear in the activity feed, team list, and other places.">
                       <IconPicker
                         selectedIcon={editIcon}
@@ -427,21 +499,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                         agentRole={agent.role}
                       />
                     </FormField>
-                    <FormField label="Joined" infoContent="The date this team member was created.">
-                      <Box
-                        padding="12px 14px"
-                        border="1px solid #dfe5eb"
-                        borderRadius="8px"
-                        backgroundColor="#fafbfc"
-                      >
-                        <Text size="small" weight="bold">
-                          {new Date(agent.createdAt).toLocaleDateString()}
-                        </Text>
-                        <Text size="tiny" secondary>
-                          Team member since creation
-                        </Text>
-                      </Box>
-                    </FormField>
+                    </div>
                   </div>
                 </Box>
 
@@ -493,52 +551,6 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                   <Text size="small" weight="bold" secondary>
                     Runtime
                   </Text>
-                  <FormField
-                    label="Model"
-                    infoContent="This is the one editable model setting for the agent. Paperclip saves it into adapterConfig.model and uses it on future runs."
-                  >
-                    <Box direction="vertical" gap="8px">
-                      {loadingModels ? (
-                        <Loader size="tiny" />
-                      ) : showModelDropdown ? (
-                        <Dropdown
-                          size="small"
-                          selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
-                          onSelect={(option) => setEditModel(String(option.id))}
-                          options={modelDropdownOptions}
-                        />
-                      ) : showModelInput ? (
-                        <Input
-                          size="small"
-                          value={editModel}
-                          onChange={(e) => setEditModel(e.target.value)}
-                          placeholder={
-                            agent.adapterType === "opencode_local"
-                              ? "openai/gpt-5.4"
-                              : agent.adapterType === "claude_local"
-                                ? "claude-sonnet-4-6"
-                                : "gpt-5.4"
-                          }
-                        />
-                      ) : (
-                        <Text size="small" secondary>
-                          This adapter does not expose model selection in this UI.
-                        </Text>
-                      )}
-                      <Box direction="horizontal" gap="8px">
-                        {hasUnsavedModelChange && (
-                          <Badge size="tiny" skin="general">
-                            Unsaved model change
-                          </Badge>
-                        )}
-                        {hasPendingModelChange && (
-                          <Badge size="tiny" skin="warning">
-                            Real runs still show {runtimeModel}
-                          </Badge>
-                        )}
-                      </Box>
-                    </Box>
-                  </FormField>
                   <div
                     style={{
                       display: "grid",
@@ -546,6 +558,52 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                       gap: "14px 18px",
                     }}
                   >
+                    <FormField
+                      label="Model"
+                      infoContent="This is the one editable model setting for the agent. Paperclip saves it into adapterConfig.model and uses it on future runs."
+                    >
+                      <Box direction="vertical" gap="8px">
+                        {loadingModels ? (
+                          <Loader size="tiny" />
+                        ) : showModelDropdown ? (
+                          <Dropdown
+                            size="small"
+                            selectedId={configuredModel || modelDropdownOptions[0]?.id || ""}
+                            onSelect={(option) => setEditModel(String(option.id))}
+                            options={modelDropdownOptions}
+                          />
+                        ) : showModelInput ? (
+                          <Input
+                            size="small"
+                            value={editModel}
+                            onChange={(e) => setEditModel(e.target.value)}
+                            placeholder={
+                              agent.adapterType === "opencode_local"
+                                ? "openai/gpt-5.4"
+                                : agent.adapterType === "claude_local"
+                                  ? "claude-sonnet-4-6"
+                                  : "gpt-5.4"
+                            }
+                          />
+                        ) : (
+                          <Text size="small" secondary>
+                            This adapter does not expose model selection in this UI.
+                          </Text>
+                        )}
+                        <Box direction="horizontal" gap="8px">
+                          {hasUnsavedModelChange && (
+                            <Badge size="tiny" skin="general">
+                              Unsaved change
+                            </Badge>
+                          )}
+                          {hasPendingModelChange && (
+                            <Badge size="tiny" skin="warning">
+                              Real runs still show {runtimeModel}
+                            </Badge>
+                          )}
+                        </Box>
+                      </Box>
+                    </FormField>
                     <FormField
                       label="Run timeout"
                       infoContent="Maximum time a single work session can run before it is forcefully stopped. Prevents runaway or stuck agents."
@@ -557,34 +615,75 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                         options={TIMEOUT_OPTIONS}
                       />
                     </FormField>
-                    <FormField
-                      label="Runtime status"
-                      infoContent="Read-only runtime feedback from Paperclip. This helps you verify what has actually run so far."
-                    >
-                      <Box
-                        padding="12px 14px"
-                        border="1px solid #dfe5eb"
-                        borderRadius="8px"
-                        backgroundColor="#fafbfc"
-                      >
-                        <Text size="tiny" secondary>
-                          Save changes, then wake the agent or wait for the next check-in for the new model to take effect.
-                        </Text>
-                        <Text size="tiny" secondary>
-                          Observed in real runs:{" "}
-                          <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
-                            {runtimeModel}
-                          </span>
-                          {runtimeModelRaw === null ? " (no completed run has reported a model yet)" : ""}
-                        </Text>
-                        <Text size="tiny" secondary>
-                          Adapter: <span style={{ fontFamily: "monospace" }}>{agent.adapterType}</span>
-                        </Text>
-                      </Box>
-                    </FormField>
                   </div>
                 </Box>
               </Box>
+            </Card.Content>
+          </Card>
+
+          <Box marginTop="24px" />
+
+          <Card>
+            <Card.Header title="System info" subtitle="Read-only runtime and metadata." />
+            <Card.Divider />
+            <Card.Content>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                  gap: "14px 18px",
+                }}
+              >
+                {[
+                  {
+                    label: "Joined",
+                    value: new Date(agent.createdAt).toLocaleDateString(),
+                    note: "Team member since creation",
+                  },
+                  {
+                    label: "Adapter",
+                    value: agent.adapterType,
+                    note: "Current runtime adapter",
+                    mono: true,
+                  },
+                  {
+                    label: "Observed model",
+                    value: runtimeModel,
+                    note: runtimeModelRaw === null ? "No completed run has reported one yet" : "Reported from real runs",
+                  },
+                  {
+                    label: "Config note",
+                    value: "Applies after next run",
+                    note: "Save changes, then wake the agent or wait for the next check-in",
+                  },
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    padding="14px 16px"
+                    border="1px solid #e7edf3"
+                    borderRadius="12px"
+                    backgroundColor="#fafbfc"
+                  >
+                    <Text size="tiny" secondary>
+                      {item.label}
+                    </Text>
+                    <div style={{ marginTop: 6 }}>
+                      <Text
+                        size="small"
+                        weight="bold"
+                        style={item.mono ? { fontFamily: "monospace" } : undefined}
+                      >
+                        {item.value}
+                      </Text>
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      <Text size="tiny" secondary>
+                        {item.note}
+                      </Text>
+                    </div>
+                  </Box>
+                ))}
+              </div>
             </Card.Content>
           </Card>
 
