@@ -682,31 +682,34 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
                     note: "Save changes, then wake the agent or wait for the next check-in",
                   },
                 ].map((item) => (
-                  <Box
+                  <div
                     key={item.label}
-                    padding="14px 16px"
-                    border="1px solid #e7edf3"
-                    borderRadius="12px"
-                    backgroundColor="#fafbfc"
+                    style={{
+                      padding: "16px 18px",
+                      border: "1px solid #e7edf3",
+                      borderRadius: 12,
+                      backgroundColor: "#fafbfc",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      minHeight: 112,
+                      justifyContent: "flex-start",
+                    }}
                   >
                     <Text size="tiny" secondary>
                       {item.label}
                     </Text>
-                    <div style={{ marginTop: 6 }}>
-                      <Text
-                        size="small"
-                        weight="bold"
-                        style={item.mono ? { fontFamily: "monospace" } : undefined}
-                      >
-                        {item.value}
-                      </Text>
-                    </div>
-                    <div style={{ marginTop: 4 }}>
-                      <Text size="tiny" secondary>
-                        {item.note}
-                      </Text>
-                    </div>
-                  </Box>
+                    <Text
+                      size="small"
+                      weight="bold"
+                      style={item.mono ? { fontFamily: "monospace" } : undefined}
+                    >
+                      {item.value}
+                    </Text>
+                    <Text size="tiny" secondary>
+                      {item.note}
+                    </Text>
+                  </div>
                 ))}
               </div>
             </Card.Content>
