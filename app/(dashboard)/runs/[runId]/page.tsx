@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import {
   Page,
   Card,
@@ -67,61 +67,121 @@ function RunDetailContent({ runId }: { runId: string }) {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [loadingDebug, setLoadingDebug] = useState(false);
 
+  const loadRunLog = useCallback(async (fetchedRun: HeartbeatRun) => {
+    try {
+      const log = await getHeartbeatRunLog(runId);
+      const raw =
+        typeof log === "string"
+          ? log
+          : ((log as Record<string, string>).content ??
+            (log as Record<string, string>).log ??
+            (log as Record<string, string>).output ??
+            "");
+
+      if (!raw) {
+        setLogEntries(
+          fetchedRun.stdoutExcerpt
+            ? [{ kind: "assistant", text: fetchedRun.stdoutExcerpt }]
+            : [{ kind: "assistant", text: "No output available." }],
+        );
+        setDetailedEvents(
+          fetchedRun.stdoutExcerpt ? [{ kind: "raw", text: fetchedRun.stdoutExcerpt }] : [],
+        );
+        return;
+      }
+
+      const entries = parseRunLog(raw);
+      const events = parseDetailedRunLog(raw);
+      setLogEntries(
+        entries.length > 0
+          ? entries
+          : [{ kind: "assistant", text: "No readable output in this run." }],
+      );
+      setDetailedEvents(events);
+    } catch {
+      setLogEntries([
+        { kind: "assistant", text: fetchedRun.stdoutExcerpt || "Log not available." },
+      ]);
+      setDetailedEvents(
+        fetchedRun.stdoutExcerpt ? [{ kind: "raw", text: fetchedRun.stdoutExcerpt }] : [],
+      );
+    } finally {
+      setLoadingLog(false);
+    }
+  }, [runId]);
+
+  const loadRunData = useCallback(
+    async (options?: { includeAgents?: boolean; initial?: boolean }) => {
+      if (!companyId) {
+        return;
+      }
+
+      try {
+        const fetchedRun = await getHeartbeatRun(runId);
+        setRun(fetchedRun);
+
+        if (options?.includeAgents) {
+          const agentList = await getAgents(companyId);
+          setAgents(agentList);
+        }
+
+        await loadRunLog(fetchedRun);
+      } catch {
+        // Keep the last good state visible on refresh failures.
+      } finally {
+        if (options?.initial) {
+          setLoading(false);
+          setLoadingLog(false);
+        }
+      }
+    },
+    [companyId, loadRunLog, runId],
+  );
+
   useEffect(() => {
     if (!companyId) return;
+    void loadRunData({ includeAgents: true, initial: true });
+  }, [companyId, loadRunData]);
 
-    (async () => {
-      try {
-        const [fetchedRun, agentList] = await Promise.all([
-          getHeartbeatRun(runId),
-          getAgents(companyId),
-        ]);
-        setRun(fetchedRun);
-        setAgents(agentList);
-        setLoading(false);
+  useEffect(() => {
+    if (!companyId || !run || !["running", "queued"].includes(run.status)) {
+      return;
+    }
 
-        // Fetch log
-        try {
-          const log = await getHeartbeatRunLog(runId);
-          const raw = typeof log === "string" ? log : ((log as Record<string, string>).content ?? (log as Record<string, string>).log ?? (log as Record<string, string>).output ?? "");
-          if (!raw) {
-            setLogEntries(
-              fetchedRun.stdoutExcerpt
-                ? [{ kind: "assistant", text: fetchedRun.stdoutExcerpt }]
-                : [{ kind: "assistant", text: "No output available." }]
-            );
-            setDetailedEvents(
-              fetchedRun.stdoutExcerpt
-                ? [{ kind: "raw", text: fetchedRun.stdoutExcerpt }]
-                : []
-            );
-          } else {
-            const entries = parseRunLog(raw);
-            const events = parseDetailedRunLog(raw);
-            setLogEntries(
-              entries.length > 0
-                ? entries
-                : [{ kind: "assistant", text: "No readable output in this run." }]
-            );
-            setDetailedEvents(events);
-          }
-        } catch {
-          setLogEntries([
-            { kind: "assistant", text: fetchedRun.stdoutExcerpt || "Log not available." },
-          ]);
-          setDetailedEvents(
-            fetchedRun.stdoutExcerpt
-              ? [{ kind: "raw", text: fetchedRun.stdoutExcerpt }]
-              : []
-          );
-        }
-        setLoadingLog(false);
-      } catch {
-        setLoading(false);
-        setLoadingLog(false);
+    let cancelled = false;
+    let inFlight = false;
+
+    const refreshLiveRun = async () => {
+      if (cancelled || inFlight || document.visibilityState !== "visible") {
+        return;
       }
-    })();
-  }, [companyId, runId]);
+
+      inFlight = true;
+      try {
+        await loadRunData();
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void refreshLiveRun();
+    }, 5000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshLiveRun();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [companyId, loadRunData, run]);
 
   const fetchDebugInfo = async () => {
     setLoadingDebug(true);
