@@ -243,6 +243,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return true;
   }, []);
 
+  const autoRepairAgentsAndApprovals = useCallback(async (companyId: string) => {
+    const [approvalsChanged] = await Promise.all([
+      autoApprovePendingApprovals(companyId).catch(() => false),
+      fetch("/api/health/backfill-agent-prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      }).catch(() => null),
+    ]);
+
+    return approvalsChanged;
+  }, [autoApprovePendingApprovals]);
+
   const refresh = useCallback(async () => {
     try {
       if (!selectedCompanyId || companyLookupStatus !== "ready") return;
@@ -255,7 +268,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         loading: initialLoad,
         refreshing: !initialLoad,
       }));
-      const approvalsChanged = await autoApprovePendingApprovals(companyId);
+      const approvalsChanged = await autoRepairAgentsAndApprovals(companyId);
       const [
         currentCompany,
         dashboard,
@@ -339,7 +352,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     } finally {
       refreshInFlightRef.current = false;
     }
-  }, [autoApprovePendingApprovals, companyLookupStatus, selectedCompanyId]);
+  }, [autoRepairAgentsAndApprovals, companyLookupStatus, selectedCompanyId]);
 
   useEffect(() => {
     if (companyLookupStatus !== "ready") {
