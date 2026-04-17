@@ -116,6 +116,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [deleteError, setDeleteError] = useState("");
   const [modelOptions, setModelOptions] = useState<AdapterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [showRolePreview, setShowRolePreview] = useState(true);
 
   // Editable fields
   const [editTitle, setEditTitle] = useState("");
@@ -472,34 +473,48 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
             <Card.Divider />
             <Card.Content>
               <Box direction="vertical" gap="18px">
-                <FormField
-                  label="Rendered preview"
-                  infoContent="How the role description reads when rendered as Markdown."
-                >
-                  <div
-                    style={{
-                      border: "1px solid #dfe5eb",
-                      borderRadius: 12,
-                      background: "#f8fbff",
-                      padding: "18px 20px",
-                      minHeight: 140,
-                      fontSize: 14,
-                      lineHeight: 1.65,
-                      color: "#162d3d",
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    {editPrompt.trim() ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {editPrompt}
-                      </ReactMarkdown>
-                    ) : (
-                      <Text size="small" secondary>
-                        No role description yet.
-                      </Text>
-                    )}
-                  </div>
-                </FormField>
+                <Box direction="vertical" gap="8px">
+                  <Box direction="horizontal" align="space-between" verticalAlign="middle">
+                    <Text size="small" weight="bold">
+                      Rendered preview
+                    </Text>
+                    <button
+                      type="button"
+                      onClick={() => setShowRolePreview((current) => !current)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#2f6fed",
+                        cursor: "pointer",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: 0,
+                      }}
+                    >
+                      {showRolePreview ? "Hide preview" : "Show preview"}
+                    </button>
+                  </Box>
+                  {showRolePreview && (
+                    <div
+                      style={{
+                        fontSize: 14,
+                        lineHeight: 1.65,
+                        color: "#162d3d",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {editPrompt.trim() ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {editPrompt}
+                        </ReactMarkdown>
+                      ) : (
+                        <Text size="small" secondary>
+                          No role description yet.
+                        </Text>
+                      )}
+                    </div>
+                  )}
+                </Box>
                 <FormField
                   label="Markdown source"
                   infoContent="Edit the raw role description prompt. The preview above updates as you type."
