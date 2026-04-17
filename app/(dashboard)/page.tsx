@@ -1149,7 +1149,7 @@ function DashboardContent() {
     <>
     <Page>
       <Page.Header
-        title={company.name}
+        title={`${company.name} AI Team`}
         actionsBar={
           <Box direction="horizontal" gap="6px" verticalAlign="middle">
             <PopoverMenu
