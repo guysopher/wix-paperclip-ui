@@ -82,6 +82,24 @@ export const repairCodexAuth = (companyId: string) =>
     }
     return data as { ok: boolean; message: string };
   });
+export const backfillAgentPrompts = (companyId: string) =>
+  fetch("/api/health/backfill-agent-prompts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId }),
+  }).then(async (r) => {
+    const data = await r.json().catch(() => ({ error: r.statusText }));
+    if (!r.ok) {
+      throw new Error(data.error || r.statusText);
+    }
+    return data as {
+      ok: boolean;
+      updatedCount: number;
+      skippedCount: number;
+      errorCount: number;
+      results: Array<{ companyId: string; companyName: string; targeted: number; updated: Array<unknown> }>;
+    };
+  });
 
 // Companies
 export const getCompanies = () => request<Company[]>("/companies");

@@ -13,6 +13,8 @@ import {
   SectionHelper,
 } from "@wix/design-system";
 import { Refresh } from "@wix/wix-ui-icons-common";
+import { useCompany } from "../../providers";
+import { backfillAgentPrompts } from "@/lib/api";
 import type { TelegramConfig } from "@/lib/telegram-config";
 
 interface WebhookInfo {
@@ -22,6 +24,7 @@ interface WebhookInfo {
 }
 
 function SettingsContent() {
+  const { companyId } = useCompany();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [botToken, setBotToken] = useState("");
@@ -31,6 +34,7 @@ function SettingsContent() {
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [testingChatId, setTestingChatId] = useState<string | null>(null);
   const [settingWebhook, setSettingWebhook] = useState(false);
+  const [backfillingPrompts, setBackfillingPrompts] = useState(false);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -138,6 +142,32 @@ function SettingsContent() {
       setStatusMessage({ type: "error", text: "Failed to send test message." });
     } finally {
       setTestingChatId(null);
+    }
+  };
+
+  const handleBackfillPrompts = async () => {
+    if (!companyId || backfillingPrompts) {
+      return;
+    }
+
+    setBackfillingPrompts(true);
+    setStatusMessage(null);
+    try {
+      const result = await backfillAgentPrompts(companyId);
+      setStatusMessage({
+        type: result.errorCount > 0 ? "error" : "success",
+        text:
+          result.updatedCount > 0
+            ? `Backfilled ${result.updatedCount} agent prompt${result.updatedCount === 1 ? "" : "s"} for this company.`
+            : "All agent promptTemplate fields are already present for this company.",
+      });
+    } catch (err) {
+      setStatusMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to backfill agent prompts.",
+      });
+    } finally {
+      setBackfillingPrompts(false);
     }
   };
 
@@ -270,6 +300,36 @@ function SettingsContent() {
                   >
                     {testingChatId === allowedChatId ? "Sending..." : "Test"}
                   </Button>
+                </Box>
+              </Box>
+            </Card.Content>
+          </Card>
+
+          <Card>
+            <Card.Header
+              title="Agent Prompt Repair"
+              subtitle="Copies managed agent instruction bundles into stored promptTemplate fields for the current company"
+            />
+            <Card.Divider />
+            <Card.Content>
+              <Box direction="vertical" gap="12px">
+                <Text size="small" secondary>
+                  Use this if agents appear to have blank role descriptions in the Team view. This repair keeps their effective instructions on the agent record so the deployed UI can read them reliably.
+                </Text>
+                <Box gap="12px" verticalAlign="middle">
+                  <Button
+                    size="small"
+                    priority="secondary"
+                    onClick={handleBackfillPrompts}
+                    disabled={!companyId || backfillingPrompts}
+                  >
+                    {backfillingPrompts ? "Backfilling..." : "Backfill Agent Prompts"}
+                  </Button>
+                  {!companyId && (
+                    <Text size="small" secondary>
+                      Select a company first.
+                    </Text>
+                  )}
                 </Box>
               </Box>
             </Card.Content>
