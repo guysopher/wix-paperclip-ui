@@ -116,7 +116,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const [deleteError, setDeleteError] = useState("");
   const [modelOptions, setModelOptions] = useState<AdapterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [showRolePreview, setShowRolePreview] = useState(true);
+  const [showRolePreview, setShowRolePreview] = useState(false);
 
   // Editable fields
   const [editTitle, setEditTitle] = useState("");
