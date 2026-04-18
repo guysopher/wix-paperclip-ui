@@ -1995,9 +1995,10 @@ function DashboardContent() {
                           <div
                             style={{
                               display: "flex",
-                              gap: 10,
+                              gap: 12,
                               flexWrap: "wrap",
                               justifyContent: "flex-end",
+                              alignItems: "center",
                               marginTop: "auto",
                               paddingTop: 14,
                               borderTop: "1px solid rgba(214, 227, 242, 0.75)",
@@ -2019,8 +2020,8 @@ function DashboardContent() {
                                 border: "1px solid #d6dce5",
                                 background: "white",
                                 color: "#6f8196",
-                                borderRadius: 8,
-                                padding: "0",
+                                borderRadius: 999,
+                                padding: "7px 12px",
                                 fontSize: 13,
                                 fontWeight: 500,
                                 cursor: "pointer",
@@ -2029,6 +2030,8 @@ function DashboardContent() {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 lineHeight: 1.4,
+                                whiteSpace: "nowrap",
+                                minHeight: 34,
                               }}
                             >
                               Mark as done
@@ -2049,8 +2052,8 @@ function DashboardContent() {
                                 border: "1px solid #d6dce5",
                                 background: "white",
                                 color: "#6f8196",
-                                borderRadius: 8,
-                                padding: "0",
+                                borderRadius: 999,
+                                padding: "7px 12px",
                                 fontSize: 13,
                                 fontWeight: 500,
                                 cursor: "pointer",
@@ -2059,6 +2062,8 @@ function DashboardContent() {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 lineHeight: 1.4,
+                                whiteSpace: "nowrap",
+                                minHeight: 34,
                               }}
                             >
                               Ignore
@@ -2070,7 +2075,7 @@ function DashboardContent() {
                                 background: "transparent",
                                 color: "#7a8da5",
                                 borderRadius: 8,
-                                padding: "0",
+                                padding: "7px 0",
                                 fontSize: 13,
                                 fontWeight: 500,
                                 cursor: "pointer",
@@ -2079,6 +2084,8 @@ function DashboardContent() {
                                 alignItems: "center",
                                 justifyContent: "center",
                                 lineHeight: 1.4,
+                                whiteSpace: "nowrap",
+                                minHeight: 34,
                               }}
                             >
                               {reviewLabel}
@@ -2100,7 +2107,7 @@ function DashboardContent() {
                                 background: "#f4f8ff",
                                 color: "#2b6ed2",
                                 borderRadius: 999,
-                                padding: "6px 12px",
+                                padding: "7px 12px",
                                 fontSize: 13,
                                 fontWeight: 600,
                                 cursor: "pointer",
@@ -2108,6 +2115,8 @@ function DashboardContent() {
                                 textDecoration: "none",
                                 lineHeight: 1.4,
                                 boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
+                                whiteSpace: "nowrap",
+                                minHeight: 34,
                               }}
                             >
                               Discuss
