@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent-templates";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { buildCompanyDescription } from "@/lib/company-metadata";
+import { renderPromptTemplate } from "@/lib/prompt-render";
 import {
   DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
