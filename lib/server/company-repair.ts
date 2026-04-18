@@ -39,6 +39,7 @@ interface PaperclipAgent {
   companyId: string;
   role?: string;
   title?: string;
+  status?: string;
   adapterConfig?: Record<string, unknown>;
 }
 
@@ -142,6 +143,14 @@ function isSiteExpert(agent: PaperclipAgent): boolean {
   const title = typeof agent.title === "string" ? agent.title.trim().toLowerCase() : "";
   const name = typeof agent.name === "string" ? agent.name.trim().toLowerCase() : "";
   return role === "site_lead" || title === "wix site expert" || name === "wix site expert";
+}
+
+function isLiveSpecialist(agent: PaperclipAgent, aiTeamLeadId: string | null) {
+  if (agent.id === aiTeamLeadId) {
+    return false;
+  }
+
+  return agent.status !== "pending_approval";
 }
 
 function buildReadBackfillScript() {
@@ -828,8 +837,7 @@ async function handoffStartupTasks(
 export async function repairCompanyState(companyId: string, options?: { startup?: boolean }): Promise<CompanyRepairResult> {
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
-  const approvalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
-  const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
+  let approvalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
   const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated } = await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
   const agents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => []);
@@ -846,29 +854,53 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     agents.find((agent) => agent.role === "ceo") ||
     agents.find((agent) => agent.title?.trim().toLowerCase() === "ai team lead") ||
     null;
-  const activeSpecialistCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length;
+  const liveSpecialistsAtStart = agents.filter((agent) => isLiveSpecialist(agent, aiTeamLead?.id || null));
+  const specialistShellCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length - liveSpecialistsAtStart.length;
 
   if (startup && binding.mode === "new_site" && binding.hasSiteIdentity && aiTeamLead) {
     let workingAgents = agents;
+    let workingIssues = issues;
 
-    if (activeSpecialistCount === 0) {
-      detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
-      const createdAgentIds = await createStarterTeamAgents(refreshedCompany, agents).catch(() => []);
-      starterAgentsCreated = createdAgentIds.length;
-      if (starterAgentsCreated > 0) {
+    if (specialistShellCount > 0) {
+      const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
+      if (startupApprovalsApproved > 0) {
+        approvalsApproved += startupApprovalsApproved;
+        await sleep(1_000);
         workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
       }
     }
 
-    const liveSpecialistCount = workingAgents.filter((agent) => agent.id !== aiTeamLead.id).length;
-    if (liveSpecialistCount > 0) {
-      startupTasksHandedOff = await handoffStartupTasks(companyId, issues, workingAgents).catch(() => 0);
+    const liveSpecialistsBeforeCreation = workingAgents.filter((agent) =>
+      isLiveSpecialist(agent, aiTeamLead.id),
+    );
+
+    if (liveSpecialistsBeforeCreation.length === 0) {
+      detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
+      const createdAgentIds = await createStarterTeamAgents(refreshedCompany, workingAgents).catch(() => []);
+      starterAgentsCreated = createdAgentIds.length;
+      if (starterAgentsCreated > 0) {
+        workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
+        const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
+        if (startupApprovalsApproved > 0) {
+          approvalsApproved += startupApprovalsApproved;
+          await sleep(1_000);
+          workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => workingAgents);
+        }
+      }
+    }
+
+    const liveSpecialists = workingAgents.filter((agent) => isLiveSpecialist(agent, aiTeamLead.id));
+    if (liveSpecialists.length > 0) {
+      workingIssues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => issues);
+      startupTasksHandedOff = await handoffStartupTasks(companyId, workingIssues, workingAgents).catch(() => 0);
     }
 
     if (detachedStartupRunsCancelled > 0 || starterAgentsCreated > 0 || startupTasksHandedOff > 0) {
       await wakeAiTeamLead(companyId).catch(() => null);
     }
   }
+
+  const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
 
   if (approvalsApproved > 0) {
     await wakeAiTeamLead(companyId).catch(() => null);
