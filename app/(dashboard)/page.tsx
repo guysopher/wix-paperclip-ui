@@ -1280,6 +1280,17 @@ function DashboardContent() {
         title={`${company.name} AI Team`}
         actionsBar={
           <Box direction="horizontal" gap="6px" verticalAlign="middle">
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#7a8da5",
+                paddingRight: 4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {teamRunState}
+            </div>
             <button
               onClick={() => {
                 void handleToggleAllAgents();
@@ -1295,7 +1306,7 @@ function DashboardContent() {
                 minHeight: 36,
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 10,
+                gap: 8,
                 cursor: agents.length === 0 || togglingAllAgents ? "default" : "pointer",
                 opacity: agents.length === 0 || togglingAllAgents ? 0.55 : 1,
                 boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
@@ -1316,17 +1327,14 @@ function DashboardContent() {
               >
                 {allAgentsPaused ? <PlayFilled size="14px" /> : <PauseFilled size="14px" />}
               </span>
-              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1 }}>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>
-                  {togglingAllAgents
-                    ? allAgentsPaused
-                      ? "Resuming..."
-                      : "Pausing..."
-                    : allAgentsPaused
-                      ? "Resume All Agents"
-                      : "Pause All Agents"}
-                </span>
-                <span style={{ fontSize: 11, color: "#7a8da5", fontWeight: 500 }}>{teamRunState}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+                {togglingAllAgents
+                  ? allAgentsPaused
+                    ? "Resuming..."
+                    : "Pausing..."
+                  : allAgentsPaused
+                    ? "Resume All Agents"
+                    : "Pause All Agents"}
               </span>
             </button>
             <PopoverMenu
