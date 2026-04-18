@@ -27,6 +27,38 @@ export function humanizeToolName(name: string): string {
   return map[name] || name.replace(/([A-Z])/g, " $1").trim();
 }
 
+function summarizeCommandExecution(command: string): string {
+  const normalized = command.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return "Running command";
+  }
+
+  if (/heartbeat-context/i.test(normalized)) {
+    return "Reading task context";
+  }
+  if (/\/companies\/\$?PAPERCLIP_COMPANY_ID/i.test(normalized) || /\/companies\/[^/\s'"]+['"]?\s*$/i.test(normalized)) {
+    return "Checking company state";
+  }
+  if (/\/issues\?.*status=/i.test(normalized) || /rg -n/i.test(normalized)) {
+    return "Checking related tasks";
+  }
+  if (/\bsed -n\b/i.test(normalized) || /\bcat\b/i.test(normalized)) {
+    return "Reviewing file contents";
+  }
+  if (/\bls -la\b/i.test(normalized) || /\bls\b/i.test(normalized)) {
+    return "Checking workspace files";
+  }
+  if (/\bcurl\b/i.test(normalized)) {
+    return "Checking live data";
+  }
+  if (/\bnode\b/i.test(normalized) || /\bpython\b/i.test(normalized)) {
+    return "Running helper script";
+  }
+
+  return "Running command";
+}
+
 export function parseRunLog(raw: string): LogEntry[] {
   const lines = raw.split("\n").filter(Boolean);
   const items: Array<{ kind: "text" | "tool" | "result"; text: string; toolName?: string; ts?: string }> = [];
@@ -62,7 +94,13 @@ export function parseRunLog(raw: string): LogEntry[] {
           }
 
           if (itemType === "command_execution") {
-            items.push({ kind: "tool", text: "", toolName: "Bash", ts });
+            const command = typeof item?.command === "string" ? item.command : "";
+            items.push({
+              kind: "tool",
+              text: summarizeCommandExecution(command),
+              toolName: "Bash",
+              ts,
+            });
 
             if (type === "item.completed") {
               const output = typeof item?.aggregated_output === "string" ? item.aggregated_output.trim() : "";
@@ -87,7 +125,7 @@ export function parseRunLog(raw: string): LogEntry[] {
     const counts: Record<string, number> = {};
     for (const t of pendingTools) counts[t] = (counts[t] || 0) + 1;
     const summary = Object.entries(counts)
-      .map(([name, count]) => count > 1 ? `${humanizeToolName(name)} (x${count})` : humanizeToolName(name))
+      .map(([name, count]) => count > 1 ? `${name} (x${count})` : name)
       .join(", ");
     entries.push({ kind: "tools", text: summary, toolNames: [...new Set(pendingTools)], timestamp: pendingToolTs });
     pendingTools = [];
@@ -101,7 +139,11 @@ export function parseRunLog(raw: string): LogEntry[] {
   };
 
   for (const item of items) {
-    if (item.kind === "tool") { flushText(); if (!pendingToolTs && item.ts) pendingToolTs = item.ts; pendingTools.push(item.toolName!); }
+    if (item.kind === "tool") {
+      flushText();
+      if (!pendingToolTs && item.ts) pendingToolTs = item.ts;
+      pendingTools.push(item.text || humanizeToolName(item.toolName || ""));
+    }
     else if (item.kind === "text") { flushTools(); if (!pendingTextTs && item.ts) pendingTextTs = item.ts; pendingText.push(item.text); }
     else if (item.kind === "result") { flushTools(); flushText(); entries.push({ kind: "result", text: item.text, timestamp: item.ts }); }
   }
