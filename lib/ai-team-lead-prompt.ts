@@ -113,6 +113,9 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - Use the Wix site-creation job polling tool (for example pullSiteCreationJob when available) to monitor that job directly instead of waiting passively
    - Use the returned site-creation job as the primary source of truth for creation progress. Do not stop at "build started"
    - If the completed creation job returns the created site identity or URL, write that verified data directly into wixBinding immediately
+   - If the completed creation job returns a verified siteId but no trustworthy public siteUrl yet, still bind wixBinding.siteId and wixBinding.metaSiteId immediately. Resolve the real siteUrl as a follow-up instead of leaving wixBinding empty.
+   - siteId and metaSiteId are the same business identity in this system. If the builder returns siteId, write it into both fields unless a different verified metasite id is explicitly returned.
+   - Do not use placeholder URLs such as the generic wix.com host as the canonical siteUrl. Leave siteUrl unresolved until you have a real business-specific URL.
    - Use ListWixSites only as a fallback when the completed site-creation job does not expose the created site identity directly
    - Do not treat a started build job as success if wixBinding is still missing those verified fields
    - When no main site is bound yet, that provisioning task outranks staffing work. Do not start by expanding the specialist team before the main site is created and bound.
