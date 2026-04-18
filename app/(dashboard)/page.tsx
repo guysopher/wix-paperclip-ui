@@ -354,6 +354,7 @@ function DashboardContent() {
   const [restartingServer, setRestartingServer] = useState(false);
   const [repairingCodexAuth, setRepairingCodexAuth] = useState(false);
   const [backfillingAgentPrompts, setBackfillingAgentPrompts] = useState(false);
+  const [togglingAllAgents, setTogglingAllAgents] = useState(false);
   const [liveRunFeed, setLiveRunFeed] = useState<LiveRunFeed | null>(null);
   const [liveRunLoading, setLiveRunLoading] = useState(false);
   const [selectedOpsAgentId, setSelectedOpsAgentId] = useState<string | null>(null);
@@ -1252,6 +1253,26 @@ function DashboardContent() {
     }
   };
 
+  const allAgentsPaused = agents.length > 0 && agents.every((a) => a.status === "paused");
+  const teamRunState = agents.length === 0 ? "No agents" : allAgentsPaused ? "Paused" : "Running";
+
+  const handleToggleAllAgents = async () => {
+    if (agents.length === 0) return;
+
+    setTogglingAllAgents(true);
+    try {
+      for (const agent of agents) {
+        try {
+          if (allAgentsPaused) await resumeAgent(agent.id);
+          else await pauseAgent(agent.id);
+        } catch {}
+      }
+      await refresh();
+    } finally {
+      setTogglingAllAgents(false);
+    }
+  };
+
   return (
     <>
     <Page>
@@ -1259,6 +1280,55 @@ function DashboardContent() {
         title={`${company.name} AI Team`}
         actionsBar={
           <Box direction="horizontal" gap="6px" verticalAlign="middle">
+            <button
+              onClick={() => {
+                void handleToggleAllAgents();
+              }}
+              disabled={agents.length === 0 || togglingAllAgents}
+              title={allAgentsPaused ? "Resume all agents" : "Pause all agents"}
+              style={{
+                border: "1px solid #d5e0f0",
+                background: "white",
+                color: "#162d3d",
+                borderRadius: 999,
+                padding: "8px 12px",
+                minHeight: 36,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                cursor: agents.length === 0 || togglingAllAgents ? "default" : "pointer",
+                opacity: agents.length === 0 || togglingAllAgents ? 0.55 : 1,
+                boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
+              }}
+            >
+              <span
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: allAgentsPaused ? "#eef6ff" : "#fff3ef",
+                  color: allAgentsPaused ? "#2b6ed2" : "#d04b3c",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {allAgentsPaused ? <PlayFilled size="14px" /> : <PauseFilled size="14px" />}
+              </span>
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1 }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>
+                  {togglingAllAgents
+                    ? allAgentsPaused
+                      ? "Resuming..."
+                      : "Pausing..."
+                    : allAgentsPaused
+                      ? "Resume All Agents"
+                      : "Pause All Agents"}
+                </span>
+                <span style={{ fontSize: 11, color: "#7a8da5", fontWeight: 500 }}>{teamRunState}</span>
+              </span>
+            </button>
             <PopoverMenu
               placement="bottom-end"
               triggerElement={
@@ -1332,21 +1402,6 @@ function DashboardContent() {
                 subtitle="Repairs prompts, runtime instructions, and stale startup state"
                 disabled={backfillingAgentPrompts}
                 onClick={handleBackfillAgentPrompts}
-              />
-              <PopoverMenu.MenuItem
-                text={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Resume All Agents" : "Pause All Agents"}
-                subtitle={agents.length > 0 && agents.every((a) => a.status === "paused") ? "Agents will start checking in again" : "Stop all scheduled work"}
-                disabled={agents.length === 0}
-                onClick={async () => {
-                  const allPaused = agents.every((a) => a.status === "paused");
-                  for (const agent of agents) {
-                    try {
-                      if (allPaused) await resumeAgent(agent.id);
-                      else await pauseAgent(agent.id);
-                    } catch {}
-                  }
-                  void refresh();
-                }}
               />
               <PopoverMenu.Divider />
               <PopoverMenu.MenuItem
