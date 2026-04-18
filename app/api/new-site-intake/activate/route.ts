@@ -36,6 +36,17 @@ interface KickoffTask {
   description: string;
 }
 
+interface PaperclipAgent {
+  id: string;
+  companyId: string;
+  name: string;
+  role: string;
+  title: string;
+  status: string;
+  adapterType: string;
+  adapterConfig?: Record<string, unknown>;
+}
+
 interface StarterAgentPlan {
   role: string;
   goal: string;
