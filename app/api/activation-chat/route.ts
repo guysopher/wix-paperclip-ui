@@ -200,7 +200,7 @@ function buildNewSiteBuildInstruction(
   switch (trigger) {
     case "backend_update":
       if (status === "succeeded") {
-        return "An experimental Picasso vibe site has succeeded. If it is relevant, mention it briefly as an additional creative direction, not as the main business site. Keep the founder focused on the main site execution and the next business moves.";
+        return "An experimental Picasso vibe site has succeeded. If it is relevant, mention it briefly as an additional creative direction, never as the main business site. Keep the founder focused on the canonical live site execution and the next business moves.";
       }
       if (status === "failed" || status === "canceled") {
         return "The experimental Picasso vibe site did not complete successfully. Explain that plainly only if it matters, keep it calm, and immediately pivot back to the main site execution and the next practical business moves.";
@@ -208,7 +208,7 @@ function buildNewSiteBuildInstruction(
       return "The team is underway on the first approved site version. Give the founder a short progress update and suggest 2 to 4 practical next steps the AI Team Lead can help with for the business while execution is moving.";
     case "user_message":
       if (status === "succeeded") {
-        return "If the experimental Picasso vibe site exists, treat it as supplementary. Answer like the founder is moving from setup into execution on the main business site. Keep it practical and suggest concrete next moves you can help with.";
+        return "If the experimental Picasso vibe site exists, treat it as supplementary. Answer like the founder is moving from setup into execution on the canonical live site. Keep it practical and suggest concrete next moves you can help with.";
       }
       if (status === "failed" || status === "canceled") {
         return "If the experimental Picasso vibe site failed, say that plainly only if useful, keep it calm, and pivot quickly into what you can do next for the founder without sounding technical.";
@@ -219,7 +219,7 @@ function buildNewSiteBuildInstruction(
       if (status === "failed" || status === "canceled") {
         return "If the experimental Picasso vibe site failed, explain that simply only if it matters, then suggest the most useful next things the AI Team Lead can still help with for the business.";
       }
-      return "The founder just completed the intake and approved kickoff. Tell them the team is starting work on the first version now, keep it warm and practical, and mention a few concrete business areas you can help with next beyond just the site.";
+      return "The founder just completed the intake and approved kickoff. Tell them the team is starting the main live-site track and the separate experimental vibe-site track now, keep it warm and practical, and mention a few concrete business areas you can help with next beyond just the site.";
   }
 }
 
@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
     const activeRunCount = runs.filter((run) => ["queued", "running"].includes(run.status)).length;
 
     if (activation?.mode === "new_site") {
-      const picassoStatus = activation.picassoBridge?.status || "not_started";
+      const vibeStatus = vibeSite?.status || activation.picassoBridge?.status || "not_started";
 
       const buildPrompt = `You are the founder-facing AI Team Lead for a brand new Wix site creation flow.
 
@@ -270,12 +270,12 @@ ${issue.description || "No activation brief available."}
 Current build state:
 - Main site meta site ID: ${wixBinding?.metaSiteId || "Unknown"}
 - Main site URL: ${wixBinding?.siteUrl || "Unknown"}
-- Experimental vibe site status: ${picassoStatus}
-- Experimental vibe site ID: ${vibeSite?.siteId || activation.picassoBridge?.siteId || "Unknown"}
-- Experimental vibe site URL: ${vibeSite?.siteUrl || activation.picassoBridge?.siteUrl || "Unknown"}
+- Experimental vibe site status: ${vibeStatus}
+- Experimental vibe site ID: ${vibeSite?.siteId || "Unknown"}
+- Experimental vibe site URL: ${vibeSite?.siteUrl || "Unknown"}
 
 Instruction:
-${buildNewSiteBuildInstruction(body.trigger, picassoStatus)}
+${buildNewSiteBuildInstruction(body.trigger, vibeStatus)}
 `;
 
       const buildMessages: OpenAI.ChatCompletionMessageParam[] = [

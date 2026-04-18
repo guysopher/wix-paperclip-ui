@@ -1765,7 +1765,11 @@ function DashboardContent() {
                     marginBottom: 4,
                   }}
                 >
-                  {repairStatus.ready ? "Startup verified" : "Startup needs repair"}
+                  {repairStatus.ready
+                    ? repairStatus.binding.mode === "new_site"
+                      ? "Startup active"
+                      : "Startup verified"
+                    : "Startup needs repair"}
                 </div>
                 <div
                   style={{

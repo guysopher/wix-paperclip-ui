@@ -38,6 +38,11 @@ interface KickoffTask {
   description: string;
 }
 
+interface KickoffTaskSpec extends KickoffTask {
+  assigneeTitle: string;
+  priority: "critical" | "high";
+}
+
 interface PaperclipAgent {
   id: string;
   companyId: string;
@@ -94,6 +99,11 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
     expectedResult:
       "A separate vibe site with its own metadata that never overwrites the main business site.",
   },
+];
+
+const REQUIRED_STARTUP_AGENT_TITLES = [
+  "Wix Site Expert",
+  "Vibe Site Expert",
 ];
 
 const ALLOWED_STARTER_TEAM_ROLES = new Set([
@@ -487,10 +497,9 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "7. Use ListWixSites only as a fallback when the completed creation job does not expose the created site identity directly or when you still need to resolve a real siteUrl after binding the site IDs.",
     "8. Do not treat a started build job as success if wixBinding still lacks those verified identity fields.",
     "9. The main business site becomes the canonical company site in wixBinding.",
-    "10. The main business site becomes the canonical company site in wixBinding.",
-    "11. Never overwrite wixBinding with vibe-site data.",
-    "12. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
-    "13. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
+    "10. Never overwrite wixBinding with vibe-site data.",
+    "11. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
+    "12. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
   ];
 
   return {
@@ -531,6 +540,7 @@ async function createStarterTeamAgents(
   aiTeamLeadId: string,
 ) {
   const createdAgents = new Map<string, PaperclipAgent>();
+  const failures: Array<{ title: string; reason: string }> = [];
 
   for (const planEntry of starterTeam) {
     if (planEntry.role === "AI Team Lead") {
@@ -571,14 +581,78 @@ async function createStarterTeamAgents(
           promptTemplate,
         },
       })),
-    }).catch(() => null);
+    }).catch((error) => {
+      failures.push({
+        title: definition.title,
+        reason: error instanceof Error ? error.message : "Unknown starter-team creation error",
+      });
+      return null;
+    });
 
     if (createdAgent) {
       createdAgents.set(definition.title, createdAgent);
     }
   }
 
-  return createdAgents;
+  return { createdAgents, failures };
+}
+
+function buildManagementTask(summary: IntakeSummary): KickoffTaskSpec {
+  return {
+    title: `Start managing ${summary.companyName}`,
+    description: [
+      `Turn the approved proposal into a live operating plan for ${summary.companyName}.`,
+      "",
+      "Management plan:",
+      summary.managementPlan,
+      "",
+      "Immediate business goals:",
+      ...summary.goals.map((goal) => `- ${goal}`),
+      "",
+      "Expected first-phase results:",
+      ...summary.expectedResults.map((result) => `- ${result}`),
+    ].join("\n"),
+    assigneeTitle: "AI Team Lead",
+    priority: "high",
+  };
+}
+
+function buildIndustryAdvisorTask(summary: IntakeSummary): KickoffTaskSpec {
+  return {
+    title: `Define market positioning and trust signals for ${summary.companyName}`,
+    description: [
+      `Establish the category positioning, trust signals, and market framing for ${summary.companyName}.`,
+      "",
+      "Business summary:",
+      summary.businessDescription,
+      "",
+      "Site proposal context:",
+      summary.siteProposal,
+      "",
+      "Industry-advisor goal:",
+      summary.starterTeam.find((entry) => entry.role === "Industry Advisor")?.goal ||
+        "Bring field-specific expertise to the launch so the offer feels credible and grounded in real customer expectations.",
+    ].join("\n"),
+    assigneeTitle: "Industry Advisor",
+    priority: "high",
+  };
+}
+
+function buildDeterministicKickoffTasks(summary: IntakeSummary): KickoffTaskSpec[] {
+  return [
+    {
+      ...buildSiteExecutionTask(summary),
+      assigneeTitle: "Wix Site Expert",
+      priority: "critical",
+    },
+    {
+      ...buildVibeSiteExecutionTask(summary),
+      assigneeTitle: "Vibe Site Expert",
+      priority: "critical",
+    },
+    buildIndustryAdvisorTask(summary),
+    buildManagementTask(summary),
+  ];
 }
 
 async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
@@ -672,15 +746,31 @@ export async function POST(request: NextRequest) {
       })),
     });
 
-    const starterAgents = await createStarterTeamAgents(
+    const { createdAgents: starterAgents, failures: starterAgentFailures } = await createStarterTeamAgents(
       company.id,
       summary.companyName,
       summary.starterTeam,
       ceoAgent.id,
     );
 
+    const missingRequiredStartupAgents = REQUIRED_STARTUP_AGENT_TITLES.filter(
+      (title) => !starterAgents.has(title),
+    );
+
+    if (missingRequiredStartupAgents.length > 0) {
+      const details = starterAgentFailures
+        .filter((failure) => missingRequiredStartupAgents.includes(failure.title))
+        .map((failure) => `${failure.title}: ${failure.reason}`)
+        .join("; ");
+
+      throw new Error(
+        `Failed to create required startup specialists: ${missingRequiredStartupAgents.join(", ")}${details ? ` (${details})` : ""}`,
+      );
+    }
+
     const wixSiteExpert = starterAgents.get("Wix Site Expert") || null;
     const vibeSiteExpert = starterAgents.get("Vibe Site Expert") || null;
+    const industryAdvisor = starterAgents.get("Industry Advisor") || null;
 
     const boardIssue = await paperclip<{
       id: string;
@@ -709,32 +799,9 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    const kickoffTasks = [...summary.kickoffTasks];
-    const siteTaskIndex = kickoffTasks.findIndex((task) =>
-      /site|launch|build/i.test(task.title) || /site|launch|build/i.test(task.description),
-    );
-    const vibeTaskIndex = kickoffTasks.findIndex((task) =>
-      /vibe site|experimental vibe site|picasso/i.test(task.title)
-      || /vibe site|experimental vibe site|picasso/i.test(task.description),
-    );
-    const siteExecutionTask = buildSiteExecutionTask(summary);
-    const vibeSiteExecutionTask = buildVibeSiteExecutionTask(summary);
-
-    if (siteTaskIndex >= 0) {
-      kickoffTasks[siteTaskIndex] = siteExecutionTask;
-    } else {
-      kickoffTasks.unshift(siteExecutionTask);
-    }
-
-    if (vibeTaskIndex >= 0) {
-      kickoffTasks[vibeTaskIndex] = vibeSiteExecutionTask;
-    } else {
-      kickoffTasks.splice(Math.min(1, kickoffTasks.length), 0, vibeSiteExecutionTask);
-    }
-
-    const kickoffTasksToCreate = kickoffTasks
-      .filter((task, index, tasks) => tasks.findIndex((entry) => entry.title === task.title) === index)
-      .slice(0, 5);
+    const kickoffTasksToCreate = buildDeterministicKickoffTasks(summary);
+    const siteExecutionTask = kickoffTasksToCreate[0];
+    const vibeSiteExecutionTask = kickoffTasksToCreate[1];
 
     const createdKickoffTasks = await Promise.all(
       kickoffTasksToCreate.map((task) =>
@@ -743,25 +810,22 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             title: task.title,
             description: task.description,
-            priority:
-              task.title === siteExecutionTask.title || task.title === vibeSiteExecutionTask.title
-                ? "critical"
-                : "high",
+            priority: task.priority,
             assigneeAgentId:
-              task.title === siteExecutionTask.title
+              task.assigneeTitle === "Wix Site Expert"
                 ? (wixSiteExpert?.id || ceoAgent.id)
-                : task.title === vibeSiteExecutionTask.title
+                : task.assigneeTitle === "Vibe Site Expert"
                   ? (vibeSiteExpert?.id || ceoAgent.id)
-                  : ceoAgent.id,
+                  : task.assigneeTitle === "Industry Advisor"
+                    ? (industryAdvisor?.id || ceoAgent.id)
+                    : ceoAgent.id,
           }),
         }),
       ),
     );
 
-    const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title)
-      || createdKickoffTasks[kickoffTasksToCreate.findIndex((task) => task.title === siteExecutionTask.title)];
-    const vibeSiteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === vibeSiteExecutionTask.title)
-      || createdKickoffTasks[kickoffTasksToCreate.findIndex((task) => task.title === vibeSiteExecutionTask.title)];
+    const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title) || null;
+    const vibeSiteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === vibeSiteExecutionTask.title) || null;
 
     const nextDescription = buildCompanyDescription({
       version: 1,
@@ -805,28 +869,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const starterTeamIssue = createdKickoffTasks.find((issue) => /starter team/i.test(issue.title));
-
-    if (starterTeamIssue) {
-      await paperclip(`/issues/${starterTeamIssue.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          status: "done",
-          assigneeAgentId: ceoAgent.id,
-        }),
-      }).catch(() => undefined);
-
-      await paperclip(`/issues/${starterTeamIssue.id}/comments`, {
-        method: "POST",
-        body: JSON.stringify({
-          body: [
-            "[System context - not visible to user]",
-            "Starter-team activation completed at kickoff.",
-            `Created agents: ${Array.from(starterAgents.keys()).join(", ") || "none"}.`,
-          ].join("\n"),
-        }),
-      }).catch(() => undefined);
-    }
+    await paperclip(`/issues/${boardIssue.id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({
+        body: [
+          "[System context - not visible to user]",
+          "Starter-team activation completed at kickoff.",
+          `Created agents: ${Array.from(starterAgents.keys()).join(", ") || "none"}.`,
+          starterAgentFailures.length > 0
+            ? `Non-blocking starter-team creation failures: ${starterAgentFailures.map((failure) => `${failure.title}: ${failure.reason}`).join("; ")}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      }),
+    }).catch(() => undefined);
 
     if (siteExecutionIssue) {
       await paperclip(`/issues/${siteExecutionIssue.id}/comments`, {

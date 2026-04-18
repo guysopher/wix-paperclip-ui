@@ -9,6 +9,8 @@ import {
 import {
   getCompanyActivation,
   getCompanyWixBinding,
+  getCompanyVibeSite,
+  mergeCompanyDescription,
   parseCompanyDescription,
   type ActivationMode,
 } from "@/lib/company-metadata";
@@ -56,6 +58,13 @@ interface PaperclipIssue {
   description: string;
   status: string;
   assigneeUserId: string | null;
+}
+
+interface PaperclipIssueComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorAgentId?: string | null;
 }
 
 interface PaperclipRun {
@@ -723,6 +732,228 @@ function getBindingProblems(company: PaperclipCompany) {
   };
 }
 
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+function getLatestMatchingLine(body: string, pattern: RegExp) {
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => pattern.test(line));
+}
+
+function parseUuidFromLine(line: string | undefined) {
+  return line?.match(UUID_PATTERN)?.[0];
+}
+
+function parseUrlFromLine(line: string | undefined) {
+  return line?.match(/https?:\/\/\S+/i)?.[0];
+}
+
+function isTrustworthySiteUrl(url: string | undefined) {
+  if (!url) {
+    return false;
+  }
+
+  if (/^https?:\/\/www\.wix\.com\/?$/i.test(url)) {
+    return false;
+  }
+
+  if (/^https?:\/\/manage\.wix\.com\//i.test(url)) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractMainSiteBindingFromComments(comments: PaperclipIssueComment[]) {
+  const bodies = comments
+    .map((comment) => comment.body || "")
+    .reverse();
+
+  let siteId: string | undefined;
+  let siteUrl: string | undefined;
+
+  for (const body of bodies) {
+    siteId ||= parseUuidFromLine(
+      getLatestMatchingLine(body, /siteid\/metasiteid|verified site identity|metasiteid/i),
+    );
+
+    const candidateSiteUrl = parseUrlFromLine(
+      getLatestMatchingLine(body, /siteurl|public url|live url/i),
+    );
+    if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrl)) {
+      siteUrl = candidateSiteUrl;
+    }
+  }
+
+  if (!siteId && !siteUrl) {
+    return null;
+  }
+
+  return {
+    metaSiteId: siteId,
+    siteId,
+    siteUrl,
+  };
+}
+
+function extractVibeSiteBindingFromComments(comments: PaperclipIssueComment[]) {
+  const bodies = comments
+    .map((comment) => comment.body || "")
+    .reverse();
+
+  let siteId: string | undefined;
+  let jobId: string | undefined;
+  let siteUrl: string | undefined;
+  let developmentUrl: string | undefined;
+  let status: string | undefined;
+
+  for (const body of bodies) {
+    siteId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site id/i));
+    jobId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site job id/i));
+    developmentUrl ||= parseUrlFromLine(getLatestMatchingLine(body, /development url/i));
+
+    const candidatePublicUrl = parseUrlFromLine(getLatestMatchingLine(body, /vibe-site public url/i));
+    if (!siteUrl && isTrustworthySiteUrl(candidatePublicUrl)) {
+      siteUrl = candidatePublicUrl;
+    }
+
+    if (!status) {
+      const statusLine = getLatestMatchingLine(body, /current vibe-site status/i);
+      status = statusLine?.match(/current vibe-site status:\s*([A-Z_]+)/i)?.[1]?.toLowerCase();
+    }
+  }
+
+  if (!siteId && !jobId && !siteUrl && !developmentUrl && !status) {
+    return null;
+  }
+
+  return {
+    siteId,
+    jobId,
+    siteUrl,
+    developmentUrl,
+    status,
+  };
+}
+
+async function repairStartupSiteBindings(
+  company: PaperclipCompany,
+  issues: PaperclipIssue[],
+  aiTeamLeadId: string | null,
+) {
+  const currentWixBinding = getCompanyWixBinding(company.description);
+  const currentVibeSite = getCompanyVibeSite(company.description);
+  const mainSiteIssue = issues.find((issue) => /launch the first site version/i.test(issue.title));
+  const vibeSiteIssue = issues.find((issue) => /experimental vibe site/i.test(issue.title));
+
+  let nextDescription = company.description;
+  let mainBindingApplied = false;
+  let vibeBindingApplied = false;
+
+  if (mainSiteIssue && (!currentWixBinding?.metaSiteId || !currentWixBinding?.siteId || !currentWixBinding?.siteUrl)) {
+    const comments = await paperclip<PaperclipIssueComment[]>(`/issues/${mainSiteIssue.id}/comments`).catch(() => []);
+    const extractedBinding = extractMainSiteBindingFromComments(comments);
+    if (extractedBinding?.siteId || extractedBinding?.siteUrl) {
+      nextDescription = mergeCompanyDescription(nextDescription, {
+        wixBinding: {
+          metaSiteId: extractedBinding.metaSiteId,
+          siteId: extractedBinding.siteId,
+          siteUrl: extractedBinding.siteUrl || currentWixBinding?.siteUrl,
+        },
+      });
+      mainBindingApplied = true;
+    }
+  }
+
+  if (vibeSiteIssue && (!currentVibeSite?.siteId || !currentVibeSite?.jobId || !currentVibeSite?.developmentUrl || !currentVibeSite?.status)) {
+    const comments = await paperclip<PaperclipIssueComment[]>(`/issues/${vibeSiteIssue.id}/comments`).catch(() => []);
+    const extractedVibeSite = extractVibeSiteBindingFromComments(comments);
+    if (extractedVibeSite?.siteId || extractedVibeSite?.jobId || extractedVibeSite?.developmentUrl || extractedVibeSite?.status) {
+      nextDescription = mergeCompanyDescription(nextDescription, {
+        vibeSite: {
+          siteId: extractedVibeSite.siteId || currentVibeSite?.siteId,
+          siteUrl: extractedVibeSite.siteUrl || currentVibeSite?.siteUrl,
+          jobId: extractedVibeSite.jobId || currentVibeSite?.jobId,
+          status: extractedVibeSite.status || currentVibeSite?.status,
+          developmentUrl: extractedVibeSite.developmentUrl || currentVibeSite?.developmentUrl,
+        },
+      });
+      vibeBindingApplied = true;
+    }
+  }
+
+  if (!mainBindingApplied && !vibeBindingApplied) {
+    return { company, mainBindingApplied, vibeBindingApplied };
+  }
+
+  const updatedCompany = await paperclip<PaperclipCompany>(`/companies/${company.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      description: nextDescription,
+    }),
+  }).catch(() => company);
+
+  const mainBindingIssue = issues.find((issue) =>
+    /bind verified wix site identity into company description/i.test(issue.title),
+  );
+  if (mainBindingApplied && mainBindingIssue && mainBindingIssue.status !== "done") {
+    await paperclip(`/issues/${mainBindingIssue.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "done",
+        assigneeAgentId: aiTeamLeadId || undefined,
+      }),
+    }).catch(() => null);
+  }
+
+  const vibeBindingIssue = issues.find((issue) =>
+    /persist .*vibe-site metadata into company\.description/i.test(issue.title),
+  );
+  if (vibeBindingApplied && vibeBindingIssue && vibeBindingIssue.status !== "done") {
+    await paperclip(`/issues/${vibeBindingIssue.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "done",
+        assigneeAgentId: aiTeamLeadId || undefined,
+      }),
+    }).catch(() => null);
+  }
+
+  if (mainBindingApplied && mainSiteIssue && mainSiteIssue.status === "blocked") {
+    await paperclip(`/issues/${mainSiteIssue.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "in_progress",
+      }),
+    }).catch(() => null);
+  }
+
+  if (mainBindingApplied && mainSiteIssue) {
+    await paperclip(`/issues/${mainSiteIssue.id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({
+        body: "[System context - not visible to user]\nStartup repair persisted the verified main-site binding into company.description. Continue production-site work on the now-bound Wix site.",
+      }),
+    }).catch(() => null);
+  }
+
+  if (vibeBindingApplied && vibeSiteIssue) {
+    await paperclip(`/issues/${vibeSiteIssue.id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({
+        body: "[System context - not visible to user]\nStartup repair persisted the verified vibe-site metadata into company.description. Continue vibe-site iteration without touching wixBinding.",
+      }),
+    }).catch(() => null);
+  }
+
+  return {
+    company: updatedCompany,
+    mainBindingApplied,
+    vibeBindingApplied,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -881,6 +1112,57 @@ async function handoffStartupTasks(
   return updated;
 }
 
+async function closeResolvedStartupFollowups(
+  companyId: string,
+  issues: PaperclipIssue[],
+  pendingApprovals: number,
+  hasMainSiteIdentity: boolean,
+  hasVibeSiteIdentity: boolean,
+  _aiTeamLeadId: string | null,
+) {
+  let closed = 0;
+
+  await Promise.all(issues.map(async (issue) => {
+    const title = issue.title.trim().toLowerCase();
+
+    if (
+      pendingApprovals === 0 &&
+      /resolve pending specialist hire approvals/.test(title) &&
+      issue.status !== "done"
+    ) {
+      const result = await paperclip(`/issues/${issue.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "done",
+        }),
+      }).catch(() => null);
+      if (result) {
+        closed += 1;
+      }
+      return;
+    }
+
+    if (
+      hasMainSiteIdentity &&
+      hasVibeSiteIdentity &&
+      /apply .*metadata patch/.test(title) &&
+      issue.status !== "done"
+    ) {
+      const result = await paperclip(`/issues/${issue.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "done",
+        }),
+      }).catch(() => null);
+      if (result) {
+        closed += 1;
+      }
+    }
+  }));
+
+  return closed;
+}
+
 export async function repairCompanyState(companyId: string, options?: { startup?: boolean }): Promise<CompanyRepairResult> {
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
@@ -890,18 +1172,31 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const agents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => []);
   const issues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => []);
   const staleTasksUpdated = await cleanStaleBoardTasks(refreshedCompany, issues).catch(() => 0);
-  const binding = getBindingProblems(refreshedCompany);
-  const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const notes: string[] = [];
   let detachedStartupRunsCancelled = 0;
   let starterAgentsCreated = 0;
   let startupTasksHandedOff = 0;
+  let startupSiteBindingsApplied = 0;
+  let resolvedStartupFollowups = 0;
   const agentsToWake = new Set<string>();
 
   const aiTeamLead =
     agents.find((agent) => agent.role === "ceo") ||
     agents.find((agent) => agent.title?.trim().toLowerCase() === "ai team lead") ||
     null;
+
+  if (startup) {
+    const bindingRepair = await repairStartupSiteBindings(refreshedCompany, issues, aiTeamLead?.id || null)
+      .catch(() => null);
+    if (bindingRepair) {
+      refreshedCompany.description = bindingRepair.company.description;
+      startupSiteBindingsApplied =
+        Number(bindingRepair.mainBindingApplied) + Number(bindingRepair.vibeBindingApplied);
+    }
+  }
+
+  const binding = getBindingProblems(refreshedCompany);
+  const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const liveSpecialistsAtStart = agents.filter((agent) => isLiveSpecialist(agent, aiTeamLead?.id || null));
   const specialistShellCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length - liveSpecialistsAtStart.length;
 
@@ -942,7 +1237,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
       startupTasksHandedOff = await handoffStartupTasks(companyId, workingIssues, workingAgents).catch(() => 0);
     }
 
-    if (detachedStartupRunsCancelled > 0 || starterAgentsCreated > 0 || startupTasksHandedOff > 0) {
+    if (detachedStartupRunsCancelled > 0 || starterAgentsCreated > 0 || startupTasksHandedOff > 0 || startupSiteBindingsApplied > 0) {
       workingAgents
         .filter((agent) => isLiveSpecialist(agent, aiTeamLead.id))
         .forEach((agent) => agentsToWake.add(agent.id));
@@ -954,6 +1249,14 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
 
   const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
+  resolvedStartupFollowups = await closeResolvedStartupFollowups(
+    companyId,
+    issues,
+    pendingApprovals,
+    Boolean(getCompanyWixBinding(refreshedCompany.description)?.metaSiteId || getCompanyWixBinding(refreshedCompany.description)?.siteId),
+    Boolean(getCompanyVibeSite(refreshedCompany.description)?.siteId || getCompanyVibeSite(refreshedCompany.description)?.jobId),
+    aiTeamLead?.id || null,
+  ).catch(() => 0);
 
   if (approvalsApproved > 0) {
     await wakeAiTeamLead(companyId).catch(() => null);
@@ -970,6 +1273,12 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
   if (starterAgentsCreated > 0) {
     notes.push(`Created ${starterAgentsCreated} starter-team specialist agent${starterAgentsCreated === 1 ? "" : "s"} after main-site binding.`);
+  }
+  if (startupSiteBindingsApplied > 0) {
+    notes.push(`Persisted ${startupSiteBindingsApplied} verified startup site binding${startupSiteBindingsApplied === 1 ? "" : "s"} from specialist output.`);
+  }
+  if (resolvedStartupFollowups > 0) {
+    notes.push(`Closed ${resolvedStartupFollowups} resolved startup follow-up task${resolvedStartupFollowups === 1 ? "" : "s"}.`);
   }
   if (startupTasksHandedOff > 0) {
     notes.push(`Handed off ${startupTasksHandedOff} startup task${startupTasksHandedOff === 1 ? "" : "s"} to the live specialists.`);
@@ -989,7 +1298,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   if (binding.problems.length === 0) {
     notes.push(
       binding.mode === "new_site"
-        ? "New-site startup is verified and ready for site creation work."
+        ? "New-site startup is active and the team can move the main live-site and vibe-site tracks forward."
         : binding.hasSiteIdentity
           ? "Wix binding is locked and ready for site work."
           : "Company repair completed.",

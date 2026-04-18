@@ -387,9 +387,9 @@ function NewCompanyPageContent() {
         : "Your AI Team Lead is interviewing you like a studio lead would, so the proposal is grounded in the actual business."
       : isNewSiteFlow
         ? bridgeStatus === "queued" || bridgeStatus === "running"
-          ? "Your AI Team Lead has kicked off the first approved work and is coordinating the team around it."
+          ? "Your AI Team Lead has kicked off the main live-site track and the separate vibe-site track, and is coordinating the team around both."
           : interviewStage === "building" || interviewStage === "complete"
-            ? "Your AI Team Lead has the approved brief and is turning it into execution across the site, team, and business."
+            ? "Your AI Team Lead has the approved brief and is turning it into execution across the live site, the vibe site, the team, and the business."
             : "Your AI Team Lead has the approved brief and is ready to move into execution."
         : "Your AI Team Lead is researching the business during the interview so the recommendation is specific before any work begins.";
   const spinnerLabel = startingNewSite
@@ -397,7 +397,7 @@ function NewCompanyPageContent() {
     : chatSending
       ? "Thinking..."
       : isNewSiteFlow
-        ? "Preparing the first site version..."
+        ? "Starting the live and vibe site tracks..."
         : "Research in progress...";
 
   useEffect(() => {
