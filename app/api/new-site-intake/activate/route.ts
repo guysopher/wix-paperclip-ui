@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
 import {
   CANONICAL_AGENT_TITLES,
+  getCanonicalAgentDefinitionByTitle,
   renderAgentTemplateShowcase,
 } from "@/lib/agent-templates";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
@@ -10,6 +11,7 @@ import { buildCompanyDescription } from "@/lib/company-metadata";
 import {
   DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
+  DEFAULT_OPENAI_SPECIALIST_MODEL,
   DEFAULT_OPENAI_TEAM_LEAD_MODEL,
 } from "@/lib/paperclip-runtime-defaults";
 import { repairCompanyState } from "@/lib/server/company-repair";
@@ -72,6 +74,12 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
     goal: "Own the first site version and the ongoing site experience as the business launches.",
     expectedResult:
       "A credible site that clearly explains the offer, supports conversion, and improves as the business learns.",
+  },
+  {
+    role: "Vibe Site Expert",
+    goal: "Own the experimental Picasso site as a parallel creative track for the launch.",
+    expectedResult:
+      "A separate vibe site with its own metadata that never overwrites the main business site.",
   },
 ];
 
@@ -308,7 +316,7 @@ Rules:
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
 - The center of gravity is the AI team plan, not a solo site-build pitch.
 - "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
-- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert.
+- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert.
 - Any additional role in "starterTeam" must use an exact canonical title from the list below. Do not invent role variants.
 - Goals should be practical and outcome-focused. Return 1 to 3.
 - "expectedResults" should describe the concrete business results the founder should expect from the first phase. Return 2 to 4.
@@ -339,7 +347,7 @@ ${canonicalAgentOptions}
     "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
   const teamHiringPlan =
     parsed.teamHiringPlan?.trim() ||
-    "Start with the mandatory core team of AI Team Lead, Industry Advisor, and Wix Site Expert, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
+    "Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, and Vibe Site Expert, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
@@ -385,6 +393,10 @@ ${canonicalAgentOptions}
           {
             title: `Launch the first site version for ${companyName}`,
             description: `Create and ship the first version of the site.\n\nSite proposal:\n${siteProposal}\n\nExecution brief:\n${firstBuildBrief}`,
+          },
+          {
+            title: `Create the experimental vibe site for ${companyName}`,
+            description: `Create the parallel experimental vibe site.\n\nExecution brief:\n${firstBuildBrief}`,
           },
           {
             title: `Build the starter team for ${companyName}`,
@@ -454,7 +466,7 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "",
     "Execution rules:",
     "1. This is a build task, not a planning task.",
-    "2. On the first AI Team Lead run, if no main site is bound yet, phase one is to create the main business site through the standard Wix/Harmony path, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description.",
+    "2. This is the production-site track. Create the main business site through the standard Wix/Harmony path, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description.",
     "3. If the site-creation call returns an asynchronous jobId, that job becomes the primary creation flow. Poll it to terminal state before deciding whether creation succeeded.",
     "4. If the completed creation job returns a verified siteId, write that value into wixBinding.siteId and wixBinding.metaSiteId immediately, even if a trustworthy public siteUrl is not available yet.",
     "5. Treat siteId and metaSiteId as the same locked business identity unless Wix explicitly returns different verified values.",
@@ -462,18 +474,99 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "7. Use ListWixSites only as a fallback when the completed creation job does not expose the created site identity directly or when you still need to resolve a real siteUrl after binding the site IDs.",
     "8. Do not treat a started build job as success if wixBinding still lacks those verified identity fields.",
     "9. The main business site becomes the canonical company site in wixBinding.",
-    "10. Do not expand the specialist team for ongoing site execution until the main site is bound into wixBinding.",
-    "11. After the main site is bound, hire the Wix Site Expert and hand off normal site-building, content, and polish work.",
-    "12. After the main site is bound, create the optional Picasso experimental site separately and record it as vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
-    "13. Never overwrite wixBinding with vibe-site data.",
-    "14. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
-    "15. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
+    "10. The main business site becomes the canonical company site in wixBinding.",
+    "11. Never overwrite wixBinding with vibe-site data.",
+    "12. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
+    "13. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
   ];
 
   return {
     title: `Launch the first site version for ${summary.companyName}`,
     description: lines.join("\n"),
   };
+}
+
+function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
+  const lines = [
+    `Create the experimental vibe site for ${summary.companyName} as a separate Picasso track.`,
+    "",
+    "Approved site proposal:",
+    summary.siteProposal,
+    "",
+    "Execution brief:",
+    summary.firstBuildBrief,
+    "",
+    "Execution rules:",
+    "1. This is the vibe-site track, not the production-site track.",
+    "2. Start the experimental Picasso site in parallel with the main site whenever tooling allows.",
+    "3. Use the Picasso-capable builder surface exposed in the runtime and treat returned job or operation ids as asynchronous work that must be polled to terminal state.",
+    "4. Record all verified results in vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
+    "5. Never write vibe-site data into wixBinding.",
+    "6. Do not mark this task done until a real vibe site exists or a concrete tooling blocker is clearly reported.",
+  ];
+
+  return {
+    title: `Create the experimental vibe site for ${summary.companyName}`,
+    description: lines.join("\n"),
+  };
+}
+
+async function createStarterTeamAgents(
+  companyId: string,
+  companyName: string,
+  starterTeam: StarterAgentPlan[],
+  aiTeamLeadId: string,
+) {
+  const createdAgents = new Map<string, PaperclipAgent>();
+
+  for (const planEntry of starterTeam) {
+    if (planEntry.role === "AI Team Lead") {
+      continue;
+    }
+
+    const definition = getCanonicalAgentDefinitionByTitle(planEntry.role);
+    if (!definition) {
+      continue;
+    }
+
+    const promptTemplate = [
+      renderPromptTemplate(definition.promptTemplate, {
+        id: companyId,
+        name: companyName,
+        description: "",
+      }),
+      planEntry.goal ? `\nCurrent startup goal\n- ${planEntry.goal}` : "",
+      planEntry.expectedResult ? `\nExpected startup result\n- ${planEntry.expectedResult}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const createdAgent = await paperclip<PaperclipAgent>(`/companies/${companyId}/agents`, {
+      method: "POST",
+      body: JSON.stringify(syncHeartbeatConfig({
+        name: definition.title,
+        role: definition.role,
+        title: definition.title,
+        icon: definition.icon,
+        capabilities: definition.capabilities.join(", "),
+        reportsTo: aiTeamLeadId,
+        adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
+        adapterConfig: {
+          model: DEFAULT_OPENAI_SPECIALIST_MODEL,
+          heartbeatIntervalSec: 1800,
+          dangerouslyBypassApprovalsAndSandbox: true,
+          timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
+          promptTemplate,
+        },
+      })),
+    }).catch(() => null);
+
+    if (createdAgent) {
+      createdAgents.set(definition.title, createdAgent);
+    }
+  }
+
+  return createdAgents;
 }
 
 async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
@@ -567,6 +660,16 @@ export async function POST(request: NextRequest) {
       })),
     });
 
+    const starterAgents = await createStarterTeamAgents(
+      company.id,
+      summary.companyName,
+      summary.starterTeam,
+      ceoAgent.id,
+    );
+
+    const wixSiteExpert = starterAgents.get("Wix Site Expert") || null;
+    const vibeSiteExpert = starterAgents.get("Vibe Site Expert") || null;
+
     const boardIssue = await paperclip<{
       id: string;
       title: string;
@@ -598,7 +701,12 @@ export async function POST(request: NextRequest) {
     const siteTaskIndex = kickoffTasks.findIndex((task) =>
       /site|launch|build/i.test(task.title) || /site|launch|build/i.test(task.description),
     );
+    const vibeTaskIndex = kickoffTasks.findIndex((task) =>
+      /vibe site|experimental vibe site|picasso/i.test(task.title)
+      || /vibe site|experimental vibe site|picasso/i.test(task.description),
+    );
     const siteExecutionTask = buildSiteExecutionTask(summary);
+    const vibeSiteExecutionTask = buildVibeSiteExecutionTask(summary);
 
     if (siteTaskIndex >= 0) {
       kickoffTasks[siteTaskIndex] = siteExecutionTask;
@@ -606,7 +714,15 @@ export async function POST(request: NextRequest) {
       kickoffTasks.unshift(siteExecutionTask);
     }
 
-    const kickoffTasksToCreate = kickoffTasks.slice(0, 4);
+    if (vibeTaskIndex >= 0) {
+      kickoffTasks[vibeTaskIndex] = vibeSiteExecutionTask;
+    } else {
+      kickoffTasks.splice(Math.min(1, kickoffTasks.length), 0, vibeSiteExecutionTask);
+    }
+
+    const kickoffTasksToCreate = kickoffTasks
+      .filter((task, index, tasks) => tasks.findIndex((entry) => entry.title === task.title) === index)
+      .slice(0, 5);
 
     const createdKickoffTasks = await Promise.all(
       kickoffTasksToCreate.map((task) =>
@@ -615,8 +731,16 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             title: task.title,
             description: task.description,
-            priority: task.title === siteExecutionTask.title ? "critical" : "high",
-            assigneeAgentId: ceoAgent.id,
+            priority:
+              task.title === siteExecutionTask.title || task.title === vibeSiteExecutionTask.title
+                ? "critical"
+                : "high",
+            assigneeAgentId:
+              task.title === siteExecutionTask.title
+                ? (wixSiteExpert?.id || ceoAgent.id)
+                : task.title === vibeSiteExecutionTask.title
+                  ? (vibeSiteExpert?.id || ceoAgent.id)
+                  : ceoAgent.id,
           }),
         }),
       ),
@@ -624,6 +748,8 @@ export async function POST(request: NextRequest) {
 
     const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title)
       || createdKickoffTasks[kickoffTasksToCreate.findIndex((task) => task.title === siteExecutionTask.title)];
+    const vibeSiteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === vibeSiteExecutionTask.title)
+      || createdKickoffTasks[kickoffTasksToCreate.findIndex((task) => task.title === vibeSiteExecutionTask.title)];
 
     const nextDescription = buildCompanyDescription({
       version: 1,
@@ -667,23 +793,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const starterTeamIssue = createdKickoffTasks.find((issue) => /starter team/i.test(issue.title));
+
+    if (starterTeamIssue) {
+      await paperclip(`/issues/${starterTeamIssue.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "done",
+          assigneeAgentId: ceoAgent.id,
+        }),
+      }).catch(() => undefined);
+
+      await paperclip(`/issues/${starterTeamIssue.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: [
+            "[System context - not visible to user]",
+            "Starter-team activation completed at kickoff.",
+            `Created agents: ${Array.from(starterAgents.keys()).join(", ") || "none"}.`,
+          ].join("\n"),
+        }),
+      }).catch(() => undefined);
+    }
+
     if (siteExecutionIssue) {
       await paperclip(`/issues/${siteExecutionIssue.id}/comments`, {
         method: "POST",
         body: JSON.stringify({
           body: [
             "[System context - not visible to user]",
-            "Startup directive: the first run must provision and bind the main Wix site before expanding the specialist team.",
-            "Create the main site, verify wixBinding.metaSiteId/siteId/siteUrl, write them back into company description, and only then move to staffing handoff or optional vibe-site work.",
+            "Startup directive: this is the production-site track.",
+            "Create and bind the main Wix site first. Verify wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl, write them back into company description, and keep wixBinding reserved for the real business site only.",
           ].join("\n"),
         }),
       }).catch(() => undefined);
     }
 
-    await paperclip(`/agents/${ceoAgent.id}/heartbeat/invoke`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    }).catch(() => undefined);
+    if (vibeSiteExecutionIssue) {
+      await paperclip(`/issues/${vibeSiteExecutionIssue.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: [
+            "[System context - not visible to user]",
+            "Startup directive: this is the experimental vibe-site track.",
+            "Create the Picasso vibe site in parallel where tooling allows, record all verified results in vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl, and never write vibe-site data into wixBinding.",
+          ].join("\n"),
+        }),
+      }).catch(() => undefined);
+    }
+
+    await Promise.all(
+      [ceoAgent.id, wixSiteExpert?.id, vibeSiteExpert?.id]
+        .filter((id): id is string => Boolean(id))
+        .map((agentId) =>
+          paperclip(`/agents/${agentId}/heartbeat/invoke`, {
+            method: "POST",
+            body: JSON.stringify({}),
+          }).catch(() => undefined),
+        ),
+    );
 
     const backendSignature = [
       "no-agent-comment",

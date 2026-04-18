@@ -577,6 +577,16 @@ async function wakeAiTeamLead(companyId: string) {
   return true;
 }
 
+async function wakeAgents(agentIds: string[]) {
+  await Promise.all(
+    agentIds.map((agentId) =>
+      paperclip(`/agents/${agentId}/heartbeat/invoke`, {
+        method: "POST",
+      }).catch(() => null),
+    ),
+  );
+}
+
 async function cleanStaleBoardTasks(company: PaperclipCompany, issues: PaperclipIssue[]) {
   const activation = getCompanyActivation(company.description);
   const wixBinding = getCompanyWixBinding(company.description);
@@ -743,6 +753,7 @@ async function createStarterTeamAgents(company: PaperclipCompany, existingAgents
   const fallbackStarterTeam: StarterTeamPlanEntry[] = [
     { role: "Industry Advisor" },
     { role: "Wix Site Expert" },
+    { role: "Vibe Site Expert" },
     { role: "Bookings Operations Manager" },
   ];
   const starterTeam = (configuredStarterTeam.length > 0 ? configuredStarterTeam : fallbackStarterTeam)
@@ -809,6 +820,7 @@ async function handoffStartupTasks(
   agents: PaperclipAgent[],
 ) {
   const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
+  const vibeSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "vibe site expert");
   const industryAdvisor = agents.find((agent) => agent.title?.trim().toLowerCase() === "industry advisor");
   const brandLead = agents.find((agent) => agent.title?.trim().toLowerCase() === "brand lead");
   const bookingsManager = agents.find((agent) => agent.title?.trim().toLowerCase() === "bookings operations manager");
@@ -822,12 +834,18 @@ async function handoffStartupTasks(
     if (
       (/assemble the starter team/.test(title) ||
         /approve starter team hires/.test(title) ||
+        /build the starter team/.test(title) ||
         /hire and activate the starter team/.test(title)) &&
       issue.status !== "done"
     ) {
       patch = {
         status: "done",
         comment: "Starter team was activated automatically after the main site was bound.",
+      };
+    } else if (vibeSiteExpert && /vibe site|experimental vibe site|picasso/.test(title)) {
+      patch = {
+        assigneeAgentId: vibeSiteExpert.id,
+        comment: "Reassigned to Vibe Site Expert for the experimental Picasso track.",
       };
     } else if (wixSiteExpert && /launch the first site|site version|site build|site execution/.test(title)) {
       patch = {
@@ -877,6 +895,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   let detachedStartupRunsCancelled = 0;
   let starterAgentsCreated = 0;
   let startupTasksHandedOff = 0;
+  const agentsToWake = new Set<string>();
 
   const aiTeamLead =
     agents.find((agent) => agent.role === "ceo") ||
@@ -906,6 +925,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
       const createdAgentIds = await createStarterTeamAgents(refreshedCompany, workingAgents).catch(() => []);
       starterAgentsCreated = createdAgentIds.length;
       if (starterAgentsCreated > 0) {
+        createdAgentIds.forEach((agentId) => agentsToWake.add(agentId));
         workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
         const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
         if (startupApprovalsApproved > 0) {
@@ -922,7 +942,13 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     }
 
     if (detachedStartupRunsCancelled > 0 || starterAgentsCreated > 0 || startupTasksHandedOff > 0) {
+      workingAgents
+        .filter((agent) => isLiveSpecialist(agent, aiTeamLead.id))
+        .forEach((agent) => agentsToWake.add(agent.id));
       await wakeAiTeamLead(companyId).catch(() => null);
+      if (agentsToWake.size > 0) {
+        await wakeAgents(Array.from(agentsToWake)).catch(() => null);
+      }
     }
   }
 

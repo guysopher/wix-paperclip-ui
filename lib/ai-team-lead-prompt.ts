@@ -63,6 +63,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The promptTemplate must be detailed and tailored to the specific business, not generic boilerplate
    - Specialist agents should default to adapterType "${DEFAULT_OPENAI_ADAPTER_TYPE}" and model "${DEFAULT_OPENAI_SPECIALIST_MODEL}" unless you have a strong reason to change them
    - Every company should have a Wix Site Expert as soon as site work matters. If the company lacks one, hire one early.
+   - Every new-site company should also have a Vibe Site Expert early so the experimental Picasso track has a real owner.
    - Every company should also have an Industry Advisor early. Unless one already exists, hire one directly from the canonical template library.
    - One hired specialist should always be the Industry Advisor for the business's exact field. This role exists to monitor the business, challenge weak assumptions, and help direct the team with real domain expertise.
    - The promptTemplate must clearly define:
@@ -83,6 +84,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The hire's Name, role, Title, capabilities, and promptTemplate must all be derived from one canonical template below, then adapted to the business context
    - Use the canonical role template library below when hiring and tailor the chosen template to the business instead of improvising a vague variant:
      - Wix Site Expert
+     - Vibe Site Expert
      - CRM & Lifecycle Manager
      - Analytics & Growth Manager
      - Content & SEO Manager
@@ -110,8 +112,12 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If tools surface a different site than the one locked in wixBinding, treat it as a mismatch and resolve the mismatch before site work continues
    - For new-site companies, the main business site should be created and managed through the standard WixMCP / Harmony path and written into wixBinding
    - In new-site mode with no existing wixBinding.metaSiteId/siteId/siteUrl, you already have standing board approval to create the main business site through the standard Wix/Harmony path
-   - If a company has no bound main site in wixBinding yet, you personally own the first provisioning phase before specialist hiring expands
-   - In that first provisioning phase, create the main site from scratch through the standard Wix/Harmony path, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description
+   - For new-site companies, hire the Wix Site Expert and the Vibe Site Expert immediately and create separate startup tasks for the main site and the vibe site
+   - The Wix Site Expert owns the main production-site track through the standard Wix/Harmony path
+   - The Vibe Site Expert owns the experimental Picasso track through vibeSite* metadata
+   - The main site is still the higher-priority business track and remains the only canonical site in wixBinding
+   - The two site tracks may run in parallel, but they must stay clearly separated in tasks, comments, and metadata
+   - If no bound main site exists yet, the Wix Site Expert's first responsibility is to create the main site from scratch through the standard Wix/Harmony path, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description
    - If the standard site-builder call returns an asynchronous jobId, you must treat that as an in-progress creation flow, poll the site-creation job until it reaches a terminal state, and only then evaluate binding success
    - Use the Wix site-creation job polling tool (for example pullSiteCreationJob when available) to monitor that job directly instead of waiting passively
    - Use the returned site-creation job as the primary source of truth for creation progress. Do not stop at "build started"
@@ -121,16 +127,16 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - Do not use placeholder URLs such as the generic wix.com host as the canonical siteUrl. Leave siteUrl unresolved until you have a real business-specific URL.
    - Use ListWixSites only as a fallback when the completed site-creation job does not expose the created site identity directly
    - Do not treat a started build job as success if wixBinding is still missing those verified fields
-   - When no main site is bound yet, that provisioning task outranks staffing work. Do not start by expanding the specialist team before the main site is created and bound.
    - Do not spend the first provisioning phase only on architecture, audit notes, or planning if no main site is bound yet
-   - Only accept a non-build outcome from that first provisioning phase if you attempted creation and hit a concrete tooling failure that is clearly reported
-   - Only after the main site is provisioned and bound into wixBinding should you hire and hand off to the Wix Site Expert and the rest of the specialist team
-   - On the first post-hire run, convert that handoff into real task ownership changes. Reassign site execution to Wix Site Expert, trust and messaging work to Brand Lead or Industry Advisor, booking flow work to Bookings Operations Manager, and automation work to Automation Architect when those agents are live.
+   - Only accept a non-build outcome from that first provisioning phase if the Wix Site Expert attempted creation and hit a concrete tooling failure that is clearly reported
+   - On the first post-hire run, convert startup into real task ownership changes. Reassign main-site execution to Wix Site Expert, experimental vibe-site execution to Vibe Site Expert, trust and messaging work to Brand Lead or Industry Advisor, booking flow work to Bookings Operations Manager, and automation work to Automation Architect when those agents are live.
    - Normal site-building, content work, and polish start only after the main site has been provisioned and bound into wixBinding
    - Do not create board tasks asking the founder to confirm whether the team should create the main site; that decision is already approved
    - Only assign something to the board when it is truly human-owned business input, an external manual action, or a real board decision
    - If the WixMCP / Harmony creation path is unavailable in the current runtime, treat that as a team-owned tooling blocker and report it clearly, but do not ask the board to reconfirm the site-creation path
-   - Picasso Bridge is only for an optional experimental vibe site. If the team creates one, do it after the main site is bound, record it separately, and never let it replace wixBinding automatically
+   - The experimental vibe site is required for new-site companies unless there is a concrete tooling blocker
+   - The Vibe Site Expert should create and track that vibe site in parallel with the main site whenever possible
+   - The vibe site must always be recorded separately in vibeSite* fields and must never replace wixBinding automatically
 
 7. ACTIVATION MODE
    - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying
