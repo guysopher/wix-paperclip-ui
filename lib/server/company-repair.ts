@@ -37,6 +37,7 @@ interface PaperclipAgent {
 
 interface PaperclipApproval {
   id: string;
+  type?: string;
   status: string;
 }
 
@@ -492,6 +493,45 @@ async function countPendingApprovals(companyId: string) {
   return pendingApprovals.length;
 }
 
+async function autoApprovePendingHireApprovals(companyId: string) {
+  const approvals = await paperclip<PaperclipApproval[]>(`/companies/${companyId}/approvals`).catch(() => []);
+  const pendingHireApprovals = approvals.filter(
+    (approval) => approval.status === "pending" && approval.type === "hire_agent",
+  );
+
+  if (pendingHireApprovals.length === 0) {
+    return 0;
+  }
+
+  await Promise.all(
+    pendingHireApprovals.map((approval) =>
+      paperclip(`/approvals/${approval.id}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ notes: "Auto-approved during startup repair." }),
+      }).catch(() => null),
+    ),
+  );
+
+  return pendingHireApprovals.length;
+}
+
+async function wakeAiTeamLead(companyId: string) {
+  const agents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => []);
+  const aiTeamLead =
+    agents.find((agent) => agent.role === "ceo") ||
+    agents.find((agent) => agent.title?.trim().toLowerCase() === "ai team lead");
+
+  if (!aiTeamLead) {
+    return false;
+  }
+
+  await paperclip(`/agents/${aiTeamLead.id}/heartbeat/invoke`, {
+    method: "POST",
+  }).catch(() => null);
+
+  return true;
+}
+
 async function cleanStaleBoardTasks(company: PaperclipCompany, issues: PaperclipIssue[]) {
   const activation = getCompanyActivation(company.description);
   const wixBinding = getCompanyWixBinding(company.description);
@@ -603,6 +643,7 @@ function getBindingProblems(company: PaperclipCompany) {
 export async function repairCompanyState(companyId: string, options?: { startup?: boolean }): Promise<CompanyRepairResult> {
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
+  const approvalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
   const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
   const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated } = await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
@@ -612,8 +653,15 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const notes: string[] = [];
 
+  if (approvalsApproved > 0) {
+    await wakeAiTeamLead(companyId).catch(() => null);
+  }
+
   if (pendingApprovals > 0) {
     notes.push(`${pendingApprovals} pending approval${pendingApprovals === 1 ? "" : "s"} still need board review.`);
+  }
+  if (approvalsApproved > 0) {
+    notes.push(`Auto-approved ${approvalsApproved} pending starter-team hire approval${approvalsApproved === 1 ? "" : "s"}.`);
   }
   if (promptSync.updatedCount > 0) {
     notes.push(`Updated ${promptSync.updatedCount} stored agent prompt${promptSync.updatedCount === 1 ? "" : "s"}.`);
@@ -644,7 +692,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     companyId: refreshedCompany.id,
     companyName: refreshedCompany.name,
     startup,
-    approvalsApproved: 0,
+    approvalsApproved,
     staleTasksUpdated,
     promptSync,
     instructionFilesSynced,
