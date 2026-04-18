@@ -1,5 +1,6 @@
 import {
   appendGeneralWixOperationalProtocol,
+  getCanonicalAgentDefinitionByTitle,
   appendSiteExpertOperationalProtocol,
   GENERAL_WIX_MCP_PROTOCOL_MARKER,
   SITE_EXPERT_PROTOCOL_MARKER,
@@ -7,9 +8,15 @@ import {
 import {
   getCompanyActivation,
   getCompanyWixBinding,
+  parseCompanyDescription,
   type ActivationMode,
 } from "@/lib/company-metadata";
-import { DEFAULT_AGENT_TIMEOUT_SEC } from "@/lib/paperclip-runtime-defaults";
+import {
+  DEFAULT_AGENT_TIMEOUT_SEC,
+  DEFAULT_OPENAI_ADAPTER_TYPE,
+  DEFAULT_OPENAI_SPECIALIST_MODEL,
+} from "@/lib/paperclip-runtime-defaults";
+import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { renderPromptTemplate } from "@/lib/prompt-render";
 
 const PAPERCLIP_API_URL =
@@ -67,6 +74,12 @@ interface PromptSyncSummary {
   updatedCount: number;
   skippedCount: number;
   errorCount: number;
+}
+
+interface StarterTeamPlanEntry {
+  role: string;
+  goal?: string;
+  expectedResult?: string;
 }
 
 export interface CompanyRepairResult {
@@ -670,6 +683,148 @@ function getBindingProblems(company: PaperclipCompany) {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getConfiguredStarterTeam(company: PaperclipCompany): StarterTeamPlanEntry[] {
+  const metadata = parseCompanyDescription(company.description);
+  const activation = metadata.extra?.activation;
+  if (!isRecord(activation) || !Array.isArray(activation.starterTeam)) {
+    return [];
+  }
+
+  return activation.starterTeam
+    .map((entry) => {
+      if (!isRecord(entry) || typeof entry.role !== "string") {
+        return null;
+      }
+      return {
+        role: entry.role.trim(),
+        goal: typeof entry.goal === "string" ? entry.goal.trim() : undefined,
+        expectedResult:
+          typeof entry.expectedResult === "string" ? entry.expectedResult.trim() : undefined,
+      };
+    })
+    .filter((entry): entry is StarterTeamPlanEntry => Boolean(entry && entry.role));
+}
+
+async function createStarterTeamAgents(company: PaperclipCompany, existingAgents: PaperclipAgent[]) {
+  const configuredStarterTeam = getConfiguredStarterTeam(company);
+  const fallbackStarterTeam: StarterTeamPlanEntry[] = [
+    { role: "Industry Advisor" },
+    { role: "Wix Site Expert" },
+    { role: "Bookings Operations Manager" },
+  ];
+  const starterTeam = (configuredStarterTeam.length > 0 ? configuredStarterTeam : fallbackStarterTeam)
+    .filter((entry) => entry.role !== "AI Team Lead");
+
+  const existingTitles = new Set(
+    existingAgents.flatMap((agent) => [
+      agent.title?.trim().toLowerCase() || "",
+      agent.name.trim().toLowerCase(),
+    ]).filter(Boolean),
+  );
+  const createdAgentIds: string[] = [];
+
+  for (const planEntry of starterTeam) {
+    const definition = getCanonicalAgentDefinitionByTitle(planEntry.role);
+    if (!definition) {
+      continue;
+    }
+    if (existingTitles.has(definition.title.trim().toLowerCase())) {
+      continue;
+    }
+
+    const promptTemplate = [
+      renderPromptTemplate(definition.promptTemplate, company),
+      planEntry.goal ? `\nCurrent startup goal\n- ${planEntry.goal}` : "",
+      planEntry.expectedResult ? `\nExpected startup result\n- ${planEntry.expectedResult}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const createdAgent = await paperclip<PaperclipAgent>(`/companies/${company.id}/agents`, {
+      method: "POST",
+      body: JSON.stringify(syncHeartbeatConfig({
+        name: definition.title,
+        role: definition.role,
+        title: definition.title,
+        icon: definition.icon,
+        capabilities: definition.capabilities.join(", "),
+        adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
+        adapterConfig: {
+          model: DEFAULT_OPENAI_SPECIALIST_MODEL,
+          heartbeatIntervalSec: 1800,
+          dangerouslyBypassApprovalsAndSandbox: true,
+          timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
+          promptTemplate,
+        },
+      })),
+    }).catch(() => null);
+
+    if (!createdAgent) {
+      continue;
+    }
+
+    createdAgentIds.push(createdAgent.id);
+    existingTitles.add(definition.title.trim().toLowerCase());
+  }
+
+  return createdAgentIds;
+}
+
+async function handoffStartupTasks(
+  companyId: string,
+  issues: PaperclipIssue[],
+  agents: PaperclipAgent[],
+) {
+  const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
+  const industryAdvisor = agents.find((agent) => agent.title?.trim().toLowerCase() === "industry advisor");
+  const bookingsManager = agents.find((agent) => agent.title?.trim().toLowerCase() === "bookings operations manager");
+
+  let updated = 0;
+
+  await Promise.all(issues.map(async (issue) => {
+    const title = issue.title.trim().toLowerCase();
+    let patch: Record<string, unknown> | null = null;
+
+    if (/assemble the starter team/.test(title) && issue.status !== "done") {
+      patch = {
+        status: "done",
+        comment: "Starter team was activated automatically after the main site was bound.",
+      };
+    } else if (wixSiteExpert && /launch the first site|site version|site build|site execution/.test(title)) {
+      patch = {
+        assigneeAgentId: wixSiteExpert.id,
+        comment: "Reassigned to Wix Site Expert now that the main site is bound and the startup team is live.",
+      };
+    } else if (bookingsManager && /lead intake|follow-up|booking|inquiry/.test(title)) {
+      patch = {
+        assigneeAgentId: bookingsManager.id,
+        comment: "Reassigned to Bookings Operations Manager for launch-phase inquiry flow ownership.",
+      };
+    } else if (industryAdvisor && /positioning|brand|message/.test(title)) {
+      patch = {
+        assigneeAgentId: industryAdvisor.id,
+        comment: "Reassigned to Industry Advisor for launch-phase positioning and trust framing.",
+      };
+    }
+
+    if (!patch) {
+      return;
+    }
+
+    updated += 1;
+    await paperclip(`/issues/${issue.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }).catch(() => null);
+  }));
+
+  return updated;
+}
+
 export async function repairCompanyState(companyId: string, options?: { startup?: boolean }): Promise<CompanyRepairResult> {
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
@@ -684,6 +839,8 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const notes: string[] = [];
   let detachedStartupRunsCancelled = 0;
+  let starterAgentsCreated = 0;
+  let startupTasksHandedOff = 0;
 
   const aiTeamLead =
     agents.find((agent) => agent.role === "ceo") ||
@@ -699,6 +856,12 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     activeSpecialistCount === 0
   ) {
     detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
+    const createdAgentIds = await createStarterTeamAgents(refreshedCompany, agents).catch(() => []);
+    starterAgentsCreated = createdAgentIds.length;
+    const refreshedAgents = starterAgentsCreated > 0
+      ? await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents)
+      : agents;
+    startupTasksHandedOff = await handoffStartupTasks(companyId, issues, refreshedAgents).catch(() => 0);
     await wakeAiTeamLead(companyId).catch(() => null);
   }
 
@@ -714,6 +877,12 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
   if (detachedStartupRunsCancelled > 0) {
     notes.push(`Cancelled ${detachedStartupRunsCancelled} detached startup run${detachedStartupRunsCancelled === 1 ? "" : "s"} and re-woke the AI Team Lead.`);
+  }
+  if (starterAgentsCreated > 0) {
+    notes.push(`Created ${starterAgentsCreated} starter-team specialist agent${starterAgentsCreated === 1 ? "" : "s"} after main-site binding.`);
+  }
+  if (startupTasksHandedOff > 0) {
+    notes.push(`Handed off ${startupTasksHandedOff} startup task${startupTasksHandedOff === 1 ? "" : "s"} to the live specialists.`);
   }
   if (promptSync.updatedCount > 0) {
     notes.push(`Updated ${promptSync.updatedCount} stored agent prompt${promptSync.updatedCount === 1 ? "" : "s"}.`);

@@ -25,6 +25,14 @@ interface AgentBlueprint extends AgentTemplate {
   }>;
 }
 
+export interface CanonicalAgentDefinition {
+  role: string;
+  title: string;
+  icon: string;
+  capabilities: string[];
+  promptTemplate: string;
+}
+
 export const SPECIALIST_AGENT_MAX_TURNS = 200;
 export const AI_TEAM_LEAD_MAX_TURNS = 200;
 
@@ -933,6 +941,55 @@ function renderBlueprintById(id: string): string {
     throw new Error(`Unknown agent template: ${id}`);
   }
   return renderHiringBlueprint(spec);
+}
+
+function renderAgentPrompt(spec: AgentBlueprint): string {
+  const customSections = spec.customSections
+    ? spec.customSections
+        .map((section) => `${section.title}\n${renderBullets(section.bullets)}`)
+        .join("\n\n")
+    : "";
+
+  return [
+    spec.mission.join("\n"),
+    "",
+    "Decision-making authority",
+    renderBullets(spec.authority),
+    "",
+    "What you own on every check-in",
+    renderBullets(spec.ownsEveryCheckIn),
+    "",
+    "Collaboration rules",
+    renderBullets(spec.collaboration),
+    "",
+    "Guardrails",
+    renderBullets(spec.guardrails),
+    customSections ? `\n${customSections}` : "",
+    "",
+    "Run summary",
+    renderBullets([
+      ...spec.runSummaryFocus,
+      "End every run with RUN_SUMMARY and make it specific to the work you actually moved.",
+    ]),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function getCanonicalAgentDefinitionByTitle(title: string): CanonicalAgentDefinition | null {
+  const normalizedTitle = title.trim().toLowerCase();
+  const spec = AGENT_BLUEPRINTS.find((template) => template.title.trim().toLowerCase() === normalizedTitle);
+  if (!spec) {
+    return null;
+  }
+
+  return {
+    role: spec.role,
+    title: spec.title,
+    icon: spec.icon,
+    capabilities: spec.capabilities,
+    promptTemplate: renderAgentPrompt(spec),
+  };
 }
 
 export function renderAgentTemplateShowcase(): string {

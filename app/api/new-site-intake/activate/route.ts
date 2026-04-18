@@ -639,6 +639,10 @@ export async function POST(request: NextRequest) {
             startedAt: approvedAt,
             completedAt: approvedAt,
           },
+          starterTeam: summary.starterTeam,
+          siteProposal: summary.siteProposal,
+          firstBuildBrief: summary.firstBuildBrief,
+          managementPlan: summary.managementPlan,
         },
       },
     });
