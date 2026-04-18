@@ -246,7 +246,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         loading: initialLoad,
         refreshing: !initialLoad,
       }));
-      const repairStatus = await repairCompanyState(companyId).catch(() => null);
+      const repairStatus = await repairCompanyState(companyId, true).catch(() => null);
       const [
         currentCompany,
         dashboard,

@@ -53,6 +53,9 @@ interface PaperclipRun {
   id: string;
   status: string;
   error: string | null;
+  errorCode?: string | null;
+  agentId?: string | null;
+  startedAt?: string | null;
 }
 
 interface FileBackfillTarget {
@@ -617,6 +620,33 @@ async function cleanStaleBoardTasks(company: PaperclipCompany, issues: Paperclip
   return changed;
 }
 
+async function cancelDetachedStartupRuns(companyId: string, aiTeamLeadId: string) {
+  const runs = await paperclip<PaperclipRun[]>(`/companies/${companyId}/heartbeat-runs`).catch(() => []);
+  const detachedRuns = runs.filter((run) => {
+    if (run.status !== "running") {
+      return false;
+    }
+    if (run.agentId !== aiTeamLeadId) {
+      return false;
+    }
+    return run.errorCode === "process_detached";
+  });
+
+  if (detachedRuns.length === 0) {
+    return 0;
+  }
+
+  await Promise.all(
+    detachedRuns.map((run) =>
+      paperclip(`/heartbeat-runs/${run.id}/cancel`, {
+        method: "POST",
+      }).catch(() => null),
+    ),
+  );
+
+  return detachedRuns.length;
+}
+
 function getBindingProblems(company: PaperclipCompany) {
   const activation = getCompanyActivation(company.description);
   const wixBinding = getCompanyWixBinding(company.description);
@@ -647,11 +677,30 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
   const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated } = await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
+  const agents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => []);
   const issues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => []);
   const staleTasksUpdated = await cleanStaleBoardTasks(refreshedCompany, issues).catch(() => 0);
   const binding = getBindingProblems(refreshedCompany);
   const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const notes: string[] = [];
+  let detachedStartupRunsCancelled = 0;
+
+  const aiTeamLead =
+    agents.find((agent) => agent.role === "ceo") ||
+    agents.find((agent) => agent.title?.trim().toLowerCase() === "ai team lead") ||
+    null;
+  const activeSpecialistCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length;
+
+  if (
+    startup &&
+    binding.mode === "new_site" &&
+    binding.hasSiteIdentity &&
+    aiTeamLead &&
+    activeSpecialistCount === 0
+  ) {
+    detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
+    await wakeAiTeamLead(companyId).catch(() => null);
+  }
 
   if (approvalsApproved > 0) {
     await wakeAiTeamLead(companyId).catch(() => null);
@@ -662,6 +711,9 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
   if (approvalsApproved > 0) {
     notes.push(`Auto-approved ${approvalsApproved} pending starter-team hire approval${approvalsApproved === 1 ? "" : "s"}.`);
+  }
+  if (detachedStartupRunsCancelled > 0) {
+    notes.push(`Cancelled ${detachedStartupRunsCancelled} detached startup run${detachedStartupRunsCancelled === 1 ? "" : "s"} and re-woke the AI Team Lead.`);
   }
   if (promptSync.updatedCount > 0) {
     notes.push(`Updated ${promptSync.updatedCount} stored agent prompt${promptSync.updatedCount === 1 ? "" : "s"}.`);
