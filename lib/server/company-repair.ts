@@ -848,21 +848,26 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     null;
   const activeSpecialistCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length;
 
-  if (
-    startup &&
-    binding.mode === "new_site" &&
-    binding.hasSiteIdentity &&
-    aiTeamLead &&
-    activeSpecialistCount === 0
-  ) {
-    detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
-    const createdAgentIds = await createStarterTeamAgents(refreshedCompany, agents).catch(() => []);
-    starterAgentsCreated = createdAgentIds.length;
-    const refreshedAgents = starterAgentsCreated > 0
-      ? await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents)
-      : agents;
-    startupTasksHandedOff = await handoffStartupTasks(companyId, issues, refreshedAgents).catch(() => 0);
-    await wakeAiTeamLead(companyId).catch(() => null);
+  if (startup && binding.mode === "new_site" && binding.hasSiteIdentity && aiTeamLead) {
+    let workingAgents = agents;
+
+    if (activeSpecialistCount === 0) {
+      detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
+      const createdAgentIds = await createStarterTeamAgents(refreshedCompany, agents).catch(() => []);
+      starterAgentsCreated = createdAgentIds.length;
+      if (starterAgentsCreated > 0) {
+        workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
+      }
+    }
+
+    const liveSpecialistCount = workingAgents.filter((agent) => agent.id !== aiTeamLead.id).length;
+    if (liveSpecialistCount > 0) {
+      startupTasksHandedOff = await handoffStartupTasks(companyId, issues, workingAgents).catch(() => 0);
+    }
+
+    if (detachedStartupRunsCancelled > 0 || starterAgentsCreated > 0 || startupTasksHandedOff > 0) {
+      await wakeAiTeamLead(companyId).catch(() => null);
+    }
   }
 
   if (approvalsApproved > 0) {
