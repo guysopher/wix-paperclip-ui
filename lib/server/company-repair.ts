@@ -724,7 +724,7 @@ function getConfiguredStarterTeam(company: PaperclipCompany): StarterTeamPlanEnt
   }
 
   return activation.starterTeam
-    .map((entry) => {
+    .map<StarterTeamPlanEntry | null>((entry) => {
       if (!isRecord(entry) || typeof entry.role !== "string") {
         return null;
       }
