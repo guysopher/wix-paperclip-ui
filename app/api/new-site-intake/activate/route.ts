@@ -7,7 +7,11 @@ import {
 } from "@/lib/agent-templates";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { buildCompanyDescription } from "@/lib/company-metadata";
-import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_TEAM_LEAD_MODEL } from "@/lib/paperclip-runtime-defaults";
+import {
+  DEFAULT_AGENT_TIMEOUT_SEC,
+  DEFAULT_OPENAI_ADAPTER_TYPE,
+  DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+} from "@/lib/paperclip-runtime-defaults";
 import { repairCompanyState } from "@/lib/server/company-repair";
 
 const client = new OpenAI();
@@ -557,7 +561,7 @@ export async function POST(request: NextRequest) {
           model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
           heartbeatIntervalSec: 1200,
           dangerouslyBypassApprovalsAndSandbox: true,
-          timeoutSec: 600,
+          timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
           promptTemplate: AI_TEAM_LEAD_PROMPT,
         },
       })),

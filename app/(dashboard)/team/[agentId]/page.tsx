@@ -27,6 +27,7 @@ import { AgentAvatar } from "@/components/agent-avatar";
 import { IconPicker } from "@/components/icon-picker";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
+import { DEFAULT_AGENT_TIMEOUT_SEC } from "@/lib/paperclip-runtime-defaults";
 import { renderPromptTemplate } from "@/lib/prompt-render";
 import {
   getAgent,
@@ -181,7 +182,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     setEditTitle((a.title || a.name || "").trim());
     setEditIcon(a.icon);
     setEditSchedule(String(getHeartbeatPolicy(a).intervalSec || 600));
-    setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || 600));
+    setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || DEFAULT_AGENT_TIMEOUT_SEC));
     setEditManager(a.reportsTo);
     setEditPrompt(await resolveAgentPrompt(a));
     setEditModel(String(a.adapterConfig?.model || ""));

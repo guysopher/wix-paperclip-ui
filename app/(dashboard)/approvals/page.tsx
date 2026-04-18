@@ -33,7 +33,11 @@ import {
   type Approval,
 } from "@/lib/api";
 import { SPECIALIST_AGENT_MAX_TURNS } from "@/lib/agent-templates";
-import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_SPECIALIST_MODEL } from "@/lib/paperclip-runtime-defaults";
+import {
+  DEFAULT_AGENT_TIMEOUT_SEC,
+  DEFAULT_OPENAI_ADAPTER_TYPE,
+  DEFAULT_OPENAI_SPECIALIST_MODEL,
+} from "@/lib/paperclip-runtime-defaults";
 
 const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
   pending: "warning",
@@ -268,7 +272,7 @@ function ApprovalsContent() {
           ? {
               model: oldConfig.model || "claude-sonnet-4-6",
               heartbeatIntervalSec,
-              timeoutSec: oldConfig.timeoutSec || 600,
+              timeoutSec: oldConfig.timeoutSec || DEFAULT_AGENT_TIMEOUT_SEC,
               maxTurnsPerRun: oldConfig.maxTurnsPerRun || SPECIALIST_AGENT_MAX_TURNS,
               dangerouslySkipPermissions: true,
               ...(promptTemplate ? { promptTemplate } : {}),
@@ -276,7 +280,7 @@ function ApprovalsContent() {
           : {
               model: oldConfig.model || DEFAULT_OPENAI_SPECIALIST_MODEL,
               heartbeatIntervalSec,
-              timeoutSec: oldConfig.timeoutSec || 600,
+              timeoutSec: oldConfig.timeoutSec || DEFAULT_AGENT_TIMEOUT_SEC,
               dangerouslyBypassApprovalsAndSandbox:
                 oldConfig.dangerouslyBypassApprovalsAndSandbox ?? true,
               ...(promptTemplate ? { promptTemplate } : {}),

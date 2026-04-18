@@ -9,6 +9,7 @@ import {
   getCompanyWixBinding,
   type ActivationMode,
 } from "@/lib/company-metadata";
+import { DEFAULT_AGENT_TIMEOUT_SEC } from "@/lib/paperclip-runtime-defaults";
 import { renderPromptTemplate } from "@/lib/prompt-render";
 
 const PAPERCLIP_API_URL =
@@ -75,6 +76,7 @@ export interface CompanyRepairResult {
   staleTasksUpdated: number;
   promptSync: PromptSyncSummary;
   instructionFilesSynced: number;
+  timeoutDefaultsUpdated: number;
   binding: {
     mode: ActivationMode | null;
     hasSiteIdentity: boolean;
@@ -361,9 +363,46 @@ async function upgradeAgentPrompts(company: PaperclipCompany, agents: PaperclipA
   return { updatedCount, skippedCount, errorCount };
 }
 
+async function normalizeLegacyAgentTimeouts(agents: PaperclipAgent[]) {
+  let updatedCount = 0;
+
+  await Promise.all(
+    agents.map(async (agent) => {
+      const timeoutSec =
+        typeof agent.adapterConfig?.timeoutSec === "number"
+          ? agent.adapterConfig.timeoutSec
+          : typeof agent.adapterConfig?.timeoutSec === "string"
+            ? Number(agent.adapterConfig.timeoutSec)
+            : null;
+
+      if (timeoutSec !== 600) {
+        return;
+      }
+
+      try {
+        await paperclip(`/agents/${agent.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            adapterConfig: {
+              ...(agent.adapterConfig || {}),
+              timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
+            },
+          }),
+        });
+        updatedCount += 1;
+      } catch {
+        // Best-effort repair; prompt/instruction repair should still continue.
+      }
+    }),
+  );
+
+  return updatedCount;
+}
+
 async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
   promptSync: PromptSyncSummary;
   instructionFilesSynced: number;
+  timeoutDefaultsUpdated: number;
 }> {
   const agents = await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`);
   const missingPromptTargets = agents
@@ -389,7 +428,11 @@ async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
 
   const agentsAfterBackfill = await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`);
   const promptSync = await upgradeAgentPrompts(company, agentsAfterBackfill);
-  const refreshedAgents = await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`);
+  const promptRefreshedAgents = await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`);
+  const timeoutDefaultsUpdated = await normalizeLegacyAgentTimeouts(promptRefreshedAgents);
+  const refreshedAgents = timeoutDefaultsUpdated > 0
+    ? await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`)
+    : promptRefreshedAgents;
   const instructionTargets = refreshedAgents
     .map((agent) => {
       const promptTemplate =
@@ -438,6 +481,7 @@ async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
   return {
     promptSync,
     instructionFilesSynced: instructionTargets.length,
+    timeoutDefaultsUpdated,
   };
 }
 
@@ -560,7 +604,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
   const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
-  const { promptSync, instructionFilesSynced } = await syncPromptsAndInstructions(company);
+  const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated } = await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
   const issues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => []);
   const staleTasksUpdated = await cleanStaleBoardTasks(refreshedCompany, issues).catch(() => 0);
@@ -576,6 +620,9 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
   if (instructionFilesSynced > 0) {
     notes.push(`Synced ${instructionFilesSynced} managed runtime instruction file${instructionFilesSynced === 1 ? "" : "s"}.`);
+  }
+  if (timeoutDefaultsUpdated > 0) {
+    notes.push(`Updated ${timeoutDefaultsUpdated} agent timeout default${timeoutDefaultsUpdated === 1 ? "" : "s"} to 30 minutes.`);
   }
   if (staleTasksUpdated > 0) {
     notes.push(`Cleaned ${staleTasksUpdated} stale board task${staleTasksUpdated === 1 ? "" : "s"}.`);
@@ -601,6 +648,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     staleTasksUpdated,
     promptSync,
     instructionFilesSynced,
+    timeoutDefaultsUpdated,
     binding,
     notes,
   };

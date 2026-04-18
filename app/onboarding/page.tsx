@@ -39,6 +39,7 @@ import {
   renderCanonicalHiringBlueprintLibrary,
 } from "@/lib/agent-templates";
 import {
+  DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
   DEFAULT_OPENAI_SPECIALIST_MODEL,
   DEFAULT_OPENAI_TEAM_LEAD_MODEL,
@@ -438,7 +439,7 @@ function OnboardingFlow() {
         adapterConfig: {
           model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
           dangerouslyBypassApprovalsAndSandbox: true,
-          timeoutSec: 600,
+          timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
           heartbeatIntervalSec: 1200,
           promptTemplate: onboardingPrompt,
         },

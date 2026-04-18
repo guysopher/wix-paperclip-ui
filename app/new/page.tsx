@@ -40,7 +40,11 @@ import {
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
-import { DEFAULT_OPENAI_ADAPTER_TYPE, DEFAULT_OPENAI_TEAM_LEAD_MODEL } from "@/lib/paperclip-runtime-defaults";
+import {
+  DEFAULT_AGENT_TIMEOUT_SEC,
+  DEFAULT_OPENAI_ADAPTER_TYPE,
+  DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+} from "@/lib/paperclip-runtime-defaults";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid, withWorkspaceContext } from "@/lib/msid";
 
@@ -537,7 +541,7 @@ function NewCompanyPageContent() {
             model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
             heartbeatIntervalSec: 1200,
             dangerouslyBypassApprovalsAndSandbox: true,
-            timeoutSec: 600,
+            timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
             promptTemplate: AI_TEAM_LEAD_PROMPT,
           },
         });
