@@ -2099,7 +2099,9 @@ function DashboardContent() {
                                 openCeoChatDiscussion({
                                   companyId,
                                   issueId: card.issueId,
-                                  text: `Let's discuss how to resolve ${taskRef}. Ask me how I would like to resolve it, then make the necessary changes based on my direction.`,
+                                  mode: "draft",
+                                  taskRef,
+                                  requestText: card.ask,
                                 });
                               }}
                               style={{

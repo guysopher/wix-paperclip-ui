@@ -18,17 +18,33 @@ interface ChatMessage {
   actions?: Array<{ type: string; title: string; identifier?: string }>;
 }
 
+interface DraftContext {
+  issueId?: string;
+  taskRef: string;
+  requestText: string;
+}
+
 export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () => void; showCloseButton?: boolean }) {
   const { companyId, companyPath } = useCompany();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState("");
+  const [draftContext, setDraftContext] = useState<DraftContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [issuesByIdentifier, setIssuesByIdentifier] = useState<Record<string, Issue>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const [initialized, setInitialized] = useState(false);
+
+  const resizeComposer = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) {
+      return;
+    }
+    el.style.height = "0px";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 56), 180)}px`;
+  }, []);
 
   const loadOpeningMessage = async (targetCompanyId: string) => {
     const storageKey = `ceo-chat-${targetCompanyId}`;
@@ -134,6 +150,10 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     }
   }, [messages, sending]);
 
+  useEffect(() => {
+    resizeComposer();
+  }, [message, draftContext, resizeComposer]);
+
   // Focus input when ready
   useEffect(() => {
     if (!sending && !loading) inputRef.current?.focus();
@@ -171,9 +191,23 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   useEffect(() => {
     const handleDiscuss = (event: Event) => {
       const detail = (event as CustomEvent<CeoChatDiscussDetail>).detail;
-      if (!detail?.text || !companyId || detail.companyId !== companyId || sending) {
+      if (!detail || !companyId || detail.companyId !== companyId || sending) {
         return;
       }
+      if (detail.mode === "draft" && detail.taskRef && detail.requestText) {
+        setDraftContext({
+          issueId: detail.issueId,
+          taskRef: detail.taskRef,
+          requestText: detail.requestText,
+        });
+        setMessage("");
+        requestAnimationFrame(() => inputRef.current?.focus());
+        return;
+      }
+      if (!detail.text) {
+        return;
+      }
+      setDraftContext(null);
       setMessage("");
       void sendUserMessage(detail.text.trim(), detail.issueId);
     };
@@ -187,8 +221,13 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
   const handleSend = async () => {
     if (!message.trim() || sending || !companyId) return;
     const userText = message.trim();
+    const sourceIssueId = draftContext?.issueId;
+    const finalText = draftContext
+      ? `Let's discuss and resolve ${draftContext.taskRef}.\nRequest: ${draftContext.requestText}\n\nMy direction: ${userText}`
+      : userText;
     setMessage("");
-    await sendUserMessage(userText);
+    setDraftContext(null);
+    await sendUserMessage(finalText, sourceIssueId);
   };
 
   const handleClearChat = async () => {
@@ -196,6 +235,8 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     const storageKey = `ceo-chat-${companyId}`;
     setSending(true);
     setMessages([]);
+    setDraftContext(null);
+    setMessage("");
     localStorage.removeItem(storageKey);
     await loadOpeningMessage(companyId);
     setSending(false);
@@ -213,10 +254,10 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa" }}>
       {/* Header */}
       <div style={{ padding: "14px 16px", background: "white", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #3899ec, #1a4a6e)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15 }}>C</div>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg, #3899ec, #1a4a6e)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16 }}>C</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>AI Team Lead</div>
-          <div style={{ fontSize: 12, color: "#999", display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>AI Team Lead</div>
+          <div style={{ fontSize: 13, color: "#999", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: sending ? "#ffc107" : "#00d68f" }} />
             {sending ? "Thinking..." : "Online"}
           </div>
@@ -265,11 +306,11 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
                     style={{
                       background: isAgent ? "white" : "#3899ec",
                       color: isAgent ? "#333" : "white",
-                      padding: "11px 14px",
-                      borderRadius: isAgent ? "6px 16px 16px 16px" : "16px 6px 16px 16px",
+                      padding: "14px 18px",
+                      borderRadius: isAgent ? "8px 18px 18px 18px" : "18px 8px 18px 18px",
                       boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                      fontSize: 15,
-                      lineHeight: 1.6,
+                      fontSize: 17,
+                      lineHeight: 1.7,
                     }}
                   >
                     {isAgent ? (
@@ -316,7 +357,7 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
 
         {sending && (
           <div style={{ display: "flex", marginBottom: 10 }}>
-            <div style={{ background: "white", padding: "12px 16px", borderRadius: "6px 16px 16px 16px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", display: "flex", gap: 4 }}>
+            <div style={{ background: "white", padding: "14px 18px", borderRadius: "8px 18px 18px 18px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)", display: "flex", gap: 5 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite" }} />
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite 0.2s" }} />
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#bbb", animation: "pulse 1.4s infinite 0.4s" }} />
@@ -328,21 +369,86 @@ export function CeoChatPanel({ onClose, showCloseButton = true }: { onClose: () 
       </div>
 
       {/* Input */}
-      <div style={{ padding: "10px 12px 12px", background: "white", borderTop: "1px solid #eee", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
-          placeholder="Ask your AI Team Lead anything..."
-          disabled={sending}
-          style={{ flex: 1, border: "1px solid #e0e0e0", borderRadius: 20, padding: "10px 16px", fontSize: 15, outline: "none", background: "#f7f8fa" }}
-        />
+      <div style={{ padding: "12px 14px 14px", background: "white", borderTop: "1px solid #eee", display: "flex", gap: 10, alignItems: "flex-end", flexShrink: 0 }}>
+        <div
+          style={{
+            flex: 1,
+            border: "1px solid #dce3ec",
+            borderRadius: 20,
+            background: "#f7f8fa",
+            padding: "10px 14px 10px",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)",
+          }}
+        >
+          {draftContext && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 10,
+                marginBottom: 10,
+                padding: "10px 12px",
+                borderRadius: 14,
+                background: "#eef3f8",
+                border: "1px solid #d6e1ec",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "#7a8da5", marginBottom: 4 }}>
+                  Discussing {draftContext.taskRef}
+                </div>
+                <div style={{ fontSize: 14, lineHeight: 1.5, color: "#7a8da5" }}>{draftContext.requestText}</div>
+              </div>
+              <button
+                onClick={() => setDraftContext(null)}
+                type="button"
+                aria-label="Clear discuss context"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#7a8da5",
+                  cursor: "pointer",
+                  padding: 2,
+                  lineHeight: 1,
+                  fontSize: 16,
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          <textarea
+            ref={inputRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder={draftContext ? "Add your direction..." : "Ask your AI Team Lead anything..."}
+            disabled={sending}
+            rows={1}
+            style={{
+              width: "100%",
+              border: "none",
+              padding: 0,
+              fontSize: 17,
+              lineHeight: 1.55,
+              outline: "none",
+              background: "transparent",
+              resize: "none",
+              overflowY: "auto",
+            }}
+          />
+        </div>
         <button
           onClick={handleSend}
           disabled={!message.trim() || sending}
-          style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
+          style={{ width: 42, height: 42, borderRadius: "50%", border: "none", background: message.trim() && !sending ? "#3899ec" : "#d6e6f2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: message.trim() && !sending ? "pointer" : "default", flexShrink: 0 }}
         >
           <Send size="18px" />
         </button>
