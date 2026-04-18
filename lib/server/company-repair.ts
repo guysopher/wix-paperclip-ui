@@ -153,6 +153,26 @@ function isLiveSpecialist(agent: PaperclipAgent, aiTeamLeadId: string | null) {
   return agent.status !== "pending_approval";
 }
 
+async function waitForLiveSpecialists(companyId: string, aiTeamLeadId: string, fallbackAgents: PaperclipAgent[]) {
+  const deadline = Date.now() + 12_000;
+  let latestAgents = fallbackAgents;
+
+  while (Date.now() < deadline) {
+    latestAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => latestAgents);
+    const pendingSpecialists = latestAgents.filter(
+      (agent) => agent.id !== aiTeamLeadId && agent.status === "pending_approval",
+    );
+
+    if (pendingSpecialists.length === 0) {
+      return latestAgents;
+    }
+
+    await sleep(1_000);
+  }
+
+  return latestAgents;
+}
+
 function buildReadBackfillScript() {
   return `node <<'NODE'
 const fs = require('fs');
@@ -798,7 +818,7 @@ async function handoffStartupTasks(
     const title = issue.title.trim().toLowerCase();
     let patch: Record<string, unknown> | null = null;
 
-    if (/assemble the starter team/.test(title) && issue.status !== "done") {
+    if ((/assemble the starter team/.test(title) || /approve starter team hires/.test(title)) && issue.status !== "done") {
       patch = {
         status: "done",
         comment: "Starter team was activated automatically after the main site was bound.",
@@ -865,8 +885,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
       const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
       if (startupApprovalsApproved > 0) {
         approvalsApproved += startupApprovalsApproved;
-        await sleep(1_000);
-        workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
+        workingAgents = await waitForLiveSpecialists(companyId, aiTeamLead.id, agents);
       }
     }
 
@@ -883,8 +902,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
         const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
         if (startupApprovalsApproved > 0) {
           approvalsApproved += startupApprovalsApproved;
-          await sleep(1_000);
-          workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => workingAgents);
+          workingAgents = await waitForLiveSpecialists(companyId, aiTeamLead.id, workingAgents);
         }
       }
     }
