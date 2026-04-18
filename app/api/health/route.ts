@@ -5,10 +5,33 @@ const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
   process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
   "http://localhost:3100/api";
+const PICASSO_BRIDGE_URL =
+  process.env.PICASSO_BRIDGE_URL ||
+  "http://localhost:3401";
+const PICASSO_BRIDGE_TOKEN = process.env.PICASSO_BRIDGE_TOKEN || "";
 
 const STALE_RUN_THRESHOLD_MS = 15 * 60 * 1000;
 const SCHEDULER_LOOKBACK_MS = 30 * 60 * 1000;
 const OVERDUE_GRACE_MS = 5 * 60 * 1000;
+const TOOLING_TIMEOUT_MS = 10_000;
+
+const WIX_TOOL_NEGATIVE_MARKERS = [
+  "does not expose WixMCP / Harmony",
+  "still lacks WixMCP / Harmony access",
+  "WixMCP / Harmony tools are unavailable",
+  "runtime still does not expose WixMCP / Harmony",
+  "missing WixMCP / Harmony access",
+  "no Wix-capable runtime",
+];
+
+const WIX_TOOL_POSITIVE_MARKERS = [
+  "WixREADME",
+  "WixBusinessFlowsDocumentation",
+  "SearchWixRESTDocumentation",
+  "CallWixSiteAPI",
+  "ManageWixSite",
+  "ListWixSites",
+];
 
 type CheckStatus = "ok" | "warning" | "repaired" | "error";
 type OverallStatus = "healthy" | "warning" | "repaired" | "error";
@@ -64,6 +87,11 @@ interface AdapterEnvironmentCheck {
 interface AdapterEnvironmentResult {
   status: "pass" | "warn" | "fail";
   checks?: AdapterEnvironmentCheck[];
+}
+
+interface PaperclipRunLog {
+  runId: string;
+  content?: string;
 }
 
 async function paperclip(path: string, options?: RequestInit) {
@@ -127,6 +155,92 @@ function findCodexHealthCheck(result: AdapterEnvironmentResult): AdapterEnvironm
     checks.find((check) => check.code === "codex_openai_api_key_missing") ||
     null
   );
+}
+
+function usesLocalhostUpstream(url: string) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
+}
+
+function summarizeWixRuntimeFromLog(logContent: string | null | undefined): HealthCheckEntry | null {
+  if (!logContent) {
+    return null;
+  }
+
+  const negativeMarker = WIX_TOOL_NEGATIVE_MARKERS.find((marker) => logContent.includes(marker));
+  if (negativeMarker) {
+    return {
+      name: "wix_runtime",
+      status: "error",
+      detail: `Latest Wix Site Expert run reported unavailable WixMCP / Harmony tools: ${negativeMarker}`,
+    };
+  }
+
+  const positiveMarker = WIX_TOOL_POSITIVE_MARKERS.find((marker) => logContent.includes(marker));
+  if (positiveMarker) {
+    return {
+      name: "wix_runtime",
+      status: "ok",
+      detail: `Latest Wix Site Expert run referenced ${positiveMarker}, so Wix tooling is visible in the runtime`,
+    };
+  }
+
+  return {
+    name: "wix_runtime",
+    status: "warning",
+    detail: "No direct WixMCP / Harmony tool evidence found in the latest Wix Site Expert run",
+  };
+}
+
+async function checkPicassoBridge(): Promise<HealthCheckEntry> {
+  if (!PICASSO_BRIDGE_TOKEN) {
+    return {
+      name: "picasso_bridge",
+      status: "warning",
+      detail: "PICASSO_BRIDGE_TOKEN is not configured",
+    };
+  }
+
+  if (process.env.VERCEL && (!process.env.PICASSO_BRIDGE_URL || usesLocalhostUpstream(PICASSO_BRIDGE_URL))) {
+    return {
+      name: "picasso_bridge",
+      status: "error",
+      detail: "PICASSO_BRIDGE_URL is not configured with a deployment-reachable bridge",
+    };
+  }
+
+  const url = `${PICASSO_BRIDGE_URL.replace(/\/$/, "")}/health`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${PICASSO_BRIDGE_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(TOOLING_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      return {
+        name: "picasso_bridge",
+        status: "error",
+        detail: `Health probe failed (${response.status}): ${body || response.statusText}`,
+      };
+    }
+
+    return {
+      name: "picasso_bridge",
+      status: "ok",
+      detail: "Picasso bridge reachable",
+    };
+  } catch {
+    return {
+      name: "picasso_bridge",
+      status: "error",
+      detail: `Failed to reach Picasso bridge: ${url}`,
+    };
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -308,6 +422,52 @@ export async function POST(request: NextRequest) {
         detail: "No Codex agents to probe",
       });
     }
+
+    const wixSiteExpert =
+      (agents || []).find((agent) => agent.name.toLowerCase().includes("wix site expert")) || null;
+
+    if (wixSiteExpert) {
+      const latestWixRun =
+        [...(runs || [])]
+          .filter((run) => run.agentId === wixSiteExpert.id)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null;
+
+      if (!latestWixRun) {
+        checks.push({
+          name: "wix_runtime",
+          status: "warning",
+          detail: "No Wix Site Expert runs recorded yet",
+        });
+      } else {
+        try {
+          const runLog = (await paperclip(`/heartbeat-runs/${latestWixRun.id}/log`)) as PaperclipRunLog;
+          checks.push(
+            summarizeWixRuntimeFromLog(runLog.content) || {
+              name: "wix_runtime",
+              status: "warning",
+              detail: "Latest Wix Site Expert run log did not include readable tooling evidence",
+            },
+          );
+        } catch (error) {
+          checks.push({
+            name: "wix_runtime",
+            status: "warning",
+            detail:
+              error instanceof Error
+                ? `Could not inspect latest Wix Site Expert run: ${error.message}`
+                : "Could not inspect latest Wix Site Expert run",
+          });
+        }
+      }
+    } else {
+      checks.push({
+        name: "wix_runtime",
+        status: "warning",
+        detail: "No Wix Site Expert agent found to probe WixMCP / Harmony availability",
+      });
+    }
+
+    checks.push(await checkPicassoBridge());
 
     const lastRun = [...(runs || [])].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
