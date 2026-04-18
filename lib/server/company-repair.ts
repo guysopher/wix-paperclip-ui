@@ -810,6 +810,7 @@ async function handoffStartupTasks(
 ) {
   const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
   const industryAdvisor = agents.find((agent) => agent.title?.trim().toLowerCase() === "industry advisor");
+  const brandLead = agents.find((agent) => agent.title?.trim().toLowerCase() === "brand lead");
   const bookingsManager = agents.find((agent) => agent.title?.trim().toLowerCase() === "bookings operations manager");
 
   let updated = 0;
@@ -818,7 +819,12 @@ async function handoffStartupTasks(
     const title = issue.title.trim().toLowerCase();
     let patch: Record<string, unknown> | null = null;
 
-    if ((/assemble the starter team/.test(title) || /approve starter team hires/.test(title)) && issue.status !== "done") {
+    if (
+      (/assemble the starter team/.test(title) ||
+        /approve starter team hires/.test(title) ||
+        /hire and activate the starter team/.test(title)) &&
+      issue.status !== "done"
+    ) {
       patch = {
         status: "done",
         comment: "Starter team was activated automatically after the main site was bound.",
@@ -833,10 +839,12 @@ async function handoffStartupTasks(
         assigneeAgentId: bookingsManager.id,
         comment: "Reassigned to Bookings Operations Manager for launch-phase inquiry flow ownership.",
       };
-    } else if (industryAdvisor && /positioning|brand|message/.test(title)) {
+    } else if ((brandLead || industryAdvisor) && /positioning|brand|message|messaging|offer/.test(title)) {
       patch = {
-        assigneeAgentId: industryAdvisor.id,
-        comment: "Reassigned to Industry Advisor for launch-phase positioning and trust framing.",
+        assigneeAgentId: (brandLead || industryAdvisor)!.id,
+        comment: brandLead
+          ? "Reassigned to Brand Lead for launch-phase offer framing, messaging, and trust direction."
+          : "Reassigned to Industry Advisor for launch-phase positioning and trust framing.",
       };
     }
 
