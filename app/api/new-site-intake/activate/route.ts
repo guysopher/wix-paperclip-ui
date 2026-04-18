@@ -571,32 +571,6 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    let latestAgentCommentId = "";
-    for (const message of messages) {
-      const comment = await paperclip<{ id: string }>(`/issues/${boardIssue.id}/comments`, {
-        method: "POST",
-        body: JSON.stringify({
-          body: message.text,
-          ...(message.role === "ceo" ? { authorAgentId: ceoAgent.id } : {}),
-        }),
-      });
-      if (message.role === "ceo") {
-        latestAgentCommentId = comment.id;
-      }
-    }
-
-    await paperclip(`/issues/${boardIssue.id}/comments`, {
-      method: "POST",
-      body: JSON.stringify({
-        body: [
-          "[System context - not visible to user]",
-          `The founder has approved the AI Team Lead proposal for ${summary.companyName}.`,
-          "The interview is over. Work has officially started.",
-          "Use the approved board issue, transcript comments, goals, kickoff tasks, and any site-build status as the source of truth for execution.",
-        ].join("\n"),
-      }),
-    });
-
     await Promise.all(
       summary.goals.slice(0, 3).map((goal) =>
         paperclip(`/companies/${company.id}/goals`, {
@@ -623,9 +597,11 @@ export async function POST(request: NextRequest) {
       kickoffTasks.unshift(siteExecutionTask);
     }
 
+    const kickoffTasksToCreate = kickoffTasks.slice(0, 4);
+
     const createdKickoffTasks = await Promise.all(
-      kickoffTasks.slice(0, 4).map((task) =>
-        paperclip(`/companies/${company.id}/issues`, {
+      kickoffTasksToCreate.map((task) =>
+        paperclip<{ id: string; title: string }>(`/companies/${company.id}/issues`, {
           method: "POST",
           body: JSON.stringify({
             title: task.title,
@@ -637,7 +613,8 @@ export async function POST(request: NextRequest) {
       ),
     );
 
-    const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title);
+    const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title)
+      || createdKickoffTasks[kickoffTasksToCreate.findIndex((task) => task.title === siteExecutionTask.title)];
 
     const nextDescription = buildCompanyDescription({
       version: 1,
@@ -696,7 +673,7 @@ export async function POST(request: NextRequest) {
     }).catch(() => undefined);
 
     const backendSignature = [
-      latestAgentCommentId || "no-agent-comment",
+      "no-agent-comment",
       "no-run",
       "no-status",
       "0",
