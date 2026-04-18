@@ -351,6 +351,9 @@ function NewCompanyPageContent() {
     Boolean(isExistingSiteInterviewFlow) &&
     !backendBusy &&
     !chatSending;
+  const showDraftHireWidget = isDraftNewSiteFlow && (canHireTeam || startingNewSite);
+  const showExistingSiteHireWidget = Boolean(isExistingSiteInterviewFlow) && canHireExistingSiteTeam;
+  const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
   const buildInProgress =
     Boolean(
       activationSession?.mode === "new_site" &&
@@ -1284,87 +1287,6 @@ function NewCompanyPageContent() {
                 {headerDescriptionText}
               </div>
             </div>
-            {isDraftNewSiteFlow && (
-              <div
-                style={{
-                  flexShrink: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 6,
-                }}
-              >
-                <Button
-                  size="small"
-                  skin="premium"
-                  disabled={!canHireTeam || startingNewSite}
-                  onClick={() => {
-                    void activateNewSiteConversation(chatMessagesRef.current);
-                  }}
-                >
-                  {startingNewSite ? (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <Loader size="tiny" />
-                      Hiring...
-                    </span>
-                  ) : (
-                    "Hire the Team"
-                  )}
-                </Button>
-                {!canHireTeam && !startingNewSite && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#7b8c9d",
-                      maxWidth: 180,
-                      textAlign: "right",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    The AI Team Lead needs to finish the interview and present the full plan first.
-                  </div>
-                )}
-              </div>
-            )}
-            {isExistingSiteInterviewFlow && (
-              <div
-                style={{
-                  flexShrink: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 6,
-                }}
-              >
-                <Button
-                  size="small"
-                  skin="premium"
-                  disabled={!canHireExistingSiteTeam}
-                  onClick={handleOpenWorkspace}
-                >
-                  Hire the Team
-                </Button>
-                {!canHireExistingSiteTeam && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#7b8c9d",
-                      maxWidth: 180,
-                      textAlign: "right",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    The AI Team Lead needs to finish the research and present the plan first.
-                  </div>
-                )}
-              </div>
-            )}
             {activationSession && activationSession.mode !== "existing_site" && (
               <div style={{ flexShrink: 0 }}>
                 <Button size="small" skin="premium" onClick={handleOpenWorkspace}>
@@ -1489,6 +1411,87 @@ function NewCompanyPageContent() {
               </div>
             </div>
           ))}
+
+          {showHireWidget && (
+            <div
+              style={{
+                display: "flex",
+                marginBottom: 16,
+                justifyContent: "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  marginRight: 10,
+                  marginTop: 2,
+                  background: "linear-gradient(135deg, #2f8cff 0%, #64b9ff 65%, #87d7c0 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 6px 12px rgba(47,140,255,0.22)",
+                }}
+              >
+                <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>A</span>
+              </div>
+              <div style={{ maxWidth: "82%" }}>
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.9)",
+                    color: "#183247",
+                    padding: "18px 20px",
+                    borderRadius: "4px 18px 18px 18px",
+                    lineHeight: 1.6,
+                    backdropFilter: "blur(14px)",
+                    border: "1px solid rgba(159,196,224,0.5)",
+                    boxShadow: "0 14px 34px rgba(77, 103, 128, 0.12)",
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "#7b8c9d", marginBottom: 8 }}>
+                    Ready to start
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: "#16324a", marginBottom: 8 }}>
+                    The team is ready to get to work.
+                  </div>
+                  <div style={{ fontSize: 14, color: "#5f7588", lineHeight: 1.55, marginBottom: 16 }}>
+                    {showDraftHireWidget
+                      ? "Hiring the team will create the workspace, turn this approved plan into real goals and tasks, and kick off the first work."
+                      : "Hiring the team will move this approved plan into execution in the workspace and start the first work."}
+                  </div>
+                  <Button
+                    size="small"
+                    skin="premium"
+                    disabled={showDraftHireWidget ? !canHireTeam || startingNewSite : !canHireExistingSiteTeam}
+                    onClick={() => {
+                      if (showDraftHireWidget) {
+                        void activateNewSiteConversation(chatMessagesRef.current);
+                        return;
+                      }
+                      handleOpenWorkspace();
+                    }}
+                  >
+                    {showDraftHireWidget && startingNewSite ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <Loader size="tiny" />
+                        Hiring...
+                      </span>
+                    ) : (
+                      "Hire the Team"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {showRunSpinner && (
             <div
