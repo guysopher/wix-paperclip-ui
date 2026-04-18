@@ -623,19 +623,21 @@ export async function POST(request: NextRequest) {
       kickoffTasks.unshift(siteExecutionTask);
     }
 
-    await Promise.all(
+    const createdKickoffTasks = await Promise.all(
       kickoffTasks.slice(0, 4).map((task) =>
         paperclip(`/companies/${company.id}/issues`, {
           method: "POST",
           body: JSON.stringify({
             title: task.title,
             description: task.description,
-            priority: "high",
+            priority: task.title === siteExecutionTask.title ? "critical" : "high",
             assigneeAgentId: ceoAgent.id,
           }),
         }),
       ),
     );
+
+    const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title);
 
     const nextDescription = buildCompanyDescription({
       version: 1,
@@ -673,6 +675,19 @@ export async function POST(request: NextRequest) {
         repairResult.binding.problems[0] ||
           "Company startup verification failed before the first run.",
       );
+    }
+
+    if (siteExecutionIssue) {
+      await paperclip(`/issues/${siteExecutionIssue.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: [
+            "[System context - not visible to user]",
+            "Startup directive: the first run must provision and bind the main Wix site before expanding the specialist team.",
+            "Create the main site, verify wixBinding.metaSiteId/siteId/siteUrl, write them back into company description, and only then move to staffing handoff or optional vibe-site work.",
+          ].join("\n"),
+        }),
+      }).catch(() => undefined);
     }
 
     await paperclip(`/agents/${ceoAgent.id}/heartbeat/invoke`, {

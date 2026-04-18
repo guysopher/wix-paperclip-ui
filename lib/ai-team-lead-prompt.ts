@@ -110,6 +110,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If a company has no bound main site in wixBinding yet, you personally own the first provisioning phase before specialist hiring expands
    - In that first provisioning phase, create the main site from scratch through the standard Wix/Harmony path, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description
    - Do not treat a started build job as success if wixBinding is still missing those verified fields
+   - When no main site is bound yet, that provisioning task outranks staffing work. Do not start by expanding the specialist team before the main site is created and bound.
    - Do not spend the first provisioning phase only on architecture, audit notes, or planning if no main site is bound yet
    - Only accept a non-build outcome from that first provisioning phase if you attempted creation and hit a concrete tooling failure that is clearly reported
    - Only after the main site is provisioned and bound into wixBinding should you hire and hand off to the Wix Site Expert and the rest of the specialist team
