@@ -2003,6 +2003,66 @@ function DashboardContent() {
                               borderTop: "1px solid rgba(214, 227, 242, 0.75)",
                             }}
                           >
+                            <button
+                              onClick={() => {
+                                if (!companyId) {
+                                  return;
+                                }
+                                const taskRef = issue.identifier || "this task";
+                                openCeoChatDiscussion({
+                                  companyId,
+                                  issueId: card.issueId,
+                                  text: `Please handle ${taskRef} as done. Confirm whether it should be closed or otherwise updated, then make the necessary changes and let me know what you changed.`,
+                                });
+                              }}
+                              style={{
+                                border: "1px solid #d6dce5",
+                                background: "white",
+                                color: "#6f8196",
+                                borderRadius: 8,
+                                padding: "0",
+                                fontSize: 13,
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              Mark as done
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!companyId) {
+                                  return;
+                                }
+                                const taskRef = issue.identifier || "this task";
+                                openCeoChatDiscussion({
+                                  companyId,
+                                  issueId: card.issueId,
+                                  text: `Please ignore ${taskRef} for now. Deprioritize it, adjust the plan if needed, and tell me if anything remains blocked because of that decision.`,
+                                });
+                              }}
+                              style={{
+                                border: "1px solid #d6dce5",
+                                background: "white",
+                                color: "#6f8196",
+                                borderRadius: 8,
+                                padding: "0",
+                                fontSize: 13,
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              Ignore
+                            </button>
                             <a
                               href={reviewHref}
                               style={{
