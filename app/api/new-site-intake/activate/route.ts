@@ -543,7 +543,6 @@ async function createStarterTeamAgents(
 
     const promptTemplate = [
       renderPromptTemplate(definition.promptTemplate, {
-        id: companyId,
         name: companyName,
         description: "",
       }),
