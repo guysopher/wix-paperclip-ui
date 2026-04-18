@@ -929,6 +929,15 @@ async function repairStartupSiteBindings(
     }).catch(() => null);
   }
 
+  if (vibeBindingApplied && vibeSiteIssue && vibeSiteIssue.status === "blocked") {
+    await paperclip(`/issues/${vibeSiteIssue.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "in_progress",
+      }),
+    }).catch(() => null);
+  }
+
   if (mainBindingApplied && mainSiteIssue) {
     await paperclip(`/issues/${mainSiteIssue.id}/comments`, {
       method: "POST",
@@ -1125,11 +1134,7 @@ async function closeResolvedStartupFollowups(
   await Promise.all(issues.map(async (issue) => {
     const title = issue.title.trim().toLowerCase();
 
-    if (
-      pendingApprovals === 0 &&
-      /resolve pending specialist hire approvals/.test(title) &&
-      issue.status !== "done"
-    ) {
+    const markDone = async () => {
       const result = await paperclip(`/issues/${issue.id}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -1139,6 +1144,14 @@ async function closeResolvedStartupFollowups(
       if (result) {
         closed += 1;
       }
+    };
+
+    if (
+      pendingApprovals === 0 &&
+      /(resolve pending specialist hire approvals|approve pending launch specialists|approve .* starter hires)/.test(title) &&
+      issue.status !== "done"
+    ) {
+      await markDone();
       return;
     }
 
@@ -1148,15 +1161,25 @@ async function closeResolvedStartupFollowups(
       /apply .*metadata patch/.test(title) &&
       issue.status !== "done"
     ) {
-      const result = await paperclip(`/issues/${issue.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          status: "done",
-        }),
-      }).catch(() => null);
-      if (result) {
-        closed += 1;
-      }
+      await markDone();
+      return;
+    }
+
+    if (
+      hasMainSiteIdentity &&
+      /(bind .* main site identity into wixbinding|bind verified wix site identity into company description|provision main production site)/.test(title) &&
+      issue.status !== "done"
+    ) {
+      await markDone();
+      return;
+    }
+
+    if (
+      hasVibeSiteIdentity &&
+      /(record verified vibe-site metadata in company description|persist .*vibe-site metadata into company\.description|build experimental vibe site)/.test(title) &&
+      issue.status !== "done"
+    ) {
+      await markDone();
     }
   }));
 
