@@ -441,18 +441,9 @@ async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
   };
 }
 
-async function autoApprovePendingApprovals(companyId: string) {
+async function countPendingApprovals(companyId: string) {
   const approvals = await paperclip<PaperclipApproval[]>(`/companies/${companyId}/approvals`).catch(() => []);
   const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
-
-  await Promise.all(
-    pendingApprovals.map((approval) =>
-      paperclip(`/approvals/${approval.id}/approve`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      }).catch(() => null),
-    ),
-  );
 
   return pendingApprovals.length;
 }
@@ -500,15 +491,15 @@ async function cleanStaleBoardTasks(company: PaperclipCompany, issues: Paperclip
         nextDescription = nextDescription
           .replace(
             /system governance requires activation approvals for the .*starter hires created from [A-Z0-9-]+\./i,
-            "Starter-team hiring is handled automatically now. The team is already active, so focus only on the remaining work that still needs your input.",
+            "Starter-team hire approvals now live in the dashboard approvals flow. Review the pending approvals there, then focus only on the remaining work that still needs your input.",
           )
           .replace(
             /system governance requires activation approvals for the .*starter hires\./i,
-            "Starter-team hiring is handled automatically now. The team is already active, so focus only on the remaining work that still needs your input.",
+            "Starter-team hire approvals now live in the dashboard approvals flow. Review the pending approvals there, then focus only on the remaining work that still needs your input.",
           )
           .replace(
             /activation approvals? for the .*starter hires/i,
-            "starter-team hiring is handled automatically",
+            "starter-team hire approvals live in the dashboard approvals flow",
           );
       }
 
@@ -568,7 +559,7 @@ function getBindingProblems(company: PaperclipCompany) {
 export async function repairCompanyState(companyId: string, options?: { startup?: boolean }): Promise<CompanyRepairResult> {
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
-  const approvalsApproved = await autoApprovePendingApprovals(companyId).catch(() => 0);
+  const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
   const { promptSync, instructionFilesSynced } = await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
   const issues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => []);
@@ -577,8 +568,8 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const notes: string[] = [];
 
-  if (approvalsApproved > 0) {
-    notes.push(`Approved ${approvalsApproved} pending approval${approvalsApproved === 1 ? "" : "s"}.`);
+  if (pendingApprovals > 0) {
+    notes.push(`${pendingApprovals} pending approval${pendingApprovals === 1 ? "" : "s"} still need board review.`);
   }
   if (promptSync.updatedCount > 0) {
     notes.push(`Updated ${promptSync.updatedCount} stored agent prompt${promptSync.updatedCount === 1 ? "" : "s"}.`);
@@ -606,7 +597,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     companyId: refreshedCompany.id,
     companyName: refreshedCompany.name,
     startup,
-    approvalsApproved,
+    approvalsApproved: 0,
     staleTasksUpdated,
     promptSync,
     instructionFilesSynced,

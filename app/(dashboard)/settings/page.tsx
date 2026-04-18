@@ -308,13 +308,13 @@ function SettingsContent() {
           <Card>
             <Card.Header
               title="Company Setup Repair"
-              subtitle="Repairs prompts, managed runtime instructions, approvals, and stale startup state for the current company"
+              subtitle="Repairs prompts, managed runtime instructions, and stale startup state for the current company"
             />
             <Card.Divider />
             <Card.Content>
               <Box direction="vertical" gap="12px">
                 <Text size="small" secondary>
-                  Use this if startup looks half-finished. It re-syncs effective agent instructions, approves pending startup approvals, and cleans stale board tasks so the team can keep working.
+                  Use this if startup looks half-finished. It re-syncs effective agent instructions and cleans stale board tasks so the team can keep working.
                 </Text>
                 <Box gap="12px" verticalAlign="middle">
                   <Button

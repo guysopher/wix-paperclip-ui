@@ -212,6 +212,7 @@ export interface Approval {
   status: string;
   payload: Record<string, unknown>;
   notes: string | null;
+  requestedByAgentId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

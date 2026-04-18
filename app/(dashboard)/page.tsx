@@ -54,12 +54,14 @@ import {
   invokeHeartbeat,
   pauseAgent,
   resumeAgent,
+  updateApproval,
   updateAgent,
   createIssue,
   runCompanyHealthCheck,
   restartPaperclipServer,
   repairCodexAuth,
   type Agent,
+  type Approval,
   type HeartbeatRun,
 } from "@/lib/api";
 
@@ -139,6 +141,32 @@ type CeoRequestCard = {
   ask: string;
   quickReplies: string[];
 };
+
+function humanizeApprovalType(type: string): string {
+  return type
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function summarizeApproval(approval: Approval): { title: string; detail: string } {
+  const payload = approval.payload || {};
+  if (approval.type === "hire_agent") {
+    const title = String(payload.title || payload.name || "New team member");
+    const requestedBy = typeof payload.managerName === "string" ? payload.managerName : null;
+    return {
+      title,
+      detail: requestedBy ? `Requested by ${requestedBy}` : "Pending hire approval",
+    };
+  }
+
+  return {
+    title: humanizeApprovalType(approval.type),
+    detail:
+      typeof payload.description === "string" && payload.description.trim().length > 0
+        ? payload.description.trim()
+        : "Pending approval",
+  };
+}
 
 
 function timeAgo(date: string) {
@@ -293,7 +321,7 @@ function getCompanyActivityInterval(agents: Agent[]): number {
 function DashboardContent() {
   const router = useRouter();
   const { companyId, companies, setCompanyId, companyPath } = useCompany();
-  const { company, dashboard, agents, goals, issues, inboxIssues, runs, repairStatus, loading, refresh } = useCompanyData();
+  const { company, dashboard, agents, goals, issues, inboxIssues, approvals, runs, repairStatus, loading, refresh } = useCompanyData();
   const [feedNarratives, setFeedNarratives] = useState<Record<string, { title: string; description: string } | null>>({});
   const [agentNarratives, setAgentNarratives] = useState<Record<string, { title: string; time: string } | null>>({});
   const [goalProgress, setGoalProgress] = useState<Record<string, { progress: number; comment: string; updatedAt: string } | null>>({});
@@ -310,6 +338,7 @@ function DashboardContent() {
   >({});
   const [ceoRequestCards, setCeoRequestCards] = useState<Record<string, CeoRequestCard>>({});
   const [ceoRequestsLoading, setCeoRequestsLoading] = useState(false);
+  const [approvalActionId, setApprovalActionId] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
   const [workView, setWorkView] = useState<"open" | "completed">("completed");
@@ -555,6 +584,9 @@ function DashboardContent() {
       quickReplies: fallbackQuickReplies(issue.status),
     },
   }));
+  const pendingApprovals = approvals
+    .filter((approval) => approval.status === "pending")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   useEffect(() => {
     const requestSnapshot = attentionRequests.map((issue) => ({
@@ -643,6 +675,20 @@ function DashboardContent() {
       cancelled = true;
     };
   }, [agents, attentionRequests, company]);
+
+  const handleApprovalDecision = async (approvalId: string, status: "approved" | "rejected") => {
+    if (!companyId || approvalActionId) {
+      return;
+    }
+
+    setApprovalActionId(approvalId);
+    try {
+      await updateApproval(approvalId, { status });
+      await refresh();
+    } finally {
+      setApprovalActionId(null);
+    }
+  };
 
   const runningRuns = [...runs]
     .filter((run) => run.status === "running")
@@ -1283,7 +1329,7 @@ function DashboardContent() {
               />
               <PopoverMenu.MenuItem
                 text={backfillingAgentPrompts ? "Repairing company setup..." : "Repair Company Setup"}
-                subtitle="Repairs prompts, runtime instructions, approvals, and stale startup state"
+                subtitle="Repairs prompts, runtime instructions, and stale startup state"
                 disabled={backfillingAgentPrompts}
                 onClick={handleBackfillAgentPrompts}
               />
@@ -2005,6 +2051,132 @@ function DashboardContent() {
                               }}
                             >
                               Discuss
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card.Content>
+              </Card>
+            </div>
+          )}
+
+          {pendingApprovals.length > 0 && (
+            <div style={{ marginTop: attentionRequests.length > 0 ? 18 : 0 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, color: "#999", marginBottom: 14, fontWeight: 600 }}>
+                Board Approvals
+              </div>
+              <Card>
+                <Card.Content>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#162d3d" }}>
+                        Approvals Required
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7c93", marginTop: 4 }}>
+                        Review pending approvals before the team proceeds.
+                      </div>
+                    </div>
+                    <a
+                      href={companyPath("/approvals")}
+                      style={{
+                        color: "#3899ec",
+                        textDecoration: "none",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      Open approvals
+                      <span style={{ fontSize: 16 }}>→</span>
+                    </a>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {pendingApprovals.map((approval) => {
+                      const summary = summarizeApproval(approval);
+                      const acting = approvalActionId === approval.id;
+                      return (
+                        <div
+                          key={approval.id}
+                          style={{
+                            border: "1px solid #e3ebf5",
+                            borderRadius: 16,
+                            padding: "14px 16px",
+                            display: "flex",
+                            gap: 16,
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            background: "#fbfdff",
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: "1 1 420px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                              <div style={{ fontSize: 16, fontWeight: 600, color: "#162d3d" }}>
+                                {summary.title}
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  textTransform: "uppercase",
+                                  letterSpacing: 0.7,
+                                  color: "#b68200",
+                                  background: "#fff8df",
+                                  borderRadius: 999,
+                                  padding: "5px 9px",
+                                }}
+                              >
+                                Pending
+                              </span>
+                              <span style={{ fontSize: 11, color: "#8ca0b3", textTransform: "uppercase", letterSpacing: 0.7 }}>
+                                {humanizeApprovalType(approval.type)}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 14, color: "#52667a", lineHeight: 1.5 }}>
+                              {summary.detail}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#8ca0b3", marginTop: 6 }}>
+                              Requested {timeAgo(approval.createdAt)}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <button
+                              onClick={() => handleApprovalDecision(approval.id, "rejected")}
+                              disabled={Boolean(approvalActionId)}
+                              style={{
+                                border: "1px solid #d6dce5",
+                                background: "white",
+                                color: "#5f7287",
+                                borderRadius: 10,
+                                padding: "8px 12px",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: approvalActionId ? "default" : "pointer",
+                              }}
+                            >
+                              {acting ? "Working..." : "Reject"}
+                            </button>
+                            <button
+                              onClick={() => handleApprovalDecision(approval.id, "approved")}
+                              disabled={Boolean(approvalActionId)}
+                              style={{
+                                border: "1px solid #d5e0f0",
+                                background: "#f4f8ff",
+                                color: "#2b6ed2",
+                                borderRadius: 10,
+                                padding: "8px 12px",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: approvalActionId ? "default" : "pointer",
+                              }}
+                            >
+                              {acting ? "Working..." : "Approve"}
                             </button>
                           </div>
                         </div>

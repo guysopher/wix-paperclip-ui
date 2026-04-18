@@ -7,6 +7,7 @@ import {
   getCompanies,
   getCompany,
   getDashboard,
+  getApprovals,
   getMyIssues,
   getIssues,
   getGoals,
@@ -18,6 +19,7 @@ import {
   type Goal,
   type Issue,
   type Agent,
+  type Approval,
   type HeartbeatRun,
   type CompanyRepairStatus,
 } from "@/lib/api";
@@ -51,6 +53,7 @@ interface CompanyDataContextValue {
   goals: Goal[];
   issues: Issue[];
   inboxIssues: Issue[];
+  approvals: Approval[];
   runs: HeartbeatRun[];
   repairStatus: CompanyRepairStatus | null;
   loading: boolean;
@@ -66,6 +69,7 @@ const CompanyDataContext = createContext<CompanyDataContextValue>({
   goals: [],
   issues: [],
   inboxIssues: [],
+  approvals: [],
   runs: [],
   repairStatus: null,
   loading: false,
@@ -120,6 +124,7 @@ const EMPTY_COMPANY_DATA: Omit<CompanyDataContextValue, "refresh"> = {
   goals: [],
   issues: [],
   inboxIssues: [],
+  approvals: [],
   runs: [],
   repairStatus: null,
   loading: false,
@@ -215,7 +220,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!selectedCompanyId || companyLookupStatus !== "ready") {
       setCompanyData((prev) =>
-        prev.loading || prev.refreshing || prev.lastUpdatedAt || prev.company || prev.dashboard || prev.agents.length || prev.goals.length || prev.issues.length || prev.inboxIssues.length || prev.runs.length
+        prev.loading || prev.refreshing || prev.lastUpdatedAt || prev.company || prev.dashboard || prev.agents.length || prev.goals.length || prev.issues.length || prev.inboxIssues.length || prev.approvals.length || prev.runs.length
           ? { ...EMPTY_COMPANY_DATA, loading: companyLookupStatus === "loading" }
           : prev
       );
@@ -251,6 +256,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         myIssues,
         blockedIssues,
         allIssues,
+        approvals,
         runs,
       ] = await Promise.all([
         getCompany(companyId),
@@ -261,6 +267,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         getMyIssues(companyId),
         getIssues(companyId, "status=blocked"),
         getIssues(companyId),
+        getApprovals(companyId).catch(() => [] as Approval[]),
         getRuns(companyId),
       ]);
       const finalAssignedToMe = assignedToMe;
@@ -303,6 +310,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         goals: goalList,
         issues: finalAllIssues,
         inboxIssues,
+        approvals,
         runs,
         repairStatus,
         loading: false,
