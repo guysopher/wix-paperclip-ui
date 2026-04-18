@@ -1051,6 +1051,49 @@ export function getCanonicalAgentDefinitionByTitle(title: string): CanonicalAgen
   };
 }
 
+export function getPaperclipRoleForAgentTitle(title: string): string {
+  const normalizedTitle = title.trim().toLowerCase();
+
+  if (normalizedTitle === "ai team lead") {
+    return "ceo";
+  }
+
+  if (normalizedTitle === "industry advisor") {
+    return "researcher";
+  }
+
+  if (normalizedTitle === "wix site expert" || normalizedTitle === "vibe site expert") {
+    return "designer";
+  }
+
+  if (
+    normalizedTitle === "brand lead" ||
+    normalizedTitle === "growth lead" ||
+    normalizedTitle === "crm & lifecycle manager" ||
+    normalizedTitle === "analytics & growth manager" ||
+    normalizedTitle === "content & seo manager" ||
+    normalizedTitle === "retention & promotions manager"
+  ) {
+    return "cmo";
+  }
+
+  if (
+    normalizedTitle === "bookings operations manager" ||
+    normalizedTitle === "customer inbox manager" ||
+    normalizedTitle === "catalog & merchandising manager" ||
+    normalizedTitle === "inventory & fulfillment manager" ||
+    normalizedTitle === "ecommerce lead"
+  ) {
+    return "pm";
+  }
+
+  if (normalizedTitle === "automation architect") {
+    return "engineer";
+  }
+
+  return "general";
+}
+
 export function renderAgentTemplateShowcase(): string {
   return AGENT_TEMPLATES.map((template) => {
     return `- ${template.title} [${template.category}]: ${template.summary} Wix areas: ${template.wixAreas.join(", ")}. Outcomes: ${template.outcomes.join(", ")}.`;

@@ -1,6 +1,7 @@
 import {
   appendGeneralWixOperationalProtocol,
   getCanonicalAgentDefinitionByTitle,
+  getPaperclipRoleForAgentTitle,
   appendSiteExpertOperationalProtocol,
   GENERAL_WIX_MCP_PROTOCOL_MARKER,
   SITE_EXPERT_PROTOCOL_MARKER,
@@ -788,7 +789,7 @@ async function createStarterTeamAgents(company: PaperclipCompany, existingAgents
       method: "POST",
       body: JSON.stringify(syncHeartbeatConfig({
         name: definition.title,
-        role: definition.role,
+        role: getPaperclipRoleForAgentTitle(definition.title),
         title: definition.title,
         icon: definition.icon,
         capabilities: definition.capabilities.join(", "),

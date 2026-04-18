@@ -4,6 +4,7 @@ import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
 import {
   CANONICAL_AGENT_TITLES,
   getCanonicalAgentDefinitionByTitle,
+  getPaperclipRoleForAgentTitle,
   renderAgentTemplateShowcase,
 } from "@/lib/agent-templates";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
@@ -556,7 +557,7 @@ async function createStarterTeamAgents(
       method: "POST",
       body: JSON.stringify(syncHeartbeatConfig({
         name: definition.title,
-        role: definition.role,
+        role: getPaperclipRoleForAgentTitle(definition.title),
         title: definition.title,
         icon: definition.icon,
         capabilities: definition.capabilities.join(", "),
