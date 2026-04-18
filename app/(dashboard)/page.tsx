@@ -2046,18 +2046,18 @@ function DashboardContent() {
                                       <button
                                         type="button"
                                         style={{
-                                          border: "1px solid #d5e0f0",
-                                          background: "#f4f8ff",
+                                          border: "1px solid #c9daf5",
+                                          background: "linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%)",
                                           color: "#2b6ed2",
                                           borderRadius: 999,
-                                          padding: "6px 10px",
+                                          padding: "6px 11px",
                                           fontSize: 12,
                                           fontWeight: 600,
                                           cursor: "pointer",
                                           textAlign: "center",
                                           textDecoration: "none",
                                           lineHeight: 1.4,
-                                          boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
+                                          boxShadow: "0 4px 12px rgba(56, 153, 236, 0.10)",
                                           whiteSpace: "nowrap",
                                           minHeight: 32,
                                           display: "inline-flex",
@@ -2071,7 +2071,7 @@ function DashboardContent() {
                                     }
                                   >
                                     <PopoverMenu.MenuItem
-                                      text="Discuss"
+                                      text="◉  Discuss"
                                       onClick={() => {
                                         if (!companyId) {
                                           return;
@@ -2085,26 +2085,28 @@ function DashboardContent() {
                                         });
                                       }}
                                     />
+                                    <PopoverMenu.Divider />
                                     <PopoverMenu.MenuItem
-                                      text="Mark as Done"
+                                      text="✓  Mark as Done"
                                       onClick={() => {
                                         sendDirective(`Please handle ${taskRef} as done. Confirm whether it should be closed or otherwise updated, then make the necessary changes and let me know what you changed.`);
                                       }}
                                     />
                                     <PopoverMenu.MenuItem
-                                      text="Approve"
+                                      text="✓  Approve"
                                       onClick={() => {
                                         sendDirective(`Please approve ${taskRef}. Make the necessary updates so it can move forward, and let me know what you changed or approved.`);
                                       }}
                                     />
                                     <PopoverMenu.MenuItem
-                                      text="Ignore"
+                                      text="○  Ignore"
                                       onClick={() => {
                                         sendDirective(`Please ignore ${taskRef} for now. Deprioritize it, adjust the plan if needed, and tell me if anything remains blocked because of that decision.`);
                                       }}
                                     />
+                                    <PopoverMenu.Divider />
                                     <PopoverMenu.MenuItem
-                                      text="Reject"
+                                      text="✕  Reject"
                                       onClick={() => {
                                         sendDirective(`Please reject ${taskRef}. Update the task, plan, or approvals accordingly, and tell me what follow-up changes are needed because of that rejection.`);
                                       }}
