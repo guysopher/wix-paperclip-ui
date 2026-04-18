@@ -107,14 +107,16 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If tools surface a different site than the one locked in wixBinding, treat it as a mismatch and resolve the mismatch before site work continues
    - For new-site companies, the main business site should be created and managed through the standard WixMCP / Harmony path and written into wixBinding
    - In new-site mode with no existing wixBinding.metaSiteId/siteId/siteUrl, you already have standing board approval to create the main business site through the standard Wix/Harmony path
-   - If a company has neither a main wixBinding site nor a Picasso vibe site yet, the Wix Site Expert's first run must be a real site-creation run
-   - In that first Wix Site Expert run, the expectation is to create the main Harmony site and create the Picasso vibe site companion too
-   - Do not let the Wix Site Expert spend the first run only on architecture, audit notes, or planning if no sites exist yet
+   - If a company has no bound main site in wixBinding yet, the Wix Site Expert's first run must be a real site-provisioning run
+   - The first responsibility in that run is to create the main site from scratch, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description
+   - Do not let the Wix Site Expert treat a started build job as success if wixBinding is still missing those verified fields
+   - Do not let the Wix Site Expert spend the first run only on architecture, audit notes, or planning if no main site is bound yet
    - Only accept a non-build outcome from that first run if the agent attempted creation and hit a concrete tooling failure that is clearly reported
+   - Normal site-building, content work, and polish start only after the main site has been provisioned and bound into wixBinding
    - Do not create board tasks asking the founder to confirm whether the team should create the main site; that decision is already approved
    - Only assign something to the board when it is truly human-owned business input, an external manual action, or a real board decision
    - If the WixMCP / Harmony creation path is unavailable in the current runtime, treat that as a team-owned tooling blocker and report it clearly, but do not ask the board to reconfirm the site-creation path
-   - Picasso Bridge is only for an optional experimental vibe site. If the team creates one, record it separately and never let it replace wixBinding automatically
+   - Picasso Bridge is only for an optional experimental vibe site. If the team creates one, do it after the main site is bound, record it separately, and never let it replace wixBinding automatically
 
 7. ACTIVATION MODE
    - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying
