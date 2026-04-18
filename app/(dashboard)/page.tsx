@@ -1995,8 +1995,7 @@ function DashboardContent() {
                           <div
                             style={{
                               display: "flex",
-                              gap: 12,
-                              flexWrap: "wrap",
+                              gap: 10,
                               justifyContent: "flex-end",
                               alignItems: "center",
                               marginTop: "auto",
@@ -2004,70 +2003,21 @@ function DashboardContent() {
                               borderTop: "1px solid rgba(214, 227, 242, 0.75)",
                             }}
                           >
-                            <button
-                              onClick={() => {
+                            {(() => {
+                              const taskRef = issue.identifier || "this task";
+                              const sendDirective = (text: string) => {
                                 if (!companyId) {
                                   return;
                                 }
-                                const taskRef = issue.identifier || "this task";
                                 openCeoChatDiscussion({
                                   companyId,
                                   issueId: card.issueId,
-                                  text: `Please handle ${taskRef} as done. Confirm whether it should be closed or otherwise updated, then make the necessary changes and let me know what you changed.`,
+                                  text,
                                 });
-                              }}
-                              style={{
-                                border: "1px solid #d6dce5",
-                                background: "white",
-                                color: "#6f8196",
-                                borderRadius: 999,
-                                padding: "7px 12px",
-                                fontSize: 13,
-                                fontWeight: 500,
-                                cursor: "pointer",
-                                textDecoration: "none",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                lineHeight: 1.4,
-                                whiteSpace: "nowrap",
-                                minHeight: 34,
-                              }}
-                            >
-                              Mark as done
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (!companyId) {
-                                  return;
-                                }
-                                const taskRef = issue.identifier || "this task";
-                                openCeoChatDiscussion({
-                                  companyId,
-                                  issueId: card.issueId,
-                                  text: `Please ignore ${taskRef} for now. Deprioritize it, adjust the plan if needed, and tell me if anything remains blocked because of that decision.`,
-                                });
-                              }}
-                              style={{
-                                border: "1px solid #d6dce5",
-                                background: "white",
-                                color: "#6f8196",
-                                borderRadius: 999,
-                                padding: "7px 12px",
-                                fontSize: 13,
-                                fontWeight: 500,
-                                cursor: "pointer",
-                                textDecoration: "none",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                lineHeight: 1.4,
-                                whiteSpace: "nowrap",
-                                minHeight: 34,
-                              }}
-                            >
-                              Ignore
-                            </button>
+                              };
+
+                              return (
+                                <>
                             <a
                               href={reviewHref}
                               style={{
@@ -2075,8 +2025,8 @@ function DashboardContent() {
                                 background: "transparent",
                                 color: "#7a8da5",
                                 borderRadius: 8,
-                                padding: "7px 0",
-                                fontSize: 13,
+                                padding: "6px 0",
+                                fontSize: 12,
                                 fontWeight: 500,
                                 cursor: "pointer",
                                 textDecoration: "none",
@@ -2090,39 +2040,79 @@ function DashboardContent() {
                             >
                               {reviewLabel}
                             </a>
-                            <button
-                              onClick={() => {
-                                if (!companyId) {
-                                  return;
-                                }
-                                const taskRef = issue.identifier || "this task";
-                                openCeoChatDiscussion({
-                                  companyId,
-                                  issueId: card.issueId,
-                                  mode: "draft",
-                                  taskRef,
-                                  requestText: card.ask,
-                                });
-                              }}
-                              style={{
-                                border: "1px solid #d5e0f0",
-                                background: "#f4f8ff",
-                                color: "#2b6ed2",
-                                borderRadius: 999,
-                                padding: "7px 12px",
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                textAlign: "center",
-                                textDecoration: "none",
-                                lineHeight: 1.4,
-                                boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
-                                whiteSpace: "nowrap",
-                                minHeight: 34,
-                              }}
-                            >
-                              Discuss
-                            </button>
+                                  <PopoverMenu
+                                    placement="bottom-end"
+                                    triggerElement={
+                                      <button
+                                        type="button"
+                                        style={{
+                                          border: "1px solid #d5e0f0",
+                                          background: "#f4f8ff",
+                                          color: "#2b6ed2",
+                                          borderRadius: 999,
+                                          padding: "6px 10px",
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          cursor: "pointer",
+                                          textAlign: "center",
+                                          textDecoration: "none",
+                                          lineHeight: 1.4,
+                                          boxShadow: "0 1px 2px rgba(22, 45, 61, 0.04)",
+                                          whiteSpace: "nowrap",
+                                          minHeight: 32,
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 6,
+                                        }}
+                                      >
+                                        Reply
+                                        <span style={{ fontSize: 10, lineHeight: 1 }}>▾</span>
+                                      </button>
+                                    }
+                                  >
+                                    <PopoverMenu.MenuItem
+                                      text="Discuss"
+                                      onClick={() => {
+                                        if (!companyId) {
+                                          return;
+                                        }
+                                        openCeoChatDiscussion({
+                                          companyId,
+                                          issueId: card.issueId,
+                                          mode: "draft",
+                                          taskRef,
+                                          requestText: card.ask,
+                                        });
+                                      }}
+                                    />
+                                    <PopoverMenu.MenuItem
+                                      text="Mark as Done"
+                                      onClick={() => {
+                                        sendDirective(`Please handle ${taskRef} as done. Confirm whether it should be closed or otherwise updated, then make the necessary changes and let me know what you changed.`);
+                                      }}
+                                    />
+                                    <PopoverMenu.MenuItem
+                                      text="Approve"
+                                      onClick={() => {
+                                        sendDirective(`Please approve ${taskRef}. Make the necessary updates so it can move forward, and let me know what you changed or approved.`);
+                                      }}
+                                    />
+                                    <PopoverMenu.MenuItem
+                                      text="Ignore"
+                                      onClick={() => {
+                                        sendDirective(`Please ignore ${taskRef} for now. Deprioritize it, adjust the plan if needed, and tell me if anything remains blocked because of that decision.`);
+                                      }}
+                                    />
+                                    <PopoverMenu.MenuItem
+                                      text="Reject"
+                                      onClick={() => {
+                                        sendDirective(`Please reject ${taskRef}. Update the task, plan, or approvals accordingly, and tell me what follow-up changes are needed because of that rejection.`);
+                                      }}
+                                    />
+                                  </PopoverMenu>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
