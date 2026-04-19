@@ -528,7 +528,9 @@ ${canonicalAgentOptions}
   });
 
   const raw = response.choices[0]?.message?.content || "{}";
-  const parsed = await parseJsonWithRepair<Partial<IntakeSummary>>(raw, schemaDescription).catch(() => ({}));
+  const parsed = await parseJsonWithRepair<Partial<IntakeSummary>>(raw, schemaDescription).catch(
+    () => ({} as Partial<IntakeSummary>),
+  );
 
   const companyName = parsed.companyName?.trim() || "New Business";
   const businessDescription =
