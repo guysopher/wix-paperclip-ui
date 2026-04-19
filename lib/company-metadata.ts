@@ -58,6 +58,7 @@ export interface ActivationMetadata {
   mode?: ActivationMode;
   newSiteInterview?: NewSiteInterviewMetadata;
   picassoBridge?: PicassoBridgeMetadata;
+  sourceLinks?: string[];
 }
 
 const LEGACY_METASITE_PATTERN = /metasite\s+([0-9a-fA-F-]{36})/i;
@@ -161,6 +162,19 @@ function normalizePicassoBridge(value: unknown): PicassoBridgeMetadata | undefin
   };
 }
 
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export function getCompanyActivation(description: string | null | undefined): ActivationMetadata | undefined {
   const metadata = parseCompanyDescription(description);
   const activationRaw = metadata.extra?.activation;
@@ -172,9 +186,10 @@ export function getCompanyActivation(description: string | null | undefined): Ac
     mode: getActivationMode(activationRaw.mode),
     newSiteInterview: normalizeNewSiteInterview(activationRaw.newSiteInterview),
     picassoBridge: normalizePicassoBridge(activationRaw.picassoBridge),
+    sourceLinks: normalizeStringArray(activationRaw.sourceLinks),
   };
 
-  if (!activation.mode && !activation.newSiteInterview && !activation.picassoBridge) {
+  if (!activation.mode && !activation.newSiteInterview && !activation.picassoBridge && !activation.sourceLinks) {
     return undefined;
   }
 

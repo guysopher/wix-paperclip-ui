@@ -67,6 +67,7 @@ interface IntakeSummary {
   teamHiringPlan: string;
   managementPlan: string;
   starterTeam: StarterAgentPlan[];
+  sourceLinks: string[];
   siteSpecifics: string;
   firstBuildBrief: string;
   goals: string[];
@@ -156,6 +157,56 @@ function buildTranscript(messages: IntakeMessage[]): string {
   return messages
     .map((message) => `${message.role === "user" ? "Founder" : "AI Team Lead"}: ${message.text}`)
     .join("\n");
+}
+
+const URL_PATTERN = /\bhttps?:\/\/[^\s<>()]+/gi;
+const SOCIAL_HANDLE_PATTERN = /\b(instagram|insta|flickr|facebook|tiktok|pinterest|youtube|etsy)\b[^@\n\r]{0,40}@?([A-Za-z0-9._-]{2,})/gi;
+
+function cleanCapturedLink(value: string): string {
+  return value.trim().replace(/[),.!?;:]+$/g, "");
+}
+
+function extractSourceLinks(messages: IntakeMessage[]): string[] {
+  const links = new Set<string>();
+
+  for (const message of messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+
+    const text = message.text;
+
+    for (const match of text.matchAll(URL_PATTERN)) {
+      const cleaned = cleanCapturedLink(match[0]);
+      if (cleaned) {
+        links.add(cleaned);
+      }
+    }
+
+    for (const match of text.matchAll(SOCIAL_HANDLE_PATTERN)) {
+      const platform = match[1]?.toLowerCase();
+      const handle = match[2]?.trim();
+      if (!platform || !handle) {
+        continue;
+      }
+
+      if (platform === "instagram" || platform === "insta") {
+        links.add(`https://www.instagram.com/${handle}`);
+      } else {
+        links.add(`${platform}: ${handle}`);
+      }
+    }
+  }
+
+  return Array.from(links).slice(0, 8);
+}
+
+function renderSourceLinks(lines: string[]): string[] {
+  if (lines.length === 0) {
+    return ["No explicit public source links were captured from the founder transcript."];
+  }
+
+  return lines.map((line) => `- ${line}`);
 }
 
 function toStringArray(value: unknown): string[] {
@@ -385,6 +436,7 @@ ${canonicalAgentOptions}
   const siteSpecifics =
     parsed.siteSpecifics?.trim() ||
     "No additional site-specific requirements were captured.";
+  const sourceLinks = extractSourceLinks(messages);
   const firstBuildBrief =
     parsed.firstBuildBrief?.trim() ||
     `${siteProposal}\n\nRequirements and priorities:\n${siteSpecifics}`;
@@ -401,6 +453,7 @@ ${canonicalAgentOptions}
     starterTeam: starterTeam.length > 0
       ? starterTeam
       : REQUIRED_STARTER_TEAM,
+    sourceLinks,
     siteSpecifics,
     firstBuildBrief,
     goals: goals.length > 0
@@ -473,6 +526,9 @@ function buildBoardIssueDescription(summary: IntakeSummary, messages: IntakeMess
     "Expected first-phase results:",
     expectedResults,
     "",
+    "Captured source links and accounts:",
+    ...renderSourceLinks(summary.sourceLinks),
+    "",
     "Approved management plan:",
     summary.managementPlan,
     "",
@@ -490,6 +546,9 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "",
     "Approved site proposal:",
     summary.siteProposal,
+    "",
+    "Captured source links and accounts:",
+    ...renderSourceLinks(summary.sourceLinks),
     "",
     "Execution brief:",
     summary.firstBuildBrief,
@@ -521,6 +580,9 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "",
     "Approved site proposal:",
     summary.siteProposal,
+    "",
+    "Captured source links and accounts:",
+    ...renderSourceLinks(summary.sourceLinks),
     "",
     "Execution brief:",
     summary.firstBuildBrief,
@@ -656,6 +718,9 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
       "",
       "Approved site proposal:",
       summary.siteProposal,
+      "",
+      "Captured source links and accounts:",
+      ...renderSourceLinks(summary.sourceLinks),
       "",
       "Known source-material notes:",
       summary.siteSpecifics || "No structured source list yet. Start by checking the founder transcript and any referenced public sources.",
@@ -880,6 +945,7 @@ export async function POST(request: NextRequest) {
             completedAt: approvedAt,
           },
           starterTeam: summary.starterTeam,
+          sourceLinks: summary.sourceLinks,
           siteProposal: summary.siteProposal,
           firstBuildBrief: summary.firstBuildBrief,
           managementPlan: summary.managementPlan,
