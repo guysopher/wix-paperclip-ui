@@ -16,7 +16,6 @@ import {
   Inbox,
   Refresh,
   Globe,
-  ChevronDown,
   Settings,
   ExternalLink,
 } from "@wix/wix-ui-icons-common";
@@ -242,47 +241,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <Heading size="small" light>{currentCompany?.name || "Select AI Team"}</Heading>
-              <Text size="tiny" light secondary>Your Wix AI Team</Text>
-            </div>
-            {/* Switcher icon */}
-            <div style={{ display: "flex", gap: 4 }}>
-              {companies.length > 1 && (
-                <div style={{ position: "relative" }}>
-                  <select
-                    value={companyId}
-                    onChange={(e) => setCompanyId(e.target.value)}
-                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: 28, height: 28 }}
-                  >
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 6,
-                    background: "rgba(255,255,255,0.1)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "pointer",
-                  }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#b0b0b0">
-                      <path d="M7 10l5 5 5-5z"/>
-                    </svg>
-                  </div>
-                </div>
-              )}
-              <button
-                onClick={() => router.push("/new")}
-                title="New AI Team"
+              <a
+                href="/"
                 style={{
-                  width: 28, height: 28, borderRadius: 6,
-                  background: "rgba(255,255,255,0.1)",
-                  border: "none", cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.65)",
+                  textDecoration: "none",
+                  display: "inline-block",
+                  marginTop: 2,
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#b0b0b0">
-                  <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
-                </svg>
-              </button>
+                Wix AI Teams
+              </a>
             </div>
           </div>
         </div>
