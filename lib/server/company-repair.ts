@@ -877,6 +877,30 @@ function parseUrlFromLine(line: string | undefined) {
   return line?.match(/https?:\/\/\S+/i)?.[0];
 }
 
+function parsePrimaryPublishedSiteUrl(body: string) {
+  if (!/published-site-urls|published site urls|published urls|urlType|primary/i.test(body)) {
+    return undefined;
+  }
+
+  const explicitUrlMatches = body.matchAll(/["']url["']\s*:\s*["'](https?:\/\/[^"'\\\s]+)["']/gi);
+  for (const match of explicitUrlMatches) {
+    const candidate = match[1]?.replace(/\\\//g, "/");
+    if (isTrustworthySiteUrl(candidate)) {
+      return candidate;
+    }
+  }
+
+  const looseUrlMatches = body.matchAll(/https?:\/\/[^\s"'\\]+/gi);
+  for (const match of looseUrlMatches) {
+    const candidate = match[0]?.replace(/\\\//g, "/");
+    if (isTrustworthySiteUrl(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
 function parseTextAfterColon(line: string | undefined) {
   const match = line?.match(/:\s*`?([a-z0-9_-]+)`?/i);
   return match?.[1];
@@ -940,11 +964,27 @@ function isTrustworthySiteUrl(url: string | undefined) {
     return false;
   }
 
-  if (/^https?:\/\/www\.wix\.com\/?$/i.test(url)) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
     return false;
   }
 
-  if (/^https?:\/\/manage\.wix\.com\//i.test(url)) {
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return false;
+  }
+
+  if (/^www\.wix\.com$/i.test(parsed.hostname) && (parsed.pathname === "/" || parsed.pathname === "")) {
+    return false;
+  }
+
+  if (
+    /^manage\.wix\.com$/i.test(parsed.hostname) ||
+    /^dev\.wix\.com$/i.test(parsed.hostname) ||
+    /^www\.wixapis\.com$/i.test(parsed.hostname) ||
+    /^apis\.wix\.com$/i.test(parsed.hostname)
+  ) {
     return false;
   }
 
@@ -979,6 +1019,13 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
     );
     if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrl)) {
       siteUrl = candidateSiteUrl;
+    }
+
+    if (!siteUrl) {
+      const candidatePublishedUrl = parsePrimaryPublishedSiteUrl(body);
+      if (candidatePublishedUrl) {
+        siteUrl = candidatePublishedUrl;
+      }
     }
   }
 
@@ -1036,6 +1083,13 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
     );
     if (!siteUrl && isTrustworthySiteUrl(candidatePublicUrl)) {
       siteUrl = candidatePublicUrl;
+    }
+
+    if (!siteUrl) {
+      const candidatePublishedUrl = parsePrimaryPublishedSiteUrl(body);
+      if (candidatePublishedUrl) {
+        siteUrl = candidatePublishedUrl;
+      }
     }
 
     if (!status) {
