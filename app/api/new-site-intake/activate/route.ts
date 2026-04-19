@@ -683,16 +683,17 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "4. If the completed creation job returns a verified siteId, write that value into wixBinding.siteId and wixBinding.metaSiteId immediately, even if a trustworthy public siteUrl is not available yet.",
     "5. Treat siteId and metaSiteId as the same locked business identity unless Wix explicitly returns different verified values.",
     "6. Do not use placeholder URLs such as the generic wix.com host as the canonical siteUrl.",
-    "7. If create or publish only returns a placeholder host or dashboard URL, do one explicit published-site-urls style lookup on the verified site id before you report siteUrl as unresolved.",
-    "8. Use ListWixSites only as a fallback when the completed creation job does not expose the created site identity directly or when you still need to resolve a real siteUrl after binding the site IDs.",
-    "9. Do not treat a started build job as success if wixBinding still lacks those verified identity fields.",
-    "10. The main business site becomes the canonical company site in wixBinding.",
-    "11. Never overwrite wixBinding with vibe-site data.",
-    "12. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
-    "13. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
-    "14. If the founder provided any public source URL, inspect that exact source directly and use it to place real copy, imagery, or collection content on the main site after binding. Do not stop at empty shell creation.",
-    "15. Do not create board tasks asking for basic launch copy, imagery, or starter content while the founder-provided public source links still contain usable material. Only ask for exact missing facts that block a specific Wix mutation such as pricing, policy, or inventory values.",
-    "16. Do not mark this task done until the bound main site has a real non-placeholder site URL and at least one source-derived content batch has been applied to the production site, unless a concrete tooling blocker is clearly reported.",
+    "7. If the completed creation job reports `isPublished: false`, an unpublished site state, or a `published-site-urls` lookup returns an empty `urls` array, publish the verified site first through the documented Wix publish endpoint and then repeat the published-site-urls lookup.",
+    "8. If create or publish only returns a placeholder host or dashboard URL, do one explicit published-site-urls style lookup on the verified site id before you report siteUrl as unresolved.",
+    "9. Use ListWixSites only as a fallback when the completed creation job does not expose the created site identity directly or when you still need to resolve a real siteUrl after binding the site IDs.",
+    "10. Do not treat a started build job as success if wixBinding still lacks those verified identity fields.",
+    "11. The main business site becomes the canonical company site in wixBinding.",
+    "12. Never overwrite wixBinding with vibe-site data.",
+    "13. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
+    "14. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
+    "15. If the founder provided any public source URL, inspect that exact source directly and use it to place real copy, imagery, or collection content on the main site after binding. Do not stop at empty shell creation.",
+    "16. Do not create board tasks asking for basic launch copy, imagery, or starter content while the founder-provided public source links still contain usable material. Only ask for exact missing facts that block a specific Wix mutation such as pricing, policy, or inventory values.",
+    "17. Do not mark this task done until the bound main site has a real non-placeholder site URL and at least one source-derived content batch has been applied to the production site, unless a concrete tooling blocker is clearly reported.",
   ];
 
   return {
@@ -721,9 +722,10 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "4. Record all verified results in vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
     "5. Never write vibe-site data into wixBinding.",
     "6. Use the founder-provided public source links as the content seed for the vibe site too. Adapt the real business material into the experimental direction instead of leaving the vibe site as a generic shell.",
-    "7. If the builder or publish flow only returns a placeholder host or development/editor URL, do one explicit published-site-urls style lookup on the verified vibe-site id before you report vibeSiteUrl as unresolved.",
-    "8. Resolve a real non-placeholder vibeSiteUrl when tooling exposes one. If only a development/editor URL is available, record it but keep pushing on public URL resolution or clearly document the blocker.",
-    "9. Do not mark this task done until a real vibe site exists with its own different verified site id and at least one source-derived content batch has been applied to that vibe site, or a concrete tooling blocker is clearly reported.",
+    "7. If the completed vibe-site job reports `isPublished: false`, an unpublished state, or a `published-site-urls` lookup returns an empty `urls` array, publish the verified vibe site first through the documented Wix publish endpoint and then repeat the published-site-urls lookup.",
+    "8. If the builder or publish flow only returns a placeholder host or development/editor URL, do one explicit published-site-urls style lookup on the verified vibe-site id before you report vibeSiteUrl as unresolved.",
+    "9. Resolve a real non-placeholder vibeSiteUrl when tooling exposes one. If only a development/editor URL is available, record it but keep pushing on public URL resolution or clearly document the blocker.",
+    "10. Do not mark this task done until a real vibe site exists with its own different verified site id and at least one source-derived content batch has been applied to that vibe site, or a concrete tooling blocker is clearly reported.",
   ];
 
   return {

@@ -133,6 +133,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If the completed creation job returns a verified siteId but no trustworthy public siteUrl yet, still bind wixBinding.siteId and wixBinding.metaSiteId immediately. Resolve the real siteUrl as a follow-up instead of leaving wixBinding empty.
    - siteId and metaSiteId are the same business identity in this system. If the builder returns siteId, write it into both fields unless a different verified metasite id is explicitly returned.
    - Do not use placeholder URLs such as the generic wix.com host as the canonical siteUrl. Leave siteUrl unresolved until you have a real business-specific URL.
+   - If a completed site-creation job reports `isPublished: false`, an unpublished state, or the first published-site-urls lookup returns an empty `urls` array, require one publish attempt on that verified site id before accepting that the live URL is still unresolved.
    - If create or publish only returns a placeholder host or dashboard URL, require one short follow-up lookup on the verified site id through the published-site-urls endpoint or equivalent published-URL surface before accepting that siteUrl is unresolved.
    - The Paperclip company record is the metadata writeback surface. When the team needs to persist wixBinding or vibeSite* fields, use the company PATCH path directly instead of searching local code for another persistence route
    - If a specialist verifies a main-site or vibe-site id but cannot persist it into company metadata, treat that as an active management problem, not passive waiting: require the exact verified fields in comments, keep the issue in progress, and push the binding blocker immediately
@@ -152,6 +153,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The experimental vibe site is required for new-site companies unless there is a concrete tooling blocker
    - The Vibe Site Expert should create and track that vibe site in parallel with the main site whenever possible
    - The vibe site must always be recorded separately in vibeSite* fields and must never replace wixBinding automatically
+   - If a completed vibe-site job reports `isPublished: false`, an unpublished state, or the first published-site-urls lookup returns an empty `urls` array, require one publish attempt on that verified vibe-site id before accepting that the public URL is still unresolved
    - If the vibe builder only returns a placeholder host or development URL, require the same published-site-urls style follow-up on the verified vibe-site id before accepting that vibeSiteUrl is unresolved
    - If a site expert reports verified ids plus a write blocker, mirror the critical ids in the management thread and immediately drive the next recovery step instead of waiting for the same specialist to retry indefinitely
 
