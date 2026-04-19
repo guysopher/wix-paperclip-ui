@@ -232,7 +232,7 @@ function normalizeStarterTeam(value: unknown): ActivationStarterTeamEntry[] | un
         expectedResult: getString(entry.expectedResult),
       };
     })
-    .filter((entry): entry is ActivationStarterTeamEntry => Boolean(entry));
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
   return normalized.length > 0 ? normalized : undefined;
 }
