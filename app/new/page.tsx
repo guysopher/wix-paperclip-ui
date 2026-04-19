@@ -354,10 +354,20 @@ function NewCompanyPageContent() {
   const activationMetadata = activationSession
     ? getCompanyActivation(activationSession.companyDescription)
     : undefined;
-  const latestCeoMessage = [...chatMessages].reverse().find((message) => message.role === "ceo")?.text || "";
+  const latestProposalCeoMessage = [...chatMessages]
+    .reverse()
+    .find((message) => {
+      if (message.role !== "ceo") {
+        return false;
+      }
+
+      return extractAgentTitlesFromText(message.text)
+        .filter((title) => title !== "AI Team Lead")
+        .length > 0;
+    })?.text || "";
   const proposedDraftTeamTitles =
     newSiteConversationStatus === "ready_to_activate"
-      ? uniqueTitles(extractAgentTitlesFromText(latestCeoMessage).filter((title) => title !== "AI Team Lead"))
+      ? uniqueTitles(extractAgentTitlesFromText(latestProposalCeoMessage).filter((title) => title !== "AI Team Lead"))
       : [];
   const approvedTeamTitles = (activationMetadata?.starterTeam || [])
     .map((entry) => entry?.role)
