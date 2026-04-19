@@ -40,6 +40,7 @@ import {
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
+import { CANONICAL_AGENT_TITLES } from "@/lib/agent-templates";
 import {
   DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
@@ -152,6 +153,16 @@ function appendUiMessage(
       ...next,
     },
   ];
+}
+
+function extractAgentTitlesFromText(text: string): string[] {
+  if (!text) {
+    return [];
+  }
+
+  return CANONICAL_AGENT_TITLES.filter((title) =>
+    new RegExp(`\\b${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
+  );
 }
 
 function getWorkspacePath(path: string, session: ActivationSession): string {
@@ -336,6 +347,14 @@ function NewCompanyPageContent() {
   const activationMetadata = activationSession
     ? getCompanyActivation(activationSession.companyDescription)
     : undefined;
+  const latestCeoMessage = [...chatMessages].reverse().find((message) => message.role === "ceo")?.text || "";
+  const proposedDraftTeamTitles =
+    newSiteConversationStatus === "ready_to_activate"
+      ? extractAgentTitlesFromText(latestCeoMessage)
+      : [];
+  const approvedTeamTitles = (activationMetadata?.starterTeam || [])
+    .map((entry) => entry?.role)
+    .filter((role): role is string => typeof role === "string" && role.trim().length > 0);
   const interviewStage = activationMetadata?.newSiteInterview?.stage || "business_name";
   const bridgeStatus = activationMetadata?.picassoBridge?.status || bridgeJob?.status || "not_started";
   const isNewSiteSelected = effectiveActivationMode === "new_site";
@@ -351,8 +370,15 @@ function NewCompanyPageContent() {
     Boolean(isExistingSiteInterviewFlow) &&
     !backendBusy &&
     !chatSending;
-  const showDraftHireWidget = isDraftNewSiteFlow && (canHireTeam || startingNewSite);
-  const showExistingSiteHireWidget = Boolean(isExistingSiteInterviewFlow) && canHireExistingSiteTeam;
+  const showDraftHireWidget =
+    isDraftNewSiteFlow &&
+    proposedDraftTeamTitles.length > 0 &&
+    (canHireTeam || startingNewSite);
+  const showExistingSiteHireWidget =
+    Boolean(isExistingSiteInterviewFlow) &&
+    approvedTeamTitles.length > 0 &&
+    canHireExistingSiteTeam;
+  const hireWidgetTeamTitles = showDraftHireWidget ? proposedDraftTeamTitles : approvedTeamTitles;
   const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
   const buildInProgress =
     Boolean(
@@ -1461,6 +1487,32 @@ function NewCompanyPageContent() {
                       ? "Hiring the team will create the workspace, turn this approved plan into real goals and tasks, and kick off the first work."
                       : "Hiring the team will move this approved plan into execution in the workspace and start the first work."}
                   </div>
+                  {hireWidgetTeamTitles.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.9, textTransform: "uppercase", color: "#7b8c9d", marginBottom: 8 }}>
+                        Team to be hired
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {hireWidgetTeamTitles.map((title) => (
+                          <div
+                            key={title}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: "#274863",
+                              background: "rgba(237,244,255,0.95)",
+                              border: "1px solid rgba(191,214,242,0.9)",
+                              borderRadius: 999,
+                              padding: "6px 10px",
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {title}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <Button
                     size="small"
                     skin="premium"
