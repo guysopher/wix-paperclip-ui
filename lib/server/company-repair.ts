@@ -18,6 +18,10 @@ import {
   DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
   DEFAULT_OPENAI_SPECIALIST_MODEL,
+  DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC,
+  DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
+  buildSpecialistHeartbeatRuntimeConfig,
+  buildTeamLeadHeartbeatRuntimeConfig,
 } from "@/lib/paperclip-runtime-defaults";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { renderPromptTemplate } from "@/lib/prompt-render";
@@ -44,6 +48,7 @@ interface PaperclipAgent {
   title?: string;
   status?: string;
   adapterConfig?: Record<string, unknown>;
+  runtimeConfig?: Record<string, unknown>;
 }
 
 interface PaperclipApproval {
@@ -105,6 +110,7 @@ export interface CompanyRepairResult {
   promptSync: PromptSyncSummary;
   instructionFilesSynced: number;
   timeoutDefaultsUpdated: number;
+  heartbeatDefaultsUpdated: number;
   binding: {
     mode: ActivationMode | null;
     hasSiteIdentity: boolean;
@@ -153,6 +159,19 @@ function isSiteExpert(agent: PaperclipAgent): boolean {
   const title = typeof agent.title === "string" ? agent.title.trim().toLowerCase() : "";
   const name = typeof agent.name === "string" ? agent.name.trim().toLowerCase() : "";
   return role === "site_lead" || title === "wix site expert" || name === "wix site expert";
+}
+
+function isAiTeamLead(agent: PaperclipAgent): boolean {
+  const role = typeof agent.role === "string" ? agent.role.trim().toLowerCase() : "";
+  const title = typeof agent.title === "string" ? agent.title.trim().toLowerCase() : "";
+  const name = typeof agent.name === "string" ? agent.name.trim().toLowerCase() : "";
+  return (
+    role === "ceo" ||
+    title === "ai team lead" ||
+    title === "chief executive officer" ||
+    name === "ai team lead" ||
+    name === "ceo"
+  );
 }
 
 function isLiveSpecialist(agent: PaperclipAgent, aiTeamLeadId: string | null) {
@@ -455,10 +474,80 @@ async function normalizeLegacyAgentTimeouts(agents: PaperclipAgent[]) {
   return updatedCount;
 }
 
+function hasDesiredHeartbeatDefaults(agent: PaperclipAgent, teamLead: boolean) {
+  const desiredInterval = teamLead
+    ? DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC
+    : DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC;
+  const desiredEnabled = teamLead;
+  const runtimeConfig =
+    agent.runtimeConfig && typeof agent.runtimeConfig === "object" ? agent.runtimeConfig : {};
+  const heartbeat =
+    runtimeConfig &&
+    typeof runtimeConfig === "object" &&
+    "heartbeat" in runtimeConfig &&
+    runtimeConfig.heartbeat &&
+    typeof runtimeConfig.heartbeat === "object"
+      ? (runtimeConfig.heartbeat as Record<string, unknown>)
+      : {};
+  const adapterInterval =
+    typeof agent.adapterConfig?.heartbeatIntervalSec === "number"
+      ? agent.adapterConfig.heartbeatIntervalSec
+      : typeof agent.adapterConfig?.heartbeatIntervalSec === "string"
+        ? Number(agent.adapterConfig.heartbeatIntervalSec)
+        : undefined;
+
+  return (
+    adapterInterval === desiredInterval &&
+    heartbeat.enabled === desiredEnabled &&
+    heartbeat.intervalSec === desiredInterval &&
+    heartbeat.wakeOnAssignment === true &&
+    heartbeat.wakeOnOnDemand === true &&
+    heartbeat.wakeOnAutomation === true
+  );
+}
+
+async function normalizeDefaultHeartbeatPolicies(agents: PaperclipAgent[]) {
+  let updatedCount = 0;
+
+  await Promise.all(
+    agents.map(async (agent) => {
+      const teamLead = isAiTeamLead(agent);
+      if (hasDesiredHeartbeatDefaults(agent, teamLead)) {
+        return;
+      }
+
+      try {
+        await paperclip(`/agents/${agent.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(
+            syncHeartbeatConfig({
+              adapterConfig: {
+                ...(agent.adapterConfig || {}),
+                heartbeatIntervalSec: teamLead
+                  ? DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC
+                  : DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC,
+              },
+              runtimeConfig: teamLead
+                ? buildTeamLeadHeartbeatRuntimeConfig()
+                : buildSpecialistHeartbeatRuntimeConfig(),
+            }),
+          ),
+        });
+        updatedCount += 1;
+      } catch {
+        // Best-effort repair only.
+      }
+    }),
+  );
+
+  return updatedCount;
+}
+
 async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
   promptSync: PromptSyncSummary;
   instructionFilesSynced: number;
   timeoutDefaultsUpdated: number;
+  heartbeatDefaultsUpdated: number;
 }> {
   const agents = await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`);
   const missingPromptTargets = agents
@@ -486,9 +575,13 @@ async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
   const promptSync = await upgradeAgentPrompts(company, agentsAfterBackfill);
   const promptRefreshedAgents = await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`);
   const timeoutDefaultsUpdated = await normalizeLegacyAgentTimeouts(promptRefreshedAgents);
-  const refreshedAgents = timeoutDefaultsUpdated > 0
+  const agentsAfterTimeoutRepair = timeoutDefaultsUpdated > 0
     ? await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`)
     : promptRefreshedAgents;
+  const heartbeatDefaultsUpdated = await normalizeDefaultHeartbeatPolicies(agentsAfterTimeoutRepair);
+  const refreshedAgents = timeoutDefaultsUpdated > 0 || heartbeatDefaultsUpdated > 0
+    ? await paperclip<PaperclipAgent[]>(`/companies/${company.id}/agents`)
+    : agentsAfterTimeoutRepair;
   const instructionTargets = refreshedAgents
     .map((agent) => {
       const promptTemplate =
@@ -538,6 +631,7 @@ async function syncPromptsAndInstructions(company: PaperclipCompany): Promise<{
     promptSync,
     instructionFilesSynced: instructionTargets.length,
     timeoutDefaultsUpdated,
+    heartbeatDefaultsUpdated,
   };
 }
 
@@ -809,18 +903,20 @@ function extractVibeSiteBindingFromComments(comments: PaperclipIssueComment[]) {
   let status: string | undefined;
 
   for (const body of bodies) {
-    siteId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site id/i));
-    jobId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site job id/i));
-    developmentUrl ||= parseUrlFromLine(getLatestMatchingLine(body, /development url/i));
+    siteId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site id|vibesiteid/i));
+    jobId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site job id|vibesitejobid/i));
+    developmentUrl ||= parseUrlFromLine(getLatestMatchingLine(body, /development url|editor url|vibesitedevelopmenturl/i));
 
-    const candidatePublicUrl = parseUrlFromLine(getLatestMatchingLine(body, /vibe-site public url/i));
+    const candidatePublicUrl = parseUrlFromLine(
+      getLatestMatchingLine(body, /vibe-site public url|vibe-site url|vibesiteurl/i),
+    );
     if (!siteUrl && isTrustworthySiteUrl(candidatePublicUrl)) {
       siteUrl = candidatePublicUrl;
     }
 
     if (!status) {
-      const statusLine = getLatestMatchingLine(body, /current vibe-site status/i);
-      status = statusLine?.match(/current vibe-site status:\s*([A-Z_]+)/i)?.[1]?.toLowerCase();
+      const statusLine = getLatestMatchingLine(body, /current vibe-site status|vibesitestatus/i);
+      status = statusLine?.match(/(?:current vibe-site status|vibesitestatus):\s*([A-Z_]+)/i)?.[1]?.toLowerCase();
     }
   }
 
@@ -1037,11 +1133,12 @@ async function createStarterTeamAgents(company: PaperclipCompany, existingAgents
         adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
         adapterConfig: {
           model: DEFAULT_OPENAI_SPECIALIST_MODEL,
-          heartbeatIntervalSec: 1800,
+          heartbeatIntervalSec: DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC,
           dangerouslyBypassApprovalsAndSandbox: true,
           timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
           promptTemplate,
         },
+        runtimeConfig: buildSpecialistHeartbeatRuntimeConfig(),
       })),
     }).catch(() => null);
 
@@ -1197,7 +1294,8 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
   let approvalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
-  const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated } = await syncPromptsAndInstructions(company);
+  const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated, heartbeatDefaultsUpdated } =
+    await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
   const agents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => []);
   const issues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => []);
@@ -1322,6 +1420,11 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   if (timeoutDefaultsUpdated > 0) {
     notes.push(`Updated ${timeoutDefaultsUpdated} agent timeout default${timeoutDefaultsUpdated === 1 ? "" : "s"} to 30 minutes.`);
   }
+  if (heartbeatDefaultsUpdated > 0) {
+    notes.push(
+      `Updated ${heartbeatDefaultsUpdated} agent heartbeat default${heartbeatDefaultsUpdated === 1 ? "" : "s"} so only the AI Team Lead stays scheduled by default.`,
+    );
+  }
   if (staleTasksUpdated > 0) {
     notes.push(`Cleaned ${staleTasksUpdated} stale board task${staleTasksUpdated === 1 ? "" : "s"}.`);
   }
@@ -1347,6 +1450,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     promptSync,
     instructionFilesSynced,
     timeoutDefaultsUpdated,
+    heartbeatDefaultsUpdated,
     binding,
     notes,
   };

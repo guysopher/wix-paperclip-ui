@@ -25,7 +25,7 @@ import { useCompany } from "../../../providers";
 import { Breadcrumbs } from "../../../components/breadcrumbs";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { IconPicker } from "@/components/icon-picker";
-import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { getHeartbeatPolicy, syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { getRuntimeModel, getRuntimeModelLabel } from "@/lib/agent-model";
 import { DEFAULT_AGENT_TIMEOUT_SEC } from "@/lib/paperclip-runtime-defaults";
 import { renderPromptTemplate } from "@/lib/prompt-render";
@@ -73,6 +73,7 @@ const TIMEOUT_OPTIONS = [
 ];
 
 const SCHEDULE_OPTIONS = [
+  { id: "0", value: "Only when asked" },
   { id: "300", value: "Every 5 min" },
   { id: "600", value: "Every 10 min" },
   { id: "900", value: "Every 15 min" },
@@ -181,7 +182,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
   const populateForm = async (a: Agent) => {
     setEditTitle((a.title || a.name || "").trim());
     setEditIcon(a.icon);
-    setEditSchedule(String(getHeartbeatPolicy(a).intervalSec || 600));
+    setEditSchedule(String(getHeartbeatPolicy(a).intervalSec));
     setEditTimeout(String((a.adapterConfig?.timeoutSec as number) || DEFAULT_AGENT_TIMEOUT_SEC));
     setEditManager(a.reportsTo);
     setEditPrompt(await resolveAgentPrompt(a));
@@ -206,7 +207,7 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
     if (!agent) return;
     setSaving(true);
     const normalizedTitle = editTitle.trim() || agent.title || agent.name;
-    await updateAgent(agent.id, {
+    await updateAgent(agent.id, syncHeartbeatConfig({
       name: normalizedTitle,
       title: normalizedTitle,
       icon: editIcon,
@@ -218,7 +219,8 @@ function AgentDetailContent({ agentId }: { agentId: string }) {
         promptTemplate: renderPromptTemplate(editPrompt, company),
         model: editModel.trim() || null,
       },
-    });
+      runtimeConfig: agent.runtimeConfig || {},
+    }));
     setSaving(false);
     load();
   };

@@ -15,6 +15,10 @@ import {
   DEFAULT_OPENAI_ADAPTER_TYPE,
   DEFAULT_OPENAI_SPECIALIST_MODEL,
   DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+  DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC,
+  DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
+  buildSpecialistHeartbeatRuntimeConfig,
+  buildTeamLeadHeartbeatRuntimeConfig,
 } from "@/lib/paperclip-runtime-defaults";
 import { repairCompanyState } from "@/lib/server/company-repair";
 
@@ -574,6 +578,9 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "10. Never overwrite wixBinding with vibe-site data.",
     "11. Keep the main site and any experimental vibe site clearly distinguished in comments and handoffs.",
     "12. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
+    "13. If the founder provided any public source URL, inspect that exact source directly and use it to place real copy, imagery, or collection content on the main site after binding. Do not stop at empty shell creation.",
+    "14. Do not create board tasks asking for basic launch copy, imagery, or starter content while the founder-provided public source links still contain usable material. Only ask for exact missing facts that block a specific Wix mutation such as pricing, policy, or inventory values.",
+    "15. Do not mark this task done until the bound main site has a real non-placeholder site URL and at least one source-derived content batch has been applied to the production site, unless a concrete tooling blocker is clearly reported.",
   ];
 
   return {
@@ -601,7 +608,9 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "3. Use the Picasso-capable builder surface exposed in the runtime and treat returned job or operation ids as asynchronous work that must be polled to terminal state.",
     "4. Record all verified results in vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
     "5. Never write vibe-site data into wixBinding.",
-    "6. Do not mark this task done until a real vibe site exists or a concrete tooling blocker is clearly reported.",
+    "6. Use the founder-provided public source links as the content seed for the vibe site too. Adapt the real business material into the experimental direction instead of leaving the vibe site as a generic shell.",
+    "7. Resolve a real non-placeholder vibeSiteUrl when tooling exposes one. If only a development/editor URL is available, record it but keep pushing on public URL resolution or clearly document the blocker.",
+    "8. Do not mark this task done until a real vibe site exists with its own different verified site id and at least one source-derived content batch has been applied to that vibe site, or a concrete tooling blocker is clearly reported.",
   ];
 
   return {
@@ -652,11 +661,12 @@ async function createStarterTeamAgents(
         adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
         adapterConfig: {
           model: DEFAULT_OPENAI_SPECIALIST_MODEL,
-          heartbeatIntervalSec: 1800,
+          heartbeatIntervalSec: DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC,
           dangerouslyBypassApprovalsAndSandbox: true,
           timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
           promptTemplate,
         },
+        runtimeConfig: buildSpecialistHeartbeatRuntimeConfig(),
       })),
     }).catch((error) => {
       failures.push({
@@ -719,7 +729,7 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
   return {
     title: `Turn external source content into launch-ready site materials for ${summary.companyName}`,
     description: [
-      `Collect and adapt the best founder-provided source content for ${summary.companyName} so the real site can launch with real business materials instead of placeholders.`,
+      `Collect and adapt the best founder-provided source content for ${summary.companyName} so both the production site and the experimental vibe site can launch with real business materials instead of placeholders.`,
       "",
       "Business summary:",
       summary.businessDescription,
@@ -734,11 +744,12 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
       summary.siteSpecifics || "No structured source list yet. Start by checking the founder transcript and any referenced public sources.",
       "",
       "Execution rules:",
-      "1. If the founder has provided a website, Instagram, Flickr, gallery, blog, or other public source, inspect it directly and extract the best reusable content.",
-      "2. Turn that source material into site-ready copy, bios, FAQs, service descriptions, testimonials, galleries, captions, or collection text for the real site.",
-      "3. Prefer the real business site in wixBinding as the target surface for this work.",
-      "4. Coordinate with Wix Site Expert on placement and Brand Lead on tone when needed.",
-      "5. If a source is private, inaccessible, or unclear, report the concrete blocker instead of inventing content.",
+      "1. If the founder has provided a website, Instagram, Flickr, gallery, blog, or other public source, inspect that exact source first and extract the best reusable content before creating any board ask for starter assets.",
+      "2. Turn that source material into site-ready copy, bios, FAQs, service descriptions, testimonials, galleries, captions, collection text, and product-supporting content for both the main site and the vibe site.",
+      "3. Prefer placing the approved content directly onto the real business site in wixBinding and the separate vibe site when the relevant Wix tools are available. If direct placement is blocked, leave explicit placement-ready packages for both tracks.",
+      "4. Coordinate with Wix Site Expert for main-site placement, Vibe Site Expert for vibe-site placement, and Brand Lead on tone when needed.",
+      "5. Do not invent product facts or create board tasks for basic copy/image harvesting while the founder-provided public source still has unused material. Only escalate exact missing facts that block a specific mutation.",
+      "6. If a source is private, inaccessible, or unclear, report the concrete blocker instead of inventing content.",
     ].join("\n"),
     assigneeTitle: "Content Manager",
     priority: "high",
@@ -846,11 +857,12 @@ export async function POST(request: NextRequest) {
         adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
         adapterConfig: {
           model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
-          heartbeatIntervalSec: 1200,
+          heartbeatIntervalSec: DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
           dangerouslyBypassApprovalsAndSandbox: true,
           timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
           promptTemplate: AI_TEAM_LEAD_PROMPT,
         },
+        runtimeConfig: buildTeamLeadHeartbeatRuntimeConfig(),
       })),
     });
 

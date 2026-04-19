@@ -45,6 +45,8 @@ import {
   DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
   DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+  DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
+  buildTeamLeadHeartbeatRuntimeConfig,
 } from "@/lib/paperclip-runtime-defaults";
 import { useMsid } from "@/lib/msid-client";
 import { withMsid, withWorkspaceContext } from "@/lib/msid";
@@ -568,11 +570,12 @@ function NewCompanyPageContent() {
           adapterType: DEFAULT_OPENAI_ADAPTER_TYPE,
           adapterConfig: {
             model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
-            heartbeatIntervalSec: 1200,
+            heartbeatIntervalSec: DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
             dangerouslyBypassApprovalsAndSandbox: true,
             timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
             promptTemplate: AI_TEAM_LEAD_PROMPT,
           },
+          runtimeConfig: buildTeamLeadHeartbeatRuntimeConfig(),
         });
 
         const inboxIssue = await createIssue(company.id, {

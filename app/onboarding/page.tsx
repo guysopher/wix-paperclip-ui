@@ -43,6 +43,8 @@ import {
   DEFAULT_OPENAI_ADAPTER_TYPE,
   DEFAULT_OPENAI_SPECIALIST_MODEL,
   DEFAULT_OPENAI_TEAM_LEAD_MODEL,
+  DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
+  buildTeamLeadHeartbeatRuntimeConfig,
 } from "@/lib/paperclip-runtime-defaults";
 
 // --- Hardcoded Wix sites ---
@@ -444,17 +446,16 @@ function OnboardingFlow() {
           model: DEFAULT_OPENAI_TEAM_LEAD_MODEL,
           dangerouslyBypassApprovalsAndSandbox: true,
           timeoutSec: DEFAULT_AGENT_TIMEOUT_SEC,
-          heartbeatIntervalSec: 1200,
+          heartbeatIntervalSec: DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
           promptTemplate: onboardingPrompt,
         },
+        runtimeConfig: buildTeamLeadHeartbeatRuntimeConfig(),
       });
       setCeoAgent(ceo);
 
       // Set runtimeConfig
       await updateAgent(ceo.id, {
-        runtimeConfig: {
-          heartbeat: { enabled: true, intervalSec: 1200 },
-        },
+        runtimeConfig: buildTeamLeadHeartbeatRuntimeConfig(),
       });
 
       // 3. Create Board Inbox issue

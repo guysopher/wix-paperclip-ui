@@ -23,7 +23,7 @@ import { Refresh } from "@wix/wix-ui-icons-common";
 import { useCompany } from "../../providers";
 import { IconPicker } from "@/components/icon-picker";
 import { AgentAvatar } from "@/components/agent-avatar";
-import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { getHeartbeatPolicy, syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import {
   getAgents,
   getApprovals,
@@ -37,6 +37,10 @@ import {
   DEFAULT_AGENT_TIMEOUT_SEC,
   DEFAULT_OPENAI_ADAPTER_TYPE,
   DEFAULT_OPENAI_SPECIALIST_MODEL,
+  DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC,
+  DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC,
+  buildSpecialistHeartbeatRuntimeConfig,
+  buildTeamLeadHeartbeatRuntimeConfig,
 } from "@/lib/paperclip-runtime-defaults";
 
 const STATUS_SKINS: Record<string, "general" | "success" | "warning" | "danger" | "neutral"> = {
@@ -81,6 +85,19 @@ function summarizePayload(payload: Record<string, unknown>): string {
     .slice(0, 3)
     .map(([k, v]) => `${k}: ${String(v).slice(0, 80)}`);
   return entries.join(", ");
+}
+
+function isTeamLeadPayload(payload: Record<string, unknown>) {
+  const role = typeof payload.role === "string" ? payload.role.trim().toLowerCase() : "";
+  const title = typeof payload.title === "string" ? payload.title.trim().toLowerCase() : "";
+  const name = typeof payload.name === "string" ? payload.name.trim().toLowerCase() : "";
+  return (
+    role === "ceo" ||
+    title === "ai team lead" ||
+    title === "chief executive officer" ||
+    name === "ai team lead" ||
+    name === "ceo"
+  );
 }
 
 function renderPayloadValue(value: unknown): React.ReactNode {
@@ -248,10 +265,17 @@ function ApprovalsContent() {
     try {
       const p = approval.payload;
       const oldConfig = (p.adapterConfig || {}) as Record<string, unknown>;
-      const heartbeatIntervalSec = getHeartbeatPolicy({
+      const requestedHeartbeatIntervalSec = getHeartbeatPolicy({
         adapterConfig: oldConfig,
         runtimeConfig: (p.runtimeConfig || {}) as Record<string, unknown>,
-      }).intervalSec || 600;
+      }).intervalSec;
+      const teamLeadPayload = isTeamLeadPayload(p);
+      const heartbeatIntervalSec =
+        requestedHeartbeatIntervalSec > 0
+          ? requestedHeartbeatIntervalSec
+          : teamLeadPayload
+            ? DEFAULT_TEAM_LEAD_HEARTBEAT_INTERVAL_SEC
+            : DEFAULT_SPECIALIST_HEARTBEAT_INTERVAL_SEC;
 
       // If the original agent had file-based instructions, fetch them
       let promptTemplate = oldConfig.promptTemplate as string | undefined;
@@ -286,7 +310,7 @@ function ApprovalsContent() {
               ...(promptTemplate ? { promptTemplate } : {}),
             };
 
-      const newAgent = await createAgent(companyId, {
+      const newAgent = await createAgent(companyId, syncHeartbeatConfig({
         name: p.name,
         role: p.role,
         title: p.title,
@@ -295,7 +319,10 @@ function ApprovalsContent() {
         reportsTo: p.reportsTo || undefined,
         adapterType,
         adapterConfig,
-      });
+        runtimeConfig: teamLeadPayload
+          ? buildTeamLeadHeartbeatRuntimeConfig()
+          : buildSpecialistHeartbeatRuntimeConfig(),
+      }));
       setSelected(null);
       router.push(companyPath(`/team/${newAgent.id}`));
     } catch (e) {
