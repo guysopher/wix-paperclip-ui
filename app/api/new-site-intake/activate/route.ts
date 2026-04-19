@@ -934,6 +934,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       body: JSON.stringify({
         name: summary.companyName,
+        requireBoardApprovalForNewAgents: false,
         description: buildCompanyDescription({
           version: 1,
           businessDescription: summary.businessDescription,
