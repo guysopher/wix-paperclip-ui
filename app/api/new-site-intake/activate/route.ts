@@ -415,7 +415,7 @@ async function parseJsonWithRepair<T>(raw: string, schemaDescription: string): P
 
   const repairResponse = await client.chat.completions.create({
     model: "gpt-5.4",
-    max_completion_tokens: 1600,
+    max_completion_tokens: 2600,
     messages: [
       {
         role: "system",
@@ -472,7 +472,7 @@ async function summarizeTranscript(messages: IntakeMessage[]): Promise<IntakeSum
 }`;
   const response = await client.chat.completions.create({
     model: "gpt-5.4",
-    max_completion_tokens: 1200,
+    max_completion_tokens: 2600,
     messages: [
       {
         role: "system",
@@ -528,7 +528,7 @@ ${canonicalAgentOptions}
   });
 
   const raw = response.choices[0]?.message?.content || "{}";
-  const parsed = await parseJsonWithRepair<Partial<IntakeSummary>>(raw, schemaDescription);
+  const parsed = await parseJsonWithRepair<Partial<IntakeSummary>>(raw, schemaDescription).catch(() => ({}));
 
   const companyName = parsed.companyName?.trim() || "New Business";
   const businessDescription =
