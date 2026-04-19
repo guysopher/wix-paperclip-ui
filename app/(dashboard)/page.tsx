@@ -66,6 +66,7 @@ import {
   type Agent,
   type Approval,
   type HeartbeatRun,
+  type Issue,
 } from "@/lib/api";
 
 function feedParseUsage(usageJson: string | null) {
