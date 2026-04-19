@@ -38,7 +38,7 @@ import {
 import { useCompany, useCompanyData } from "../providers";
 import { AgentAvatar } from "@/components/agent-avatar";
 import { TaskLinkWithPreview } from "@/components/task-link-with-preview";
-import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { getHeartbeatPolicy, syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { openCeoChatDiscussion } from "@/lib/ceo-chat-events";
 import {
   issueNeedsReply,
@@ -322,16 +322,13 @@ function closestActivityIndex(intervalSec: number): number {
 }
 
 function getCompanyActivityInterval(agents: Agent[]): number {
-  const scheduledIntervals = agents
-    .map((agent) => getHeartbeatPolicy(agent).intervalSec)
-    .filter((intervalSec) => intervalSec > 0)
-    .sort((a, b) => a - b);
-
-  if (scheduledIntervals.length === 0) {
+  const ceoAgent = agents.find((agent) => agent.role === "ceo");
+  if (!ceoAgent) {
     return DEFAULT_ACTIVITY_INTERVAL_SEC;
   }
 
-  return scheduledIntervals[Math.floor((scheduledIntervals.length - 1) / 2)];
+  const ceoInterval = getHeartbeatPolicy(ceoAgent).intervalSec;
+  return ceoInterval > 0 ? ceoInterval : DEFAULT_ACTIVITY_INTERVAL_SEC;
 }
 
 function DashboardContent() {
@@ -1129,42 +1126,32 @@ function DashboardContent() {
   const selectedActivityIndex = activitySliderIndex ?? companyActivityIndex;
   const selectedActivityIntervalSec =
     ACTIVITY_INTERVAL_OPTIONS[selectedActivityIndex]?.seconds ?? DEFAULT_ACTIVITY_INTERVAL_SEC;
-  const scheduledIntervals = agents
-    .map((agent) => getHeartbeatPolicy(agent).intervalSec)
-    .filter((intervalSec) => intervalSec > 0)
-    .sort((a, b) => a - b);
-  const uniqueScheduledIntervals = Array.from(new Set(scheduledIntervals));
   const pausedAgents = agents.filter((agent) => agent.status === "paused").length;
-  const estimateAgents = agents.filter((agent) => agent.status !== "paused");
   const averageTokensPerRun =
     tokenStats.totalRuns > 0
       ? (tokenStats.totalInput + tokenStats.totalOutput + tokenStats.totalCached) / tokenStats.totalRuns
       : 0;
   const averageCostPerRun = tokenStats.totalRuns > 0 ? tokenStats.totalCost / tokenStats.totalRuns : 0;
+  const ceoUsage = ceoAgent ? tokenStats.byAgent[ceoAgent.id] : undefined;
   const projectedMonthlyUsage = (() => {
-    if (estimateAgents.length === 0 || tokenStats.totalRuns === 0) {
+    if (!ceoAgent || ceoAgent.status === "paused" || tokenStats.totalRuns === 0) {
       return { runs: 0, tokens: 0, cost: 0, hasData: false };
     }
 
-    const monthlyRunsPerAgent = MONTHLY_SECONDS / selectedActivityIntervalSec;
-    let runs = 0;
-    let tokens = 0;
-    let cost = 0;
+    const monthlyRuns = MONTHLY_SECONDS / selectedActivityIntervalSec;
+    const averageAgentTokens =
+      ceoUsage && ceoUsage.runs > 0
+        ? (ceoUsage.input + ceoUsage.output + ceoUsage.cached) / ceoUsage.runs
+        : averageTokensPerRun;
+    const averageAgentCost =
+      ceoUsage && ceoUsage.runs > 0 ? ceoUsage.cost / ceoUsage.runs : averageCostPerRun;
 
-    for (const agent of estimateAgents) {
-      const agentUsage = tokenStats.byAgent[agent.id];
-      const averageAgentTokens =
-        agentUsage && agentUsage.runs > 0
-          ? (agentUsage.input + agentUsage.output + agentUsage.cached) / agentUsage.runs
-          : averageTokensPerRun;
-      const averageAgentCost =
-        agentUsage && agentUsage.runs > 0 ? agentUsage.cost / agentUsage.runs : averageCostPerRun;
-      runs += monthlyRunsPerAgent;
-      tokens += averageAgentTokens * monthlyRunsPerAgent;
-      cost += averageAgentCost * monthlyRunsPerAgent;
-    }
-
-    return { runs, tokens, cost, hasData: true };
+    return {
+      runs: monthlyRuns,
+      tokens: averageAgentTokens * monthlyRuns,
+      cost: averageAgentCost * monthlyRuns,
+      hasData: true,
+    };
   })();
   const monthlyBudgetUsd = company.budgetMonthlyCents / 100;
   const projectedBudgetPct =
@@ -1182,29 +1169,31 @@ function DashboardContent() {
   };
 
   const handleApplyActivityLevel = async () => {
-    if (!agents.length) return;
+    if (!ceoAgent) return;
 
     setSavingActivity(true);
     setActivityError("");
     setActivityFeedback("");
     try {
-      await Promise.all(
-        agents.map((agent) =>
-          updateAgent(agent.id, {
-            adapterConfig: {
-              ...agent.adapterConfig,
-              heartbeatIntervalSec: selectedActivityIntervalSec,
-            },
-          })
-        )
+      await updateAgent(
+        ceoAgent.id,
+        syncHeartbeatConfig({
+          adapterConfig: {
+            ...(ceoAgent.adapterConfig || {}),
+            heartbeatIntervalSec: selectedActivityIntervalSec,
+          },
+          runtimeConfig: {
+            ...(ceoAgent.runtimeConfig || {}),
+          },
+        }),
       );
       await refresh();
       setActivitySliderDirty(false);
       setActivityFeedback(
-        `All ${agents.length} agent${agents.length === 1 ? "" : "s"} now check in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
+        `The AI Team Lead now checks in every ${formatHeartbeatInterval(selectedActivityIntervalSec)}.`
       );
     } catch (error) {
-      setActivityError(error instanceof Error ? error.message : "Failed to update agent activity.");
+      setActivityError(error instanceof Error ? error.message : "Failed to update AI Team Lead activity.");
     } finally {
       setSavingActivity(false);
     }
@@ -3068,28 +3057,28 @@ function DashboardContent() {
                       marginBottom: 14,
                     }}
                   >
-                    <div>
-                      <div style={{ fontSize: 12, color: "#4a6375", textTransform: "uppercase", letterSpacing: 0.4 }}>
-                        Company activity
+                      <div>
+                        <div style={{ fontSize: 12, color: "#4a6375", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                        AI Team Lead activity
                       </div>
                       <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>
                         {describeActivityLevel(selectedActivityIndex)}
                       </div>
                       <div style={{ fontSize: 13, color: "#4a6375", marginTop: 4 }}>
-                        Selected cadence: <strong>{formatHeartbeatInterval(selectedActivityIntervalSec)}</strong> for every agent.
+                        Selected cadence: <strong>{formatHeartbeatInterval(selectedActivityIntervalSec)}</strong> for the AI Team Lead.
                       </div>
                     </div>
                     <div style={{ minWidth: 220 }}>
                       <div style={{ fontSize: 12, color: "#4a6375", textTransform: "uppercase", letterSpacing: 0.4 }}>
-                        Estimated monthly spend
+                        Estimated monthly scheduled spend
                       </div>
                       <div style={{ fontSize: 24, fontWeight: 700, color: "#162d3d", marginTop: 4 }}>
                         {projectedMonthlyUsage.hasData ? `~$${projectedMonthlyUsage.cost.toFixed(2)}` : "—"}
                       </div>
                       <div style={{ fontSize: 13, color: "#4a6375", marginTop: 4 }}>
                         {projectedMonthlyUsage.hasData
-                          ? `~${(projectedMonthlyUsage.tokens / 1000).toFixed(1)}k tokens / ${Math.round(projectedMonthlyUsage.runs).toLocaleString()} scheduled runs`
-                          : "Estimate appears after the team has usable run history."}
+                          ? `~${(projectedMonthlyUsage.tokens / 1000).toFixed(1)}k tokens / ${Math.round(projectedMonthlyUsage.runs).toLocaleString()} scheduled AI Team Lead runs`
+                          : "Estimate appears after the AI Team Lead has usable run history."}
                       </div>
                     </div>
                   </div>
@@ -3100,7 +3089,7 @@ function DashboardContent() {
                     max={ACTIVITY_INTERVAL_OPTIONS.length - 1}
                     step={1}
                     value={selectedActivityIndex}
-                    disabled={savingActivity || agents.length === 0}
+                    disabled={savingActivity || !ceoAgent}
                     onChange={(event) => {
                       setActivitySliderIndex(Number(event.target.value));
                       setActivitySliderDirty(true);
@@ -3110,7 +3099,7 @@ function DashboardContent() {
                     style={{
                       width: "100%",
                       accentColor: "#3899ec",
-                      cursor: savingActivity || agents.length === 0 ? "not-allowed" : "pointer",
+                      cursor: savingActivity || !ceoAgent ? "not-allowed" : "pointer",
                     }}
                   />
 
@@ -3139,10 +3128,11 @@ function DashboardContent() {
                     }}
                   >
                     <div style={{ fontSize: 13, color: "#4a6375" }}>
-                      {uniqueScheduledIntervals.length > 1 && scheduledIntervals.length > 0
-                        ? `Current schedules are mixed: ${formatHeartbeatInterval(scheduledIntervals[0])} to ${formatHeartbeatInterval(scheduledIntervals[scheduledIntervals.length - 1])}. Applying this will unify all agent intervals.`
-                        : `Current company setting: ${formatHeartbeatInterval(companyActivityIntervalSec)} for ${agents.length} agent${agents.length === 1 ? "" : "s"}.`}
-                      {pausedAgents > 0 && ` ${pausedAgents} paused agent${pausedAgents === 1 ? " is" : "s are"} excluded from the spend estimate.`}
+                      {ceoAgent
+                        ? `Current AI Team Lead setting: ${formatHeartbeatInterval(companyActivityIntervalSec)}. Specialists wake by assignment, automation, or manual wakeups.`
+                        : "No AI Team Lead found yet, so there is no scheduled cadence to adjust."}
+                      {pausedAgents > 0 && ` ${pausedAgents} paused agent${pausedAgents === 1 ? " is" : "s are"} excluded from general run history.`}
+                      {" Specialist assignment/manual work is not included in this schedule estimate."}
                       {projectedMonthlyUsage.hasData && projectedBudgetPct !== null && ` Estimated budget use: ${projectedBudgetPct}% of monthly budget.`}
                     </div>
                     <Button
@@ -3150,13 +3140,12 @@ function DashboardContent() {
                       onClick={handleApplyActivityLevel}
                       disabled={
                         savingActivity ||
-                        agents.length === 0 ||
+                        !ceoAgent ||
                         (!activitySliderDirty &&
-                          selectedActivityIntervalSec === companyActivityIntervalSec &&
-                          uniqueScheduledIntervals.length <= 1)
+                          selectedActivityIntervalSec === companyActivityIntervalSec)
                       }
                     >
-                      {savingActivity ? "Applying..." : "Apply to all agents"}
+                      {savingActivity ? "Applying..." : "Apply to AI Team Lead"}
                     </Button>
                   </div>
 
