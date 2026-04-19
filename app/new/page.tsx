@@ -786,7 +786,8 @@ function NewCompanyPageContent() {
 
       const data = (await response.json()) as NewSiteActivationResponse;
       setError("");
-      router.push(getWorkspacePath("/", data.activationSession));
+      const nextPath = getWorkspacePath("/", data.activationSession);
+      window.location.assign(nextPath);
     } catch (activationError) {
       setError(
         activationError instanceof Error
