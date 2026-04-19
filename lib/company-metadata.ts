@@ -216,7 +216,7 @@ function normalizeStarterTeam(value: unknown): ActivationStarterTeamEntry[] | un
   }
 
   const normalized = value
-    .map((entry) => {
+    .map((entry): ActivationStarterTeamEntry | null => {
       if (!isRecord(entry) || typeof entry.role !== "string") {
         return null;
       }
@@ -232,7 +232,7 @@ function normalizeStarterTeam(value: unknown): ActivationStarterTeamEntry[] | un
         expectedResult: getString(entry.expectedResult),
       };
     })
-    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+    .filter((entry): entry is ActivationStarterTeamEntry => Boolean(entry));
 
   return normalized.length > 0 ? normalized : undefined;
 }
