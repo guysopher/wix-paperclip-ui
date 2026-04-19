@@ -160,7 +160,8 @@ function buildTranscript(messages: IntakeMessage[]): string {
 }
 
 const URL_PATTERN = /\bhttps?:\/\/[^\s<>()]+/gi;
-const SOCIAL_HANDLE_PATTERN = /\b(instagram|insta|flickr|facebook|tiktok|pinterest|youtube|etsy)\b[^@\n\r]{0,40}@?([A-Za-z0-9._-]{2,})/gi;
+const SOCIAL_HANDLE_PATTERN = /\b(instagram|insta|flickr|facebook|tiktok|pinterest|youtube|etsy)\b\s*(?:account|handle|page|profile)?\s*[:\-]\s*@?([A-Za-z0-9._-]{2,})/gi;
+const EXPLICIT_HANDLE_PATTERN = /(^|\s)@([A-Za-z0-9._-]{2,})\b/g;
 
 function cleanCapturedLink(value: string): string {
   return value.trim().replace(/[),.!?;:]+$/g, "");
@@ -194,6 +195,13 @@ function extractSourceLinks(messages: IntakeMessage[]): string[] {
         links.add(`https://www.instagram.com/${handle}`);
       } else {
         links.add(`${platform}: ${handle}`);
+      }
+    }
+
+    for (const match of text.matchAll(EXPLICIT_HANDLE_PATTERN)) {
+      const handle = match[2]?.trim();
+      if (handle) {
+        links.add(`@${handle}`);
       }
     }
   }
