@@ -2249,6 +2249,19 @@ function DashboardContent() {
                                         });
                                       }}
                                     />
+                                    <PopoverMenu.MenuItem
+                                      text="?  Explain"
+                                      disabled={Boolean(attentionActionBase)}
+                                      onClick={() => {
+                                        if (!companyId) {
+                                          return;
+                                        }
+                                        openCeoChatDiscussion({
+                                          companyId,
+                                          text: `Please explain ${taskRef} in detail.\nRequest shown to me: ${card.ask}\n\nI want to understand what this means, what is blocking it, what decision you need from me, and what happens next.`,
+                                        });
+                                      }}
+                                    />
                                     <PopoverMenu.Divider />
                                     <PopoverMenu.MenuItem
                                       text="✓  Mark as Done"
