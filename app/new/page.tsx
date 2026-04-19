@@ -83,6 +83,7 @@ interface NewSiteIntakeResponse {
   text?: string;
   conversationStatus?: NewSiteConversationStatus;
   transcript?: UiMessage[];
+  proposedTeamTitles?: string[];
 }
 
 interface NewSiteActivationResponse {
@@ -342,6 +343,7 @@ function NewCompanyPageContent() {
     useState<NewSiteConversationStatus>("gathering");
   const [startingNewSite, setStartingNewSite] = useState(false);
   const [selectedDraftHireTitles, setSelectedDraftHireTitles] = useState<string[]>([]);
+  const [draftProposedTeamTitles, setDraftProposedTeamTitles] = useState<string[]>([]);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -365,10 +367,12 @@ function NewCompanyPageContent() {
         .filter((title) => title !== "AI Team Lead")
         .length > 0;
     })?.text || "";
-  const proposedDraftTeamTitles =
-    newSiteConversationStatus === "ready_to_activate"
-      ? uniqueTitles(extractAgentTitlesFromText(latestProposalCeoMessage).filter((title) => title !== "AI Team Lead"))
-      : [];
+  const parsedProposalTeamTitles = uniqueTitles(
+    extractAgentTitlesFromText(latestProposalCeoMessage).filter((title) => title !== "AI Team Lead"),
+  );
+  const proposedDraftTeamTitles = draftProposedTeamTitles.length > 0
+    ? draftProposedTeamTitles
+    : parsedProposalTeamTitles;
   const approvedTeamTitles = (activationMetadata?.starterTeam || [])
     .map((entry) => entry?.role)
     .filter((role): role is string => typeof role === "string" && role.trim().length > 0 && role !== "AI Team Lead");
@@ -379,7 +383,7 @@ function NewCompanyPageContent() {
   const isNewSiteFlow = isNewSiteSelected;
   const canHireTeam =
     isDraftNewSiteFlow &&
-    newSiteConversationStatus === "ready_to_activate" &&
+    proposedDraftTeamTitles.length > 0 &&
     !chatSending &&
     !startingNewSite;
   const isExistingSiteInterviewFlow = activationSession?.mode === "existing_site";
@@ -453,6 +457,12 @@ function NewCompanyPageContent() {
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (!isDraftNewSiteFlow) {
+      setDraftProposedTeamTitles([]);
+    }
+  }, [isDraftNewSiteFlow]);
 
   useEffect(() => {
     if (!showDraftHireWidget) {
@@ -754,6 +764,14 @@ function NewCompanyPageContent() {
         setChatMessages(transcript);
       }
       setNewSiteConversationStatus(data.conversationStatus || "gathering");
+      if (Array.isArray(data.proposedTeamTitles)) {
+        const nextTitles = uniqueTitles(
+          data.proposedTeamTitles.filter((title) => typeof title === "string" && title !== "AI Team Lead"),
+        );
+        if (nextTitles.length > 0) {
+          setDraftProposedTeamTitles(nextTitles);
+        }
+      }
       setError("");
       return {
         ...data,

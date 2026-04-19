@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { renderAgentTemplateShowcase } from "@/lib/agent-templates";
+import { CANONICAL_AGENT_TITLES, renderAgentTemplateShowcase } from "@/lib/agent-templates";
 import { appendFetchedUrlContext } from "@/lib/url-context";
 
 const client = new OpenAI();
@@ -23,6 +23,16 @@ interface IntakeMessage {
 interface IntakeRequest {
   trigger?: IntakeTrigger;
   messages?: IntakeMessage[];
+}
+
+function extractProposedTeamTitles(text: string): string[] {
+  if (!text) {
+    return [];
+  }
+
+  return CANONICAL_AGENT_TITLES.filter((title) =>
+    new RegExp(`\\b${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
+  ).filter((title) => title !== "AI Team Lead");
 }
 
 type ConversationStatus = "gathering" | "ready_to_activate";
@@ -264,6 +274,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       text: replyText,
       conversationStatus,
+      proposedTeamTitles: extractProposedTeamTitles(replyText),
     });
   } catch (error) {
     console.error("New site intake error:", error);
