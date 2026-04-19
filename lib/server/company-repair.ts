@@ -776,13 +776,18 @@ async function cleanStaleBoardTasks(company: PaperclipCompany, issues: Paperclip
   return changed;
 }
 
-async function cancelDetachedStartupRuns(companyId: string, aiTeamLeadId: string) {
+async function cancelDetachedStartupRuns(companyId: string, agentIds: string[]) {
+  if (agentIds.length === 0) {
+    return 0;
+  }
+
+  const allowedAgentIds = new Set(agentIds);
   const runs = await paperclip<PaperclipRun[]>(`/companies/${companyId}/heartbeat-runs`).catch(() => []);
   const detachedRuns = runs.filter((run) => {
     if (run.status !== "running") {
       return false;
     }
-    if (run.agentId !== aiTeamLeadId) {
+    if (!run.agentId || !allowedAgentIds.has(run.agentId)) {
       return false;
     }
     return run.errorCode === "process_detached";
@@ -1417,12 +1422,17 @@ export async function repairCompanyState(companyId: string, options?: { startup?
       }
     }
 
+    const startupAgentIds = workingAgents
+      .filter((agent) => agent.id === aiTeamLead.id || isLiveSpecialist(agent, aiTeamLead.id))
+      .map((agent) => agent.id);
+
+    detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, startupAgentIds).catch(() => 0);
+
     const liveSpecialistsBeforeCreation = workingAgents.filter((agent) =>
       isLiveSpecialist(agent, aiTeamLead.id),
     );
 
     if (liveSpecialistsBeforeCreation.length === 0) {
-      detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, aiTeamLead.id).catch(() => 0);
       const createdAgentIds = await createStarterTeamAgents(refreshedCompany, workingAgents).catch(() => []);
       starterAgentsCreated = createdAgentIds.length;
       if (starterAgentsCreated > 0) {
@@ -1505,7 +1515,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     notes.push(`Auto-approved ${approvalsApproved} pending starter-team hire approval${approvalsApproved === 1 ? "" : "s"}.`);
   }
   if (detachedStartupRunsCancelled > 0) {
-    notes.push(`Cancelled ${detachedStartupRunsCancelled} detached startup run${detachedStartupRunsCancelled === 1 ? "" : "s"} and re-woke the AI Team Lead.`);
+    notes.push(`Cancelled ${detachedStartupRunsCancelled} detached startup run${detachedStartupRunsCancelled === 1 ? "" : "s"} and re-woke the starter team.`);
   }
   if (starterAgentsCreated > 0) {
     notes.push(`Created ${starterAgentsCreated} starter-team specialist agent${starterAgentsCreated === 1 ? "" : "s"} after main-site binding.`);
