@@ -950,7 +950,7 @@ export async function POST(request: NextRequest) {
     }
 
     await Promise.all(
-      [ceoAgent.id, wixSiteExpert?.id, vibeSiteExpert?.id]
+      [ceoAgent.id, wixSiteExpert?.id, vibeSiteExpert?.id, contentManager?.id]
         .filter((id): id is string => Boolean(id))
         .map((agentId) =>
           paperclip(`/agents/${agentId}/heartbeat/invoke`, {
