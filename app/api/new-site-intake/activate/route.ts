@@ -35,6 +35,7 @@ interface IntakeMessage {
 
 interface ActivateRequest {
   messages?: IntakeMessage[];
+  selectedTeamTitles?: string[];
 }
 
 interface KickoffTask {
@@ -307,6 +308,22 @@ function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan
   });
 
   return [...normalizedCoreTeam, ...additionalAgents].slice(0, 6);
+}
+
+function uniqueTitles(titles: string[]): string[] {
+  return Array.from(new Set(titles.map((title) => title.trim()).filter(Boolean)));
+}
+
+function filterStarterTeamBySelection(
+  starterTeam: StarterAgentPlan[],
+  selectedTeamTitles: string[],
+): StarterAgentPlan[] {
+  if (selectedTeamTitles.length === 0) {
+    return starterTeam;
+  }
+
+  const allowedTitles = new Set(selectedTeamTitles);
+  return starterTeam.filter((entry) => entry.role === "AI Team Lead" || allowedTitles.has(entry.role));
 }
 
 async function parseJsonWithRepair<T>(raw: string, schemaDescription: string): Promise<T> {
@@ -796,12 +813,21 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ActivateRequest;
     const messages = body.messages || [];
+    const selectedTeamTitles = Array.isArray(body.selectedTeamTitles)
+      ? uniqueTitles(
+          body.selectedTeamTitles.filter((title): title is string => typeof title === "string"),
+        )
+      : [];
 
     if (messages.length === 0) {
       return NextResponse.json({ error: "Conversation transcript is required" }, { status: 400 });
     }
 
-    const summary = await summarizeTranscript(messages);
+    const summarized = await summarizeTranscript(messages);
+    const summary: IntakeSummary = {
+      ...summarized,
+      starterTeam: filterStarterTeamBySelection(summarized.starterTeam, selectedTeamTitles),
+    };
     const approvedAt = new Date().toISOString();
 
     const company = await paperclip<{
@@ -873,7 +899,10 @@ export async function POST(request: NextRequest) {
       ceoAgent.id,
     );
 
-    const missingRequiredStartupAgents = REQUIRED_STARTUP_AGENT_TITLES.filter(
+    const requiredStartupAgentTitles = REQUIRED_STARTUP_AGENT_TITLES.filter((title) =>
+      summary.starterTeam.some((entry) => entry.role === title),
+    );
+    const missingRequiredStartupAgents = requiredStartupAgentTitles.filter(
       (title) => !starterAgents.has(title),
     );
 

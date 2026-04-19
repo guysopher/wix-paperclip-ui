@@ -91,6 +91,10 @@ interface NewSiteActivationResponse {
   backendSignature: string;
 }
 
+function uniqueTitles(titles: string[]): string[] {
+  return Array.from(new Set(titles.map((title) => title.trim()).filter(Boolean)));
+}
+
 function isHiddenSystemComment(body: string): boolean {
   return body.startsWith(HIDDEN_SYSTEM_PREFIX);
 }
@@ -337,6 +341,7 @@ function NewCompanyPageContent() {
   const [newSiteConversationStatus, setNewSiteConversationStatus] =
     useState<NewSiteConversationStatus>("gathering");
   const [startingNewSite, setStartingNewSite] = useState(false);
+  const [selectedDraftHireTitles, setSelectedDraftHireTitles] = useState<string[]>([]);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -352,11 +357,11 @@ function NewCompanyPageContent() {
   const latestCeoMessage = [...chatMessages].reverse().find((message) => message.role === "ceo")?.text || "";
   const proposedDraftTeamTitles =
     newSiteConversationStatus === "ready_to_activate"
-      ? extractAgentTitlesFromText(latestCeoMessage)
+      ? uniqueTitles(extractAgentTitlesFromText(latestCeoMessage).filter((title) => title !== "AI Team Lead"))
       : [];
   const approvedTeamTitles = (activationMetadata?.starterTeam || [])
     .map((entry) => entry?.role)
-    .filter((role): role is string => typeof role === "string" && role.trim().length > 0);
+    .filter((role): role is string => typeof role === "string" && role.trim().length > 0 && role !== "AI Team Lead");
   const interviewStage = activationMetadata?.newSiteInterview?.stage || "business_name";
   const bridgeStatus = activationMetadata?.picassoBridge?.status || bridgeJob?.status || "not_started";
   const isNewSiteSelected = effectiveActivationMode === "new_site";
@@ -381,6 +386,9 @@ function NewCompanyPageContent() {
     approvedTeamTitles.length > 0 &&
     canHireExistingSiteTeam;
   const hireWidgetTeamTitles = showDraftHireWidget ? proposedDraftTeamTitles : approvedTeamTitles;
+  const selectedHireCount = showDraftHireWidget
+    ? selectedDraftHireTitles.filter((title) => proposedDraftTeamTitles.includes(title)).length
+    : hireWidgetTeamTitles.length;
   const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
   const buildInProgress =
     Boolean(
@@ -435,6 +443,18 @@ function NewCompanyPageContent() {
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (!showDraftHireWidget) {
+      setSelectedDraftHireTitles([]);
+      return;
+    }
+
+    setSelectedDraftHireTitles((current) => {
+      const validCurrent = current.filter((title) => proposedDraftTeamTitles.includes(title));
+      return validCurrent.length > 0 ? validCurrent : proposedDraftTeamTitles;
+    });
+  }, [proposedDraftTeamTitles, showDraftHireWidget]);
 
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -741,7 +761,10 @@ function NewCompanyPageContent() {
     }
   }, []);
 
-  const activateNewSiteConversation = useCallback(async (messages: UiMessage[]) => {
+  const activateNewSiteConversation = useCallback(async (
+    messages: UiMessage[],
+    selectedTeamTitles: string[],
+  ) => {
     setStartingNewSite(true);
     try {
       const response = await fetch("/api/new-site-intake/activate", {
@@ -752,6 +775,7 @@ function NewCompanyPageContent() {
             role: message.role,
             text: message.text,
           })),
+          selectedTeamTitles,
         }),
       });
 
@@ -1495,23 +1519,54 @@ function NewCompanyPageContent() {
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.9, textTransform: "uppercase", color: "#7b8c9d", marginBottom: 8 }}>
                         Team to be hired
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {hireWidgetTeamTitles.map((title) => (
-                          <div
+                          <label
                             key={title}
                             style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
                               fontSize: 12,
                               fontWeight: 600,
                               color: "#274863",
                               background: "rgba(237,244,255,0.95)",
                               border: "1px solid rgba(191,214,242,0.9)",
-                              borderRadius: 999,
-                              padding: "6px 10px",
+                              borderRadius: 12,
+                              padding: "8px 10px",
                               lineHeight: 1.3,
+                              cursor: showDraftHireWidget ? "pointer" : "default",
                             }}
                           >
-                            {title}
-                          </div>
+                            {showDraftHireWidget ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedDraftHireTitles.includes(title)}
+                                onChange={(event) => {
+                                  const checked = event.target.checked;
+                                  setSelectedDraftHireTitles((current) => {
+                                    if (checked) {
+                                      return uniqueTitles([...current, title]);
+                                    }
+                                    return current.filter((entry) => entry !== title);
+                                  });
+                                }}
+                                style={{ width: 16, height: 16, accentColor: "#2f8cff", cursor: "pointer" }}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  width: 16,
+                                  height: 16,
+                                  borderRadius: "50%",
+                                  background: "#2f8cff",
+                                  boxShadow: "inset 0 0 0 4px rgba(255,255,255,0.95)",
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                            <span>{title}</span>
+                          </label>
                         ))}
                       </div>
                     </div>
@@ -1519,10 +1574,14 @@ function NewCompanyPageContent() {
                   <Button
                     size="small"
                     skin="premium"
-                    disabled={showDraftHireWidget ? !canHireTeam || startingNewSite : !canHireExistingSiteTeam}
+                    disabled={
+                      showDraftHireWidget
+                        ? !canHireTeam || startingNewSite || selectedHireCount === 0
+                        : !canHireExistingSiteTeam
+                    }
                     onClick={() => {
                       if (showDraftHireWidget) {
-                        void activateNewSiteConversation(chatMessagesRef.current);
+                        void activateNewSiteConversation(chatMessagesRef.current, selectedDraftHireTitles);
                         return;
                       }
                       handleOpenWorkspace();
@@ -1540,7 +1599,9 @@ function NewCompanyPageContent() {
                         Hiring...
                       </span>
                     ) : (
-                      "Hire the Team"
+                      showDraftHireWidget
+                        ? `Hire ${selectedHireCount} agent${selectedHireCount === 1 ? "" : "s"}`
+                        : "Hire the Team"
                     )}
                   </Button>
                 </div>
