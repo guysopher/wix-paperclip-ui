@@ -1571,9 +1571,8 @@ function NewCompanyPageContent() {
                       </div>
                     </div>
                   )}
-                  <Button
-                    size="small"
-                    skin="premium"
+                  <button
+                    type="button"
                     disabled={
                       showDraftHireWidget
                         ? !canHireTeam || startingNewSite || selectedHireCount === 0
@@ -1585,6 +1584,34 @@ function NewCompanyPageContent() {
                         return;
                       }
                       handleOpenWorkspace();
+                    }}
+                    style={{
+                      appearance: "none",
+                      border: "none",
+                      borderRadius: 999,
+                      padding: "12px 20px",
+                      minHeight: 40,
+                      background:
+                        showDraftHireWidget
+                          ? "linear-gradient(135deg, #8f2fff 0%, #a53ef3 45%, #d66bdc 100%)"
+                          : "linear-gradient(135deg, #8f2fff 0%, #a53ef3 45%, #d66bdc 100%)",
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      cursor:
+                        (showDraftHireWidget
+                          ? !canHireTeam || startingNewSite || selectedHireCount === 0
+                          : !canHireExistingSiteTeam)
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity:
+                        (showDraftHireWidget
+                          ? !canHireTeam || startingNewSite || selectedHireCount === 0
+                          : !canHireExistingSiteTeam)
+                          ? 0.5
+                          : 1,
+                      boxShadow: "0 10px 24px rgba(143, 47, 255, 0.2)",
                     }}
                   >
                     {showDraftHireWidget && startingNewSite ? (
@@ -1603,7 +1630,7 @@ function NewCompanyPageContent() {
                         ? `Hire ${selectedHireCount} agent${selectedHireCount === 1 ? "" : "s"}`
                         : "Hire the Team"
                     )}
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>

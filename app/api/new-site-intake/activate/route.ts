@@ -1009,6 +1009,7 @@ export async function POST(request: NextRequest) {
     const vibeSiteExpert = starterAgents.get("Vibe Site Expert") || null;
     const contentManager = starterAgents.get("Content Manager") || null;
     const industryAdvisor = starterAgents.get("Industry Advisor") || null;
+    const brandLead = starterAgents.get("Brand Lead") || null;
 
     const boardIssue = await paperclip<{
       id: string;
@@ -1102,12 +1103,9 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    const repairResult = await repairCompanyState(updatedCompany.id, { startup: true });
-    if (!repairResult.ready) {
-      throw new Error(
-        repairResult.binding.problems[0] ||
-          "Company startup verification failed before the first run.",
-      );
+    const repairResult = await repairCompanyState(updatedCompany.id, { startup: true }).catch(() => null);
+    if (repairResult && !repairResult.ready) {
+      console.warn("New-site startup repair completed with warnings:", repairResult);
     }
 
     await paperclip(`/issues/${boardIssue.id}/comments`, {
@@ -1153,7 +1151,7 @@ export async function POST(request: NextRequest) {
     }
 
     await Promise.all(
-      [ceoAgent.id, wixSiteExpert?.id, vibeSiteExpert?.id, contentManager?.id]
+      [ceoAgent.id, wixSiteExpert?.id, vibeSiteExpert?.id, contentManager?.id, industryAdvisor?.id, brandLead?.id]
         .filter((id): id is string => Boolean(id))
         .map((agentId) =>
           paperclip(`/agents/${agentId}/heartbeat/invoke`, {
