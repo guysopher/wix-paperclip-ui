@@ -1059,6 +1059,82 @@ async function repairStartupSiteBindings(
   };
 }
 
+async function reopenIncompleteStartupExecutionIssues(
+  company: PaperclipCompany,
+  issues: PaperclipIssue[],
+) {
+  const wixBinding = getCompanyWixBinding(company.description);
+  const vibeSite = getCompanyVibeSite(company.description);
+  const mainSiteIssue = issues.find((issue) => /launch the first site version/i.test(issue.title));
+  const vibeSiteIssue = issues.find((issue) => /experimental vibe site/i.test(issue.title));
+
+  let reopenedCount = 0;
+  let reopenedMainIssue = false;
+  let reopenedVibeIssue = false;
+
+  if (mainSiteIssue?.status === "done") {
+    const hasMainIdentity = Boolean(wixBinding?.metaSiteId || wixBinding?.siteId);
+    const hasMainLiveUrl = isTrustworthySiteUrl(wixBinding?.siteUrl);
+
+    if (!hasMainIdentity || !hasMainLiveUrl) {
+      const reason = !hasMainIdentity
+        ? "the verified main-site identity is still missing from company.description"
+        : "the bound main site still lacks a trustworthy live site URL";
+
+      await paperclip(`/issues/${mainSiteIssue.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "blocked",
+        }),
+      }).catch(() => null);
+
+      await paperclip(`/issues/${mainSiteIssue.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: `[System context - not visible to user]\nStartup validation reopened this production-site execution issue because ${reason}. Keep it open until the main business site has a verified identity plus a trustworthy live URL, or leave it blocked with the exact tooling blocker.`,
+        }),
+      }).catch(() => null);
+
+      reopenedCount += 1;
+      reopenedMainIssue = true;
+    }
+  }
+
+  if (vibeSiteIssue?.status === "done") {
+    const hasVibeIdentity = Boolean(vibeSite?.siteId || vibeSite?.jobId);
+    const hasVibePublicUrl = isTrustworthySiteUrl(vibeSite?.siteUrl);
+
+    if (!hasVibeIdentity || !hasVibePublicUrl) {
+      const reason = !hasVibeIdentity
+        ? "the verified vibe-site identity is still missing from company.description"
+        : "the vibe site still lacks a trustworthy public URL";
+
+      await paperclip(`/issues/${vibeSiteIssue.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "blocked",
+        }),
+      }).catch(() => null);
+
+      await paperclip(`/issues/${vibeSiteIssue.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: `[System context - not visible to user]\nStartup validation reopened this vibe-site execution issue because ${reason}. Keep it open until the experimental site has its own verified identity and a trustworthy public URL, or leave it blocked with the exact tooling blocker.`,
+        }),
+      }).catch(() => null);
+
+      reopenedCount += 1;
+      reopenedVibeIssue = true;
+    }
+  }
+
+  return {
+    reopenedCount,
+    reopenedMainIssue,
+    reopenedVibeIssue,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -1280,7 +1356,7 @@ async function closeResolvedStartupFollowups(
 
     if (
       hasVibeSiteIdentity &&
-      /(record verified vibe-site metadata in company description|persist .*vibe-site metadata into company\.description|build experimental vibe site)/.test(title) &&
+      /(record verified vibe-site metadata in company description|persist .*vibe-site metadata into company\.description)/.test(title) &&
       issue.status !== "done"
     ) {
       await markDone();
@@ -1305,6 +1381,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   let starterAgentsCreated = 0;
   let startupTasksHandedOff = 0;
   let startupSiteBindingsApplied = 0;
+  let startupExecutionIssuesReopened = 0;
   let resolvedStartupFollowups = 0;
   const agentsToWake = new Set<string>();
 
@@ -1377,9 +1454,40 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
 
   const pendingApprovals = await countPendingApprovals(companyId).catch(() => 0);
+  let issuesForCloseout = issues;
+  if (startup) {
+    issuesForCloseout = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => issues);
+    const reopened = await reopenIncompleteStartupExecutionIssues(refreshedCompany, issuesForCloseout).catch(() => ({
+      reopenedCount: 0,
+      reopenedMainIssue: false,
+      reopenedVibeIssue: false,
+    }));
+    startupExecutionIssuesReopened = reopened.reopenedCount;
+    if (reopened.reopenedMainIssue) {
+      const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
+      if (wixSiteExpert?.id) {
+        agentsToWake.add(wixSiteExpert.id);
+      }
+      if (aiTeamLead?.id) {
+        agentsToWake.add(aiTeamLead.id);
+      }
+    }
+    if (reopened.reopenedVibeIssue) {
+      const vibeSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "vibe site expert");
+      if (vibeSiteExpert?.id) {
+        agentsToWake.add(vibeSiteExpert.id);
+      }
+      if (aiTeamLead?.id) {
+        agentsToWake.add(aiTeamLead.id);
+      }
+    }
+    if (startupExecutionIssuesReopened > 0 && agentsToWake.size > 0) {
+      await wakeAgents(Array.from(agentsToWake)).catch(() => null);
+    }
+  }
   resolvedStartupFollowups = await closeResolvedStartupFollowups(
     companyId,
-    issues,
+    issuesForCloseout,
     pendingApprovals,
     Boolean(getCompanyWixBinding(refreshedCompany.description)?.metaSiteId || getCompanyWixBinding(refreshedCompany.description)?.siteId),
     Boolean(getCompanyVibeSite(refreshedCompany.description)?.siteId || getCompanyVibeSite(refreshedCompany.description)?.jobId),
@@ -1404,6 +1512,9 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
   if (startupSiteBindingsApplied > 0) {
     notes.push(`Persisted ${startupSiteBindingsApplied} verified startup site binding${startupSiteBindingsApplied === 1 ? "" : "s"} from specialist output.`);
+  }
+  if (startupExecutionIssuesReopened > 0) {
+    notes.push(`Reopened ${startupExecutionIssuesReopened} startup execution issue${startupExecutionIssuesReopened === 1 ? "" : "s"} that had been marked done before the demo success criteria were actually met.`);
   }
   if (resolvedStartupFollowups > 0) {
     notes.push(`Closed ${resolvedStartupFollowups} resolved startup follow-up task${resolvedStartupFollowups === 1 ? "" : "s"}.`);

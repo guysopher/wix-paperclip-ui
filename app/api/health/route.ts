@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
+import { repairCompanyState } from "@/lib/server/company-repair";
 
 const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
@@ -284,6 +285,22 @@ export async function POST(request: NextRequest) {
       status: "ok",
       detail: `Checking ${targetCompany.name} (${targetCompany.id})`,
     });
+
+    const repairResult = await repairCompanyState(targetCompany.id, { startup: true }).catch(() => null);
+    if (repairResult?.notes?.length) {
+      actions.push(...repairResult.notes);
+      checks.push({
+        name: "company_repair",
+        status: repairResult.notes.length > 0 ? "repaired" : "ok",
+        detail: repairResult.notes.join(" "),
+      });
+    } else {
+      checks.push({
+        name: "company_repair",
+        status: "ok",
+        detail: "Company repair found nothing actionable.",
+      });
+    }
 
     const [runs, agents] = await Promise.all([
       paperclip(`/companies/${targetCompany.id}/heartbeat-runs`) as Promise<PaperclipRun[]>,
