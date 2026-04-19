@@ -99,11 +99,18 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
     expectedResult:
       "A separate vibe site with its own metadata that never overwrites the main business site.",
   },
+  {
+    role: "Content Manager",
+    goal: "Extract founder-provided source material and turn it into launch-ready site content.",
+    expectedResult:
+      "Site-ready copy and assets pulled from real external sources such as websites, Instagram, Flickr, blogs, or galleries.",
+  },
 ];
 
 const REQUIRED_STARTUP_AGENT_TITLES = [
   "Wix Site Expert",
   "Vibe Site Expert",
+  "Content Manager",
 ];
 
 const ALLOWED_STARTER_TEAM_ROLES = new Set([
@@ -160,7 +167,7 @@ function toStringArray(value: unknown): string[] {
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 6);
 }
 
 function toKickoffTasks(value: unknown): KickoffTask[] {
@@ -188,7 +195,7 @@ function toKickoffTasks(value: unknown): KickoffTask[] {
       return { title, description };
     })
     .filter((task): task is KickoffTask => Boolean(task))
-    .slice(0, 4);
+    .slice(0, 6);
 }
 
 function toStarterTeam(value: unknown): StarterAgentPlan[] {
@@ -219,7 +226,7 @@ function toStarterTeam(value: unknown): StarterAgentPlan[] {
       return { role, goal, expectedResult };
     })
     .filter((agent): agent is StarterAgentPlan => Boolean(agent))
-    .slice(0, 4);
+    .slice(0, 6);
 }
 
 function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan[] {
@@ -236,7 +243,7 @@ function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan
     return !REQUIRED_STARTER_TEAM.some((requiredAgent) => requiredAgent.role === agent.role);
   });
 
-  return [...normalizedCoreTeam, ...additionalAgents].slice(0, 4);
+  return [...normalizedCoreTeam, ...additionalAgents].slice(0, 6);
 }
 
 async function parseJsonWithRepair<T>(raw: string, schemaDescription: string): Promise<T> {
@@ -339,7 +346,7 @@ Rules:
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
 - The center of gravity is the AI team plan, not a solo site-build pitch.
 - "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
-- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert.
+- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager.
 - Any additional role in "starterTeam" must use an exact canonical title from the list below. Do not invent role variants.
 - Goals should be practical and outcome-focused. Return 1 to 3.
 - "expectedResults" should describe the concrete business results the founder should expect from the first phase. Return 2 to 4.
@@ -370,7 +377,7 @@ ${canonicalAgentOptions}
     "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
   const teamHiringPlan =
     parsed.teamHiringPlan?.trim() ||
-    "Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, and Vibe Site Expert, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
+    "Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, and Content Manager, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
@@ -638,6 +645,33 @@ function buildIndustryAdvisorTask(summary: IntakeSummary): KickoffTaskSpec {
   };
 }
 
+function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
+  return {
+    title: `Turn external source content into launch-ready site materials for ${summary.companyName}`,
+    description: [
+      `Collect and adapt the best founder-provided source content for ${summary.companyName} so the real site can launch with real business materials instead of placeholders.`,
+      "",
+      "Business summary:",
+      summary.businessDescription,
+      "",
+      "Approved site proposal:",
+      summary.siteProposal,
+      "",
+      "Known source-material notes:",
+      summary.siteSpecifics || "No structured source list yet. Start by checking the founder transcript and any referenced public sources.",
+      "",
+      "Execution rules:",
+      "1. If the founder has provided a website, Instagram, Flickr, gallery, blog, or other public source, inspect it directly and extract the best reusable content.",
+      "2. Turn that source material into site-ready copy, bios, FAQs, service descriptions, testimonials, galleries, captions, or collection text for the real site.",
+      "3. Prefer the real business site in wixBinding as the target surface for this work.",
+      "4. Coordinate with Wix Site Expert on placement and Brand Lead on tone when needed.",
+      "5. If a source is private, inaccessible, or unclear, report the concrete blocker instead of inventing content.",
+    ].join("\n"),
+    assigneeTitle: "Content Manager",
+    priority: "high",
+  };
+}
+
 function buildDeterministicKickoffTasks(summary: IntakeSummary): KickoffTaskSpec[] {
   return [
     {
@@ -650,6 +684,7 @@ function buildDeterministicKickoffTasks(summary: IntakeSummary): KickoffTaskSpec
       assigneeTitle: "Vibe Site Expert",
       priority: "critical",
     },
+    buildContentManagerTask(summary),
     buildIndustryAdvisorTask(summary),
     buildManagementTask(summary),
   ];
@@ -770,6 +805,7 @@ export async function POST(request: NextRequest) {
 
     const wixSiteExpert = starterAgents.get("Wix Site Expert") || null;
     const vibeSiteExpert = starterAgents.get("Vibe Site Expert") || null;
+    const contentManager = starterAgents.get("Content Manager") || null;
     const industryAdvisor = starterAgents.get("Industry Advisor") || null;
 
     const boardIssue = await paperclip<{
@@ -816,6 +852,8 @@ export async function POST(request: NextRequest) {
                 ? (wixSiteExpert?.id || ceoAgent.id)
                 : task.assigneeTitle === "Vibe Site Expert"
                   ? (vibeSiteExpert?.id || ceoAgent.id)
+                  : task.assigneeTitle === "Content Manager"
+                    ? (contentManager?.id || ceoAgent.id)
                   : task.assigneeTitle === "Industry Advisor"
                     ? (industryAdvisor?.id || ceoAgent.id)
                     : ceoAgent.id,

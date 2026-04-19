@@ -995,6 +995,7 @@ async function createStarterTeamAgents(company: PaperclipCompany, existingAgents
     { role: "Industry Advisor" },
     { role: "Wix Site Expert" },
     { role: "Vibe Site Expert" },
+    { role: "Content Manager" },
     { role: "Bookings Operations Manager" },
   ];
   const starterTeam = (configuredStarterTeam.length > 0 ? configuredStarterTeam : fallbackStarterTeam)
@@ -1062,6 +1063,7 @@ async function handoffStartupTasks(
 ) {
   const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
   const vibeSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "vibe site expert");
+  const contentManager = agents.find((agent) => agent.title?.trim().toLowerCase() === "content manager");
   const industryAdvisor = agents.find((agent) => agent.title?.trim().toLowerCase() === "industry advisor");
   const brandLead = agents.find((agent) => agent.title?.trim().toLowerCase() === "brand lead");
   const bookingsManager = agents.find((agent) => agent.title?.trim().toLowerCase() === "bookings operations manager");
@@ -1092,6 +1094,11 @@ async function handoffStartupTasks(
       patch = {
         assigneeAgentId: wixSiteExpert.id,
         comment: "Reassigned to Wix Site Expert now that the main site is bound and the startup team is live.",
+      };
+    } else if (contentManager && /instagram|flickr|gallery|source content|site materials|site copy|external source|content/.test(title)) {
+      patch = {
+        assigneeAgentId: contentManager.id,
+        comment: "Reassigned to Content Manager for source-content extraction and site-ready content preparation.",
       };
     } else if (bookingsManager && /lead intake|follow-up|booking|inquiry/.test(title)) {
       patch = {

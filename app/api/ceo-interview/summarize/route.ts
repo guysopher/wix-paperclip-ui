@@ -53,12 +53,14 @@ ceoPrompt: Write a COMPLETE, CUSTOMIZED role description for this specific AI Bu
    - When hiring: use role labels like "Wix Site Expert", "Brand Lead", "Growth Lead", or "eCommerce Lead" for the Name field, and use the fuller job description for Title
    - When hiring, create the full agent definition, including a detailed promptTemplate tailored to the business and the role
    - Specialist agents should default to adapterType "${DEFAULT_OPENAI_ADAPTER_TYPE}" and model "${DEFAULT_OPENAI_SPECIALIST_MODEL}" unless there is a strong reason to change them
-   - The core operating team should always include the AI Business Manager as team lead, plus Industry Advisor and Wix Site Expert
+   - The core operating team should always include the AI Business Manager as team lead, plus Industry Advisor, Wix Site Expert, and Content Manager
    - Every company should have a Wix Site Expert once site work matters
    - Every company should also have an Industry Advisor early
+   - Every company should also have a Content Manager early
    - Additional roles must be chosen from the canonical role template library below. Do not invent new role names or variants.
    - Use the canonical role template library below when hiring these roles and tailor the chosen template to the business:
      - Wix Site Expert
+     - Content Manager
      - CRM & Lifecycle Manager
      - Analytics & Growth Manager
      - Content & SEO Manager
