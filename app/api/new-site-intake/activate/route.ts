@@ -693,7 +693,9 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "14. Do not complete this task with architecture-only recommendations if no main site is bound yet. The only acceptable non-build outcome is a concrete tooling failure after real creation attempts.",
     "15. If the founder provided any public source URL, inspect that exact source directly and use it to place real copy, imagery, or collection content on the main site after binding. Do not stop at empty shell creation.",
     "16. Do not create board tasks asking for basic launch copy, imagery, or starter content while the founder-provided public source links still contain usable material. Only ask for exact missing facts that block a specific Wix mutation such as pricing, policy, or inventory values.",
-    "17. Do not mark this task done until the bound main site has a real non-placeholder site URL and at least one source-derived content batch has been applied to the production site, unless a concrete tooling blocker is clearly reported.",
+    "17. After each meaningful publish or placement pass, inspect the live public URL directly. If the page still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
+    "18. Replace the bound site's starter-template identity and placeholder sections with founder-source-derived Sweet Marley content before you mark this task done.",
+    "19. Do not mark this task done until the bound main site has a real non-placeholder site URL and the public page no longer reads like a generic Wix starter template, unless a concrete tooling blocker is clearly reported.",
   ];
 
   return {
@@ -725,7 +727,9 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "7. If the completed vibe-site job reports `isPublished: false`, an unpublished state, or a `published-site-urls` lookup returns an empty `urls` array, publish the verified vibe site first through the documented Wix publish endpoint and then repeat the published-site-urls lookup.",
     "8. If the builder or publish flow only returns a placeholder host or development/editor URL, do one explicit published-site-urls style lookup on the verified vibe-site id before you report vibeSiteUrl as unresolved.",
     "9. Resolve a real non-placeholder vibeSiteUrl when tooling exposes one. If only a development/editor URL is available, record it but keep pushing on public URL resolution or clearly document the blocker.",
-    "10. Do not mark this task done until a real vibe site exists with its own different verified site id and at least one source-derived content batch has been applied to that vibe site, or a concrete tooling blocker is clearly reported.",
+    "10. After each meaningful publish or placement pass, inspect the public vibe-site URL directly. If it still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
+    "11. Replace the experimental site's starter-template identity and placeholder sections with founder-source-derived Sweet Marley content before you mark this task done.",
+    "12. Do not mark this task done until a real vibe site exists with its own different verified site id, real public URL, and public-page content that no longer reads like a generic Wix starter template, or a concrete tooling blocker is clearly reported.",
   ];
 
   return {
@@ -864,7 +868,8 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
       "3. Prefer placing the approved content directly onto the real business site in wixBinding and the separate vibe site when the relevant Wix tools are available. If direct placement is blocked, leave explicit placement-ready packages for both tracks.",
       "4. Coordinate with Wix Site Expert for main-site placement, Vibe Site Expert for vibe-site placement, and Brand Lead on tone when needed.",
       "5. Do not invent product facts or create board tasks for basic copy/image harvesting while the founder-provided public source still has unused material. Only escalate exact missing facts that block a specific mutation.",
-      "6. If a source is private, inaccessible, or unclear, report the concrete blocker instead of inventing content.",
+      "6. Your handoff is incomplete unless the receiving issue thread contains the actual critical copy, source URLs, and placement instructions. Do not rely on a workspace-local filename as the only artifact.",
+      "7. If a source is private, inaccessible, or unclear, report the concrete blocker instead of inventing content.",
     ].join("\n"),
     assigneeTitle: "Content Manager",
     priority: "high",

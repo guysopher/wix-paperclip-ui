@@ -991,6 +991,101 @@ function isTrustworthySiteUrl(url: string | undefined) {
   return true;
 }
 
+const STARTER_TEMPLATE_MARKERS: Array<{
+  pattern: RegExp;
+  label: string;
+  strong?: boolean;
+}> = [
+  {
+    pattern: /use this space to promote the business/i,
+    label: "generic starter promo copy",
+    strong: true,
+  },
+  {
+    pattern: /this is a space to share more about the business/i,
+    label: "generic starter about copy",
+    strong: true,
+  },
+  {
+    pattern: /check back soon once posts are published/i,
+    label: "empty starter blog section",
+  },
+  {
+    pattern: /123-456-7890/i,
+    label: "fake starter phone number",
+    strong: true,
+  },
+  {
+    pattern: /500 terry francine street/i,
+    label: "fake starter address",
+    strong: true,
+  },
+  {
+    pattern: /quiet moment hanna jou fine art print/i,
+    label: "starter product copy",
+    strong: true,
+  },
+  {
+    pattern: /\bvisuelle\b/i,
+    label: "starter template brand name",
+    strong: true,
+  },
+];
+
+function extractVisibleSiteText(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#39;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function auditLiveSiteForStarterTemplate(url: string | undefined, businessName: string) {
+  if (!isTrustworthySiteUrl(url)) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(url!, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const html = await response.text();
+    const visibleText = extractVisibleSiteText(html);
+    const matchedMarkers = STARTER_TEMPLATE_MARKERS.filter((marker) => marker.pattern.test(visibleText));
+    const mentionsBusinessName =
+      businessName.trim().length > 0 &&
+      visibleText.toLowerCase().includes(businessName.trim().toLowerCase());
+    const hasStrongMarker = matchedMarkers.some((marker) => marker.strong);
+
+    if (!hasStrongMarker && matchedMarkers.length < 2) {
+      return null;
+    }
+
+    if (mentionsBusinessName && matchedMarkers.length < 3 && !hasStrongMarker) {
+      return null;
+    }
+
+    return {
+      url,
+      reason: `the live page still looks like a generic starter template (${matchedMarkers
+        .slice(0, 3)
+        .map((marker) => marker.label)
+        .join(", ")})`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function extractMainSiteBindingFromBodies(bodies: string[]) {
   let siteId: string | undefined;
   let metaSiteId: string | undefined;
@@ -1365,19 +1460,32 @@ async function reopenIncompleteStartupExecutionIssues(
   const vibeSite = getCompanyVibeSite(company.description);
   const mainSiteIssue = issues.find((issue) => /launch the first site version/i.test(issue.title));
   const vibeSiteIssue = issues.find((issue) => /experimental vibe site/i.test(issue.title));
+  const mainSiteAudit = await auditLiveSiteForStarterTemplate(wixBinding?.siteUrl, company.name);
+  const vibeSiteAudit = await auditLiveSiteForStarterTemplate(vibeSite?.siteUrl, company.name);
+  const contentProblems: string[] = [];
 
   let reopenedCount = 0;
   let reopenedMainIssue = false;
   let reopenedVibeIssue = false;
 
+  if (mainSiteAudit) {
+    contentProblems.push(`Main live site needs more work because ${mainSiteAudit.reason}.`);
+  }
+
+  if (vibeSiteAudit) {
+    contentProblems.push(`Vibe live site needs more work because ${vibeSiteAudit.reason}.`);
+  }
+
   if (mainSiteIssue?.status === "done") {
     const hasMainIdentity = Boolean(wixBinding?.metaSiteId || wixBinding?.siteId);
     const hasMainLiveUrl = isTrustworthySiteUrl(wixBinding?.siteUrl);
+    const reason = !hasMainIdentity
+      ? "the verified main-site identity is still missing from company.description"
+      : !hasMainLiveUrl
+        ? "the bound main site still lacks a trustworthy live site URL"
+        : mainSiteAudit?.reason;
 
-    if (!hasMainIdentity || !hasMainLiveUrl) {
-      const reason = !hasMainIdentity
-        ? "the verified main-site identity is still missing from company.description"
-        : "the bound main site still lacks a trustworthy live site URL";
+    if (reason) {
 
       await paperclip(`/issues/${mainSiteIssue.id}`, {
         method: "PATCH",
@@ -1389,7 +1497,7 @@ async function reopenIncompleteStartupExecutionIssues(
       await paperclip(`/issues/${mainSiteIssue.id}/comments`, {
         method: "POST",
         body: JSON.stringify({
-          body: `[System context - not visible to user]\nStartup validation reopened this production-site execution issue because ${reason}. Keep it open until the main business site has a verified identity plus a trustworthy live URL, or leave it blocked with the exact tooling blocker.`,
+          body: `[System context - not visible to user]\nStartup validation reopened this production-site execution issue because ${reason}. Keep it open until the main business site has a verified identity, a trustworthy live URL, and public-page content that no longer looks like a generic starter template, or leave it blocked with the exact tooling blocker.`,
         }),
       }).catch(() => null);
 
@@ -1401,11 +1509,13 @@ async function reopenIncompleteStartupExecutionIssues(
   if (vibeSiteIssue?.status === "done") {
     const hasVibeIdentity = Boolean(vibeSite?.siteId || vibeSite?.jobId);
     const hasVibePublicUrl = isTrustworthySiteUrl(vibeSite?.siteUrl);
+    const reason = !hasVibeIdentity
+      ? "the verified vibe-site identity is still missing from company.description"
+      : !hasVibePublicUrl
+        ? "the vibe site still lacks a trustworthy public URL"
+        : vibeSiteAudit?.reason;
 
-    if (!hasVibeIdentity || !hasVibePublicUrl) {
-      const reason = !hasVibeIdentity
-        ? "the verified vibe-site identity is still missing from company.description"
-        : "the vibe site still lacks a trustworthy public URL";
+    if (reason) {
 
       await paperclip(`/issues/${vibeSiteIssue.id}`, {
         method: "PATCH",
@@ -1417,7 +1527,7 @@ async function reopenIncompleteStartupExecutionIssues(
       await paperclip(`/issues/${vibeSiteIssue.id}/comments`, {
         method: "POST",
         body: JSON.stringify({
-          body: `[System context - not visible to user]\nStartup validation reopened this vibe-site execution issue because ${reason}. Keep it open until the experimental site has its own verified identity and a trustworthy public URL, or leave it blocked with the exact tooling blocker.`,
+          body: `[System context - not visible to user]\nStartup validation reopened this vibe-site execution issue because ${reason}. Keep it open until the experimental site has its own verified identity, trustworthy public URL, and public-page content that no longer looks like a generic starter template, or leave it blocked with the exact tooling blocker.`,
         }),
       }).catch(() => null);
 
@@ -1430,6 +1540,7 @@ async function reopenIncompleteStartupExecutionIssues(
     reopenedCount,
     reopenedMainIssue,
     reopenedVibeIssue,
+    contentProblems,
   };
 }
 
@@ -1679,6 +1790,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const issues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => []);
   const staleTasksUpdated = await cleanStaleBoardTasks(refreshedCompany, issues).catch(() => 0);
   const notes: string[] = [];
+  const startupContentProblems: string[] = [];
   let detachedStartupRunsCancelled = 0;
   let starterAgentsCreated = 0;
   let startupTasksHandedOff = 0;
@@ -1704,7 +1816,6 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
 
   const binding = getBindingProblems(refreshedCompany);
-  const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
   const liveSpecialistsAtStart = agents.filter((agent) => isLiveSpecialist(agent, aiTeamLead?.id || null));
   const specialistShellCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length - liveSpecialistsAtStart.length;
 
@@ -1789,8 +1900,10 @@ export async function repairCompanyState(companyId: string, options?: { startup?
       reopenedCount: 0,
       reopenedMainIssue: false,
       reopenedVibeIssue: false,
+      contentProblems: [] as string[],
     }));
     startupExecutionIssuesReopened = reopened.reopenedCount;
+    startupContentProblems.push(...reopened.contentProblems);
     if (reopened.reopenedMainIssue) {
       const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
       if (wixSiteExpert?.id) {
@@ -1845,6 +1958,9 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   if (startupExecutionIssuesReopened > 0) {
     notes.push(`Reopened ${startupExecutionIssuesReopened} startup execution issue${startupExecutionIssuesReopened === 1 ? "" : "s"} that had been marked done before the demo success criteria were actually met.`);
   }
+  if (startupContentProblems.length > 0) {
+    binding.problems.push(...startupContentProblems);
+  }
   if (resolvedStartupFollowups > 0) {
     notes.push(`Closed ${resolvedStartupFollowups} resolved startup follow-up task${resolvedStartupFollowups === 1 ? "" : "s"}.`);
   }
@@ -1882,6 +1998,8 @@ export async function repairCompanyState(companyId: string, options?: { startup?
           : "Company repair completed.",
     );
   }
+
+  const ready = binding.problems.length === 0 && promptSync.errorCount === 0;
 
   return {
     ok: ready,
