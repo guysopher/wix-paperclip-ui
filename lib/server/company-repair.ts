@@ -86,12 +86,20 @@ interface PaperclipRun {
   errorCode?: string | null;
   agentId?: string | null;
   startedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface TextEvidence {
   body?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+}
+
+interface PaperclipRunLogPayload {
+  content?: string;
+  log?: string;
+  output?: string;
 }
 
 interface FileBackfillTarget {
@@ -852,6 +860,7 @@ function getBindingProblems(company: PaperclipCompany) {
 }
 
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const UUID_SOURCE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 function getLatestMatchingLine(body: string, pattern: RegExp) {
   return body
@@ -871,6 +880,39 @@ function parseUrlFromLine(line: string | undefined) {
 function parseTextAfterColon(line: string | undefined) {
   const match = line?.match(/:\s*`?([a-z0-9_-]+)`?/i);
   return match?.[1];
+}
+
+function parseUuidNearKey(body: string, keys: string[]) {
+  for (const key of keys) {
+    const match = body.match(new RegExp(`${key}[\\s\\S]{0,120}?(${UUID_SOURCE})`, "i"));
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return undefined;
+}
+
+function parseUrlNearKey(body: string, keys: string[]) {
+  for (const key of keys) {
+    const match = body.match(new RegExp(`${key}[\\s\\S]{0,200}?(https?:\\\\?/\\\\?/[^\\s"'\\\\]+)`, "i"));
+    if (match?.[1]) {
+      return match[1].replace(/\\\//g, "/");
+    }
+  }
+
+  return undefined;
+}
+
+function parseTextNearKey(body: string, keys: string[]) {
+  for (const key of keys) {
+    const match = body.match(new RegExp(`${key}[\\s\\S]{0,80}?(completed|complete|running|queued|failed|published|ready)`, "i"));
+    if (match?.[1]) {
+      return match[1].toLowerCase();
+    }
+  }
+
+  return undefined;
 }
 
 function getEvidenceTimestamp(value: string | null | undefined) {
@@ -911,13 +953,27 @@ function isTrustworthySiteUrl(url: string | undefined) {
 
 function extractMainSiteBindingFromBodies(bodies: string[]) {
   let siteId: string | undefined;
+  let metaSiteId: string | undefined;
   let siteUrl: string | undefined;
 
   for (const body of bodies) {
+    metaSiteId ||= parseUuidNearKey(body, ["metaSiteId", "metasiteId", "meta site id"]);
+    siteId ||= parseUuidNearKey(body, ["siteId", "site id"]);
     siteId ||= parseUuidFromLine(
       getLatestMatchingLine(body, /siteid\/metasiteid|verified (?:main-site )?identity|metasiteid|siteid/i),
     );
+    metaSiteId ||= siteId;
 
+    const candidateSiteUrlFromKeys = parseUrlNearKey(body, [
+      "publishedSiteUrl",
+      "siteUrl",
+      "public url",
+      "live url",
+      "published site url",
+    ]);
+    if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrlFromKeys)) {
+      siteUrl = candidateSiteUrlFromKeys;
+    }
     const candidateSiteUrl = parseUrlFromLine(
       getLatestMatchingLine(body, /siteurl|public url|live url|publishedsiteurl/i),
     );
@@ -931,7 +987,7 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
   }
 
   return {
-    metaSiteId: siteId,
+    metaSiteId: metaSiteId || siteId,
     siteId,
     siteUrl,
   };
@@ -945,6 +1001,26 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
   let status: string | undefined;
 
   for (const body of bodies) {
+    siteId ||= parseUuidNearKey(body, ["vibeSiteId", "siteId", "site id"]);
+    jobId ||= parseUuidNearKey(body, ["vibeSiteJobId", "jobId", "job id"]);
+    developmentUrl ||= parseUrlNearKey(body, [
+      "vibeSiteDevelopmentUrl",
+      "developmentUrl",
+      "editorUrl",
+      "development url",
+      "editor url",
+    ]);
+    const candidateSiteUrlFromKeys = parseUrlNearKey(body, [
+      "vibeSiteUrl",
+      "publishedSiteUrl",
+      "siteUrl",
+      "public url",
+    ]);
+    if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrlFromKeys)) {
+      siteUrl = candidateSiteUrlFromKeys;
+    }
+    status ||= parseTextNearKey(body, ["vibeSiteStatus", "current vibe-site status", "status"]);
+
     siteId ||= parseUuidFromLine(
       getLatestMatchingLine(body, /verified vibe[- ]site id|vibe[- ]site id|vibesiteid/i),
     );
@@ -984,6 +1060,28 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
   };
 }
 
+function extractRunLogText(payload: PaperclipRunLogPayload | string | null | undefined) {
+  if (!payload) {
+    return "";
+  }
+
+  if (typeof payload === "string") {
+    return payload;
+  }
+
+  if (typeof payload.content === "string" && payload.content.trim()) {
+    return payload.content;
+  }
+  if (typeof payload.log === "string" && payload.log.trim()) {
+    return payload.log;
+  }
+  if (typeof payload.output === "string" && payload.output.trim()) {
+    return payload.output;
+  }
+
+  return "";
+}
+
 async function collectIssueEvidence(issue: PaperclipIssue) {
   const comments = await paperclip<PaperclipIssueComment[]>(`/issues/${issue.id}/comments`).catch(() => []);
 
@@ -1000,15 +1098,47 @@ async function collectIssueEvidence(issue: PaperclipIssue) {
   ] satisfies TextEvidence[];
 }
 
+async function collectAgentRunEvidence(companyId: string, agentId: string) {
+  const runs = await paperclip<PaperclipRun[]>(`/companies/${companyId}/heartbeat-runs`).catch(() => []);
+  const relevantRuns = runs
+    .filter((run) => run.agentId === agentId && run.status !== "failed" && run.status !== "timed_out")
+    .sort(
+      (left, right) =>
+        getEvidenceTimestamp(right.updatedAt || right.createdAt || right.startedAt) -
+        getEvidenceTimestamp(left.updatedAt || left.createdAt || left.startedAt),
+    )
+    .slice(0, 3);
+
+  const logEvidence = await Promise.all(
+    relevantRuns.map(async (run) => {
+      const logPayload = await paperclip<PaperclipRunLogPayload | string>(`/heartbeat-runs/${run.id}/log`).catch(() => null);
+      const body = extractRunLogText(logPayload);
+      if (!body.trim()) {
+        return null;
+      }
+      return {
+        body,
+        createdAt: run.createdAt || run.startedAt || null,
+        updatedAt: run.updatedAt || run.startedAt || run.createdAt || null,
+      } satisfies TextEvidence;
+    }),
+  );
+
+  return logEvidence.filter((entry): entry is TextEvidence => Boolean(entry));
+}
+
 async function repairStartupSiteBindings(
   company: PaperclipCompany,
   issues: PaperclipIssue[],
+  agents: PaperclipAgent[],
   aiTeamLeadId: string | null,
 ) {
   const currentWixBinding = getCompanyWixBinding(company.description);
   const currentVibeSite = getCompanyVibeSite(company.description);
   const mainSiteIssue = issues.find((issue) => /launch the first site version/i.test(issue.title));
   const vibeSiteIssue = issues.find((issue) => /experimental vibe site/i.test(issue.title));
+  const wixSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "wix site expert");
+  const vibeSiteExpert = agents.find((agent) => agent.title?.trim().toLowerCase() === "vibe site expert");
 
   let nextDescription = company.description;
   let mainBindingApplied = false;
@@ -1021,7 +1151,13 @@ async function repairStartupSiteBindings(
         issue.parentId === mainSiteIssue.id ||
         /bind .* main site identity|bind verified wix site identity|wixbinding/i.test(issue.title),
     );
-    const mainEvidence = sortEvidenceNewestFirst((await Promise.all(mainEvidenceIssues.map(collectIssueEvidence))).flat());
+    const mainRunEvidence = wixSiteExpert
+      ? await collectAgentRunEvidence(company.id, wixSiteExpert.id)
+      : [];
+    const mainEvidence = sortEvidenceNewestFirst([
+      ...(await Promise.all(mainEvidenceIssues.map(collectIssueEvidence))).flat(),
+      ...mainRunEvidence,
+    ]);
     const extractedBinding = extractMainSiteBindingFromBodies(mainEvidence);
     if (extractedBinding?.siteId || extractedBinding?.siteUrl) {
       nextDescription = mergeCompanyDescription(nextDescription, {
@@ -1042,7 +1178,13 @@ async function repairStartupSiteBindings(
         issue.parentId === vibeSiteIssue.id ||
         /vibe-site metadata|resolve publish access|experimental vibe site/i.test(issue.title),
     );
-    const vibeEvidence = sortEvidenceNewestFirst((await Promise.all(vibeEvidenceIssues.map(collectIssueEvidence))).flat());
+    const vibeRunEvidence = vibeSiteExpert
+      ? await collectAgentRunEvidence(company.id, vibeSiteExpert.id)
+      : [];
+    const vibeEvidence = sortEvidenceNewestFirst([
+      ...(await Promise.all(vibeEvidenceIssues.map(collectIssueEvidence))).flat(),
+      ...vibeRunEvidence,
+    ]);
     const extractedVibeSite = extractVibeSiteBindingFromBodies(vibeEvidence);
     if (extractedVibeSite?.siteId || extractedVibeSite?.jobId || extractedVibeSite?.developmentUrl || extractedVibeSite?.status) {
       nextDescription = mergeCompanyDescription(nextDescription, {
@@ -1494,7 +1636,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     null;
 
   if (startup) {
-    const bindingRepair = await repairStartupSiteBindings(refreshedCompany, issues, aiTeamLead?.id || null)
+    const bindingRepair = await repairStartupSiteBindings(refreshedCompany, issues, agents, aiTeamLead?.id || null)
       .catch(() => null);
     if (bindingRepair) {
       refreshedCompany.description = bindingRepair.company.description;
@@ -1508,9 +1650,10 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   const liveSpecialistsAtStart = agents.filter((agent) => isLiveSpecialist(agent, aiTeamLead?.id || null));
   const specialistShellCount = agents.filter((agent) => agent.id !== aiTeamLead?.id).length - liveSpecialistsAtStart.length;
 
-  if (startup && binding.mode === "new_site" && binding.hasSiteIdentity && aiTeamLead) {
+  if (startup && binding.mode === "new_site" && aiTeamLead) {
     let workingAgents = agents;
     let workingIssues = issues;
+    let wokeStartupTeam = false;
 
     if (specialistShellCount > 0) {
       const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
@@ -1525,39 +1668,58 @@ export async function repairCompanyState(companyId: string, options?: { startup?
       .map((agent) => agent.id);
 
     detachedStartupRunsCancelled = await cancelDetachedStartupRuns(companyId, startupAgentIds).catch(() => 0);
-
-    const liveSpecialistsBeforeCreation = workingAgents.filter((agent) =>
-      isLiveSpecialist(agent, aiTeamLead.id),
-    );
-
-    if (liveSpecialistsBeforeCreation.length === 0) {
-      const createdAgentIds = await createStarterTeamAgents(refreshedCompany, workingAgents).catch(() => []);
-      starterAgentsCreated = createdAgentIds.length;
-      if (starterAgentsCreated > 0) {
-        createdAgentIds.forEach((agentId) => agentsToWake.add(agentId));
-        workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
-        const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
-        if (startupApprovalsApproved > 0) {
-          approvalsApproved += startupApprovalsApproved;
-          workingAgents = await waitForLiveSpecialists(companyId, aiTeamLead.id, workingAgents);
-        }
-      }
-    }
-
-    const liveSpecialists = workingAgents.filter((agent) => isLiveSpecialist(agent, aiTeamLead.id));
-    if (liveSpecialists.length > 0) {
-      workingIssues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => issues);
-      startupTasksHandedOff = await handoffStartupTasks(companyId, workingIssues, workingAgents).catch(() => 0);
-    }
-
-    if (detachedStartupRunsCancelled > 0 || starterAgentsCreated > 0 || startupTasksHandedOff > 0 || startupSiteBindingsApplied > 0) {
+    if (detachedStartupRunsCancelled > 0) {
       workingAgents
         .filter((agent) => isLiveSpecialist(agent, aiTeamLead.id))
         .forEach((agent) => agentsToWake.add(agent.id));
-      await wakeAiTeamLead(companyId).catch(() => null);
-      if (agentsToWake.size > 0) {
-        await wakeAgents(Array.from(agentsToWake)).catch(() => null);
+      agentsToWake.add(aiTeamLead.id);
+    }
+
+    if (binding.hasSiteIdentity) {
+      const liveSpecialistsBeforeCreation = workingAgents.filter((agent) =>
+        isLiveSpecialist(agent, aiTeamLead.id),
+      );
+
+      if (liveSpecialistsBeforeCreation.length === 0) {
+        const createdAgentIds = await createStarterTeamAgents(refreshedCompany, workingAgents).catch(() => []);
+        starterAgentsCreated = createdAgentIds.length;
+        if (starterAgentsCreated > 0) {
+          createdAgentIds.forEach((agentId) => agentsToWake.add(agentId));
+          workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
+          const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
+          if (startupApprovalsApproved > 0) {
+            approvalsApproved += startupApprovalsApproved;
+            workingAgents = await waitForLiveSpecialists(companyId, aiTeamLead.id, workingAgents);
+          }
+        }
       }
+
+      const liveSpecialists = workingAgents.filter((agent) => isLiveSpecialist(agent, aiTeamLead.id));
+      if (liveSpecialists.length > 0) {
+        workingIssues = await paperclip<PaperclipIssue[]>(`/companies/${companyId}/issues`).catch(() => issues);
+        startupTasksHandedOff = await handoffStartupTasks(companyId, workingIssues, workingAgents).catch(() => 0);
+      }
+
+      if (starterAgentsCreated > 0 || startupTasksHandedOff > 0 || startupSiteBindingsApplied > 0) {
+        workingAgents
+          .filter((agent) => isLiveSpecialist(agent, aiTeamLead.id))
+          .forEach((agent) => agentsToWake.add(agent.id));
+        agentsToWake.add(aiTeamLead.id);
+      }
+    } else if (startupSiteBindingsApplied > 0) {
+      workingAgents
+        .filter((agent) => isLiveSpecialist(agent, aiTeamLead.id))
+        .forEach((agent) => agentsToWake.add(agent.id));
+      agentsToWake.add(aiTeamLead.id);
+    }
+
+    if (agentsToWake.size > 0) {
+      await wakeAgents(Array.from(agentsToWake)).catch(() => null);
+      wokeStartupTeam = true;
+    }
+
+    if (!wokeStartupTeam && approvalsApproved > 0) {
+      await wakeAiTeamLead(companyId).catch(() => null);
     }
   }
 
