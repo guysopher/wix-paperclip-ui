@@ -80,6 +80,8 @@ interface IntakeSummary {
   kickoffTasks: KickoffTask[];
 }
 
+const STARTER_TEAM_LIMIT = 8;
+
 const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
   {
     role: "AI Team Lead",
@@ -111,12 +113,19 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
     expectedResult:
       "Site-ready copy and assets pulled from real external sources such as websites, Instagram, Flickr, blogs, or galleries.",
   },
+  {
+    role: "Brand Lead",
+    goal: "Translate the founder's taste and story into a strong brand direction the whole team can execute against.",
+    expectedResult:
+      "A sharper visual and verbal brand system that keeps the main site and the vibe site coherent and distinctive.",
+  },
 ];
 
 const REQUIRED_STARTUP_AGENT_TITLES = [
   "Wix Site Expert",
   "Vibe Site Expert",
   "Content Manager",
+  "Brand Lead",
 ];
 
 const ALLOWED_STARTER_TEAM_ROLES = new Set([
@@ -231,7 +240,7 @@ function toStringArray(value: unknown): string[] {
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .slice(0, 6);
+    .slice(0, STARTER_TEAM_LIMIT);
 }
 
 function toKickoffTasks(value: unknown): KickoffTask[] {
@@ -259,7 +268,7 @@ function toKickoffTasks(value: unknown): KickoffTask[] {
       return { title, description };
     })
     .filter((task): task is KickoffTask => Boolean(task))
-    .slice(0, 6);
+    .slice(0, STARTER_TEAM_LIMIT);
 }
 
 function toStarterTeam(value: unknown): StarterAgentPlan[] {
@@ -290,7 +299,7 @@ function toStarterTeam(value: unknown): StarterAgentPlan[] {
       return { role, goal, expectedResult };
     })
     .filter((agent): agent is StarterAgentPlan => Boolean(agent))
-    .slice(0, 6);
+    .slice(0, STARTER_TEAM_LIMIT);
 }
 
 function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan[] {
@@ -307,7 +316,79 @@ function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan
     return !REQUIRED_STARTER_TEAM.some((requiredAgent) => requiredAgent.role === agent.role);
   });
 
-  return [...normalizedCoreTeam, ...additionalAgents].slice(0, 6);
+  return [...normalizedCoreTeam, ...additionalAgents].slice(0, STARTER_TEAM_LIMIT);
+}
+
+const BUSINESS_FIT_STARTER_ROLE_FALLBACKS: Record<string, StarterAgentPlan> = {
+  "eCommerce Lead": {
+    role: "eCommerce Lead",
+    goal: "Turn the founder's collection and offer into a storefront that is easy to shop and easy to buy from.",
+    expectedResult:
+      "A commerce strategy that improves conversion, prioritizes the right catalog structure, and keeps launch focused on sales.",
+  },
+  "Catalog & Merchandising Manager": {
+    role: "Catalog & Merchandising Manager",
+    goal: "Shape the product mix, collections, and merchandising structure so the offer feels curated instead of scattered.",
+    expectedResult:
+      "A clearer shopping journey with stronger collections, better product framing, and a more convincing first purchase path.",
+  },
+  "Growth Lead": {
+    role: "Growth Lead",
+    goal: "Build the first repeatable acquisition and growth priorities around the founder's current traffic sources.",
+    expectedResult:
+      "A practical plan for audience growth, demand capture, and channel priorities beyond the initial launch push.",
+  },
+  "Content & SEO Manager": {
+    role: "Content & SEO Manager",
+    goal: "Turn the business story and source material into discoverable, search-friendly content that compounds over time.",
+    expectedResult:
+      "A stronger organic footprint with pages and content that support discovery, trust, and conversion.",
+  },
+  "Bookings Operations Manager": {
+    role: "Bookings Operations Manager",
+    goal: "Make the service or tour experience easy to understand, book, and operationally deliver.",
+    expectedResult:
+      "A cleaner bookings flow with clearer offers, fewer scheduling bottlenecks, and stronger operational readiness.",
+  },
+  "CRM & Lifecycle Manager": {
+    role: "CRM & Lifecycle Manager",
+    goal: "Set up lifecycle follow-up so leads, guests, or customers do not go cold after first contact.",
+    expectedResult:
+      "Better lead handling, repeat engagement, and follow-up flows that support growth without manual chasing.",
+  },
+};
+
+function inferBusinessFitStarterRoles(context: string, existingRoles: Set<string>): StarterAgentPlan[] {
+  const normalizedContext = context.toLowerCase();
+
+  let preferredTitles: string[];
+  if (/(tour|tours|booking|bookings|reservation|reservations|trip|trips|class|classes|appointment|appointments|service business|consultation)/.test(normalizedContext)) {
+    preferredTitles = ["Bookings Operations Manager", "CRM & Lifecycle Manager"];
+  } else if (/(shop|store|product|products|collection|collections|inventory|retail|ecommerce|e-commerce|sell|sales|catalog|merchandising|handmade|physical goods)/.test(normalizedContext)) {
+    preferredTitles = ["eCommerce Lead", "Catalog & Merchandising Manager"];
+  } else {
+    preferredTitles = ["Growth Lead", "Content & SEO Manager"];
+  }
+
+  return preferredTitles
+    .filter((title) => !existingRoles.has(title))
+    .map((title) => BUSINESS_FIT_STARTER_ROLE_FALLBACKS[title])
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function ensureStarterTeamCoverage(
+  starterTeam: StarterAgentPlan[],
+  businessDescription: string,
+  siteProposal: string,
+): StarterAgentPlan[] {
+  const normalizedStarterTeam = normalizeStarterTeam(starterTeam);
+  const existingRoles = new Set(normalizedStarterTeam.map((entry) => entry.role));
+  const inferredBusinessFitRoles = inferBusinessFitStarterRoles(
+    `${businessDescription}\n${siteProposal}`,
+    existingRoles,
+  );
+  return normalizeStarterTeam([...normalizedStarterTeam, ...inferredBusinessFitRoles]);
 }
 
 function uniqueTitles(titles: string[]): string[] {
@@ -426,7 +507,8 @@ Rules:
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
 - The center of gravity is the AI team plan, not a solo site-build pitch.
 - "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
-- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager.
+- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager, Brand Lead.
+- "starterTeam" must also include 1 to 2 additional canonical specialist roles that fit the business type, business model, and current growth needs.
 - Any additional role in "starterTeam" must use an exact canonical title from the list below. Do not invent role variants.
 - Goals should be practical and outcome-focused. Return 1 to 3.
 - "expectedResults" should describe the concrete business results the founder should expect from the first phase. Return 2 to 4.
@@ -457,11 +539,15 @@ ${canonicalAgentOptions}
     "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
   const teamHiringPlan =
     parsed.teamHiringPlan?.trim() ||
-    "Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, and Content Manager, then add only the most relevant canonical specialist roles for launch, growth, content, commerce, or operations.";
+    "Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager, and Brand Lead, then add 1 to 2 additional canonical specialist roles that match the business model, launch plan, and growth needs.";
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
-  const starterTeam = normalizeStarterTeam(toStarterTeam(parsed.starterTeam));
+  const starterTeam = ensureStarterTeamCoverage(
+    toStarterTeam(parsed.starterTeam),
+    businessDescription,
+    siteProposal,
+  );
   const siteSpecifics =
     parsed.siteSpecifics?.trim() ||
     "No additional site-specific requirements were captured.";
