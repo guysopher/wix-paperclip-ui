@@ -59,10 +59,17 @@ interface PaperclipApproval {
 
 interface PaperclipIssue {
   id: string;
+  parentId?: string | null;
   title: string;
   description: string;
   status: string;
   assigneeUserId: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  activeRun?: {
+    id: string;
+    status: string;
+  } | null;
 }
 
 interface PaperclipIssueComment {
@@ -79,6 +86,12 @@ interface PaperclipRun {
   errorCode?: string | null;
   agentId?: string | null;
   startedAt?: string | null;
+}
+
+interface TextEvidence {
+  body?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 interface FileBackfillTarget {
@@ -790,7 +803,7 @@ async function cancelDetachedStartupRuns(companyId: string, agentIds: string[]) 
     if (!run.agentId || !allowedAgentIds.has(run.agentId)) {
       return false;
     }
-    return run.errorCode === "process_detached";
+    return isDetachedRun(run);
   });
 
   if (detachedRuns.length === 0) {
@@ -806,6 +819,13 @@ async function cancelDetachedStartupRuns(companyId: string, agentIds: string[]) 
   );
 
   return detachedRuns.length;
+}
+
+function isDetachedRun(run: PaperclipRun) {
+  return (
+    run.errorCode === "process_detached" ||
+    /lost in-memory process handle/i.test(run.error || "")
+  );
 }
 
 function getBindingProblems(company: PaperclipCompany) {
@@ -848,6 +868,31 @@ function parseUrlFromLine(line: string | undefined) {
   return line?.match(/https?:\/\/\S+/i)?.[0];
 }
 
+function parseTextAfterColon(line: string | undefined) {
+  const match = line?.match(/:\s*`?([a-z0-9_-]+)`?/i);
+  return match?.[1];
+}
+
+function getEvidenceTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortEvidenceNewestFirst(evidence: TextEvidence[]) {
+  return evidence
+    .filter((entry): entry is Required<Pick<TextEvidence, "body">> & TextEvidence => Boolean(entry.body?.trim()))
+    .sort(
+      (left, right) =>
+        getEvidenceTimestamp(right.updatedAt || right.createdAt) -
+        getEvidenceTimestamp(left.updatedAt || left.createdAt),
+    )
+    .map((entry) => entry.body!.trim());
+}
+
 function isTrustworthySiteUrl(url: string | undefined) {
   if (!url) {
     return false;
@@ -864,21 +909,17 @@ function isTrustworthySiteUrl(url: string | undefined) {
   return true;
 }
 
-function extractMainSiteBindingFromComments(comments: PaperclipIssueComment[]) {
-  const bodies = comments
-    .map((comment) => comment.body || "")
-    .reverse();
-
+function extractMainSiteBindingFromBodies(bodies: string[]) {
   let siteId: string | undefined;
   let siteUrl: string | undefined;
 
   for (const body of bodies) {
     siteId ||= parseUuidFromLine(
-      getLatestMatchingLine(body, /siteid\/metasiteid|verified site identity|metasiteid/i),
+      getLatestMatchingLine(body, /siteid\/metasiteid|verified (?:main-site )?identity|metasiteid|siteid/i),
     );
 
     const candidateSiteUrl = parseUrlFromLine(
-      getLatestMatchingLine(body, /siteurl|public url|live url/i),
+      getLatestMatchingLine(body, /siteurl|public url|live url|publishedsiteurl/i),
     );
     if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrl)) {
       siteUrl = candidateSiteUrl;
@@ -896,11 +937,7 @@ function extractMainSiteBindingFromComments(comments: PaperclipIssueComment[]) {
   };
 }
 
-function extractVibeSiteBindingFromComments(comments: PaperclipIssueComment[]) {
-  const bodies = comments
-    .map((comment) => comment.body || "")
-    .reverse();
-
+function extractVibeSiteBindingFromBodies(bodies: string[]) {
   let siteId: string | undefined;
   let jobId: string | undefined;
   let siteUrl: string | undefined;
@@ -908,20 +945,29 @@ function extractVibeSiteBindingFromComments(comments: PaperclipIssueComment[]) {
   let status: string | undefined;
 
   for (const body of bodies) {
-    siteId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site id|vibesiteid/i));
-    jobId ||= parseUuidFromLine(getLatestMatchingLine(body, /verified vibe-site job id|vibesitejobid/i));
-    developmentUrl ||= parseUrlFromLine(getLatestMatchingLine(body, /development url|editor url|vibesitedevelopmenturl/i));
+    siteId ||= parseUuidFromLine(
+      getLatestMatchingLine(body, /verified vibe[- ]site id|vibe[- ]site id|vibesiteid/i),
+    );
+    jobId ||= parseUuidFromLine(
+      getLatestMatchingLine(body, /verified vibe[- ]site job id|vibe[- ]site job id|vibesitejobid|job id/i),
+    );
+    developmentUrl ||= parseUrlFromLine(
+      getLatestMatchingLine(body, /vibe[- ]site editor url|development url|editor url|vibesitedevelopmenturl/i),
+    );
 
     const candidatePublicUrl = parseUrlFromLine(
-      getLatestMatchingLine(body, /vibe-site public url|vibe-site url|vibesiteurl/i),
+      getLatestMatchingLine(body, /vibe[- ]site public url|vibe[- ]site url|vibesiteurl|publishedsiteurl/i),
     );
     if (!siteUrl && isTrustworthySiteUrl(candidatePublicUrl)) {
       siteUrl = candidatePublicUrl;
     }
 
     if (!status) {
-      const statusLine = getLatestMatchingLine(body, /current vibe-site status|vibesitestatus/i);
-      status = statusLine?.match(/(?:current vibe-site status|vibesitestatus):\s*([A-Z_]+)/i)?.[1]?.toLowerCase();
+      const statusLine = getLatestMatchingLine(
+        body,
+        /current vibe[- ]site status|vibe[- ]site build status|vibesitestatus|status candidate/i,
+      );
+      status = parseTextAfterColon(statusLine)?.toLowerCase();
     }
   }
 
@@ -936,6 +982,22 @@ function extractVibeSiteBindingFromComments(comments: PaperclipIssueComment[]) {
     developmentUrl,
     status,
   };
+}
+
+async function collectIssueEvidence(issue: PaperclipIssue) {
+  const comments = await paperclip<PaperclipIssueComment[]>(`/issues/${issue.id}/comments`).catch(() => []);
+
+  return [
+    {
+      body: issue.description,
+      createdAt: issue.createdAt || null,
+      updatedAt: issue.updatedAt || issue.createdAt || null,
+    },
+    ...comments.map((comment) => ({
+      body: comment.body,
+      createdAt: comment.createdAt,
+    })),
+  ] satisfies TextEvidence[];
 }
 
 async function repairStartupSiteBindings(
@@ -953,8 +1015,14 @@ async function repairStartupSiteBindings(
   let vibeBindingApplied = false;
 
   if (mainSiteIssue && (!currentWixBinding?.metaSiteId || !currentWixBinding?.siteId || !currentWixBinding?.siteUrl)) {
-    const comments = await paperclip<PaperclipIssueComment[]>(`/issues/${mainSiteIssue.id}/comments`).catch(() => []);
-    const extractedBinding = extractMainSiteBindingFromComments(comments);
+    const mainEvidenceIssues = issues.filter(
+      (issue) =>
+        issue.id === mainSiteIssue.id ||
+        issue.parentId === mainSiteIssue.id ||
+        /bind .* main site identity|bind verified wix site identity|wixbinding/i.test(issue.title),
+    );
+    const mainEvidence = sortEvidenceNewestFirst((await Promise.all(mainEvidenceIssues.map(collectIssueEvidence))).flat());
+    const extractedBinding = extractMainSiteBindingFromBodies(mainEvidence);
     if (extractedBinding?.siteId || extractedBinding?.siteUrl) {
       nextDescription = mergeCompanyDescription(nextDescription, {
         wixBinding: {
@@ -968,8 +1036,14 @@ async function repairStartupSiteBindings(
   }
 
   if (vibeSiteIssue && (!currentVibeSite?.siteId || !currentVibeSite?.jobId || !currentVibeSite?.developmentUrl || !currentVibeSite?.status)) {
-    const comments = await paperclip<PaperclipIssueComment[]>(`/issues/${vibeSiteIssue.id}/comments`).catch(() => []);
-    const extractedVibeSite = extractVibeSiteBindingFromComments(comments);
+    const vibeEvidenceIssues = issues.filter(
+      (issue) =>
+        issue.id === vibeSiteIssue.id ||
+        issue.parentId === vibeSiteIssue.id ||
+        /vibe-site metadata|resolve publish access|experimental vibe site/i.test(issue.title),
+    );
+    const vibeEvidence = sortEvidenceNewestFirst((await Promise.all(vibeEvidenceIssues.map(collectIssueEvidence))).flat());
+    const extractedVibeSite = extractVibeSiteBindingFromBodies(vibeEvidence);
     if (extractedVibeSite?.siteId || extractedVibeSite?.jobId || extractedVibeSite?.developmentUrl || extractedVibeSite?.status) {
       nextDescription = mergeCompanyDescription(nextDescription, {
         vibeSite: {
@@ -1062,6 +1136,29 @@ async function repairStartupSiteBindings(
     mainBindingApplied,
     vibeBindingApplied,
   };
+}
+
+async function cancelRunsOnResolvedIssues(issues: PaperclipIssue[]) {
+  const activeResolvedIssues = issues.filter(
+    (issue) =>
+      (issue.status === "done" || issue.status === "cancelled") &&
+      issue.activeRun &&
+      (issue.activeRun.status === "queued" || issue.activeRun.status === "running"),
+  );
+
+  if (activeResolvedIssues.length === 0) {
+    return 0;
+  }
+
+  const cancelResults = await Promise.allSettled(
+    activeResolvedIssues.map((issue) =>
+      paperclip(`/heartbeat-runs/${issue.activeRun!.id}/cancel`, {
+        method: "POST",
+      }),
+    ),
+  );
+
+  return cancelResults.filter((result) => result.status === "fulfilled").length;
 }
 
 async function reopenIncompleteStartupExecutionIssues(
@@ -1388,6 +1485,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   let startupSiteBindingsApplied = 0;
   let startupExecutionIssuesReopened = 0;
   let resolvedStartupFollowups = 0;
+  let resolvedIssueRunsCancelled = 0;
   const agentsToWake = new Set<string>();
 
   const aiTeamLead =
@@ -1503,6 +1601,7 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     Boolean(getCompanyVibeSite(refreshedCompany.description)?.siteId || getCompanyVibeSite(refreshedCompany.description)?.jobId),
     aiTeamLead?.id || null,
   ).catch(() => 0);
+  resolvedIssueRunsCancelled = await cancelRunsOnResolvedIssues(issuesForCloseout).catch(() => 0);
 
   if (approvalsApproved > 0) {
     await wakeAiTeamLead(companyId).catch(() => null);
@@ -1528,6 +1627,11 @@ export async function repairCompanyState(companyId: string, options?: { startup?
   }
   if (resolvedStartupFollowups > 0) {
     notes.push(`Closed ${resolvedStartupFollowups} resolved startup follow-up task${resolvedStartupFollowups === 1 ? "" : "s"}.`);
+  }
+  if (resolvedIssueRunsCancelled > 0) {
+    notes.push(
+      `Cancelled ${resolvedIssueRunsCancelled} active run${resolvedIssueRunsCancelled === 1 ? "" : "s"} attached to already-resolved issues.`,
+    );
   }
   if (startupTasksHandedOff > 0) {
     notes.push(`Handed off ${startupTasksHandedOff} startup task${startupTasksHandedOff === 1 ? "" : "s"} to the live specialists.`);
