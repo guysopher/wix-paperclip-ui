@@ -54,10 +54,17 @@ export interface PicassoBridgeMetadata {
   error?: string;
 }
 
+export interface ActivationStarterTeamEntry {
+  role: string;
+  goal?: string;
+  expectedResult?: string;
+}
+
 export interface ActivationMetadata {
   mode?: ActivationMode;
   newSiteInterview?: NewSiteInterviewMetadata;
   picassoBridge?: PicassoBridgeMetadata;
+  starterTeam?: ActivationStarterTeamEntry[];
   sourceLinks?: string[];
 }
 
@@ -87,6 +94,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function normalizePublicSiteUrl(value: unknown): string | undefined {
+  const raw = getString(value)?.trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return undefined;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return undefined;
+  }
+
+  if (/^www\.wix\.com$/i.test(parsed.hostname) && (parsed.pathname === "/" || parsed.pathname === "")) {
+    return undefined;
+  }
+
+  if (/^manage\.wix\.com$/i.test(parsed.hostname)) {
+    return undefined;
+  }
+
+  return parsed.toString();
 }
 
 function getStringMap(value: unknown): Record<string, string> | undefined {
@@ -154,7 +189,7 @@ function normalizePicassoBridge(value: unknown): PicassoBridgeMetadata | undefin
     jobId: getString(value.jobId),
     status: getString(value.status),
     siteId: getString(value.siteId),
-    siteUrl: getString(value.siteUrl),
+    siteUrl: normalizePublicSiteUrl(value.siteUrl),
     developmentUrl: getString(value.developmentUrl),
     requestedAt: getString(value.requestedAt),
     updatedAt: getString(value.updatedAt),
@@ -175,6 +210,33 @@ function normalizeStringArray(value: unknown): string[] | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function normalizeStarterTeam(value: unknown): ActivationStarterTeamEntry[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!isRecord(entry) || typeof entry.role !== "string") {
+        return null;
+      }
+
+      const role = entry.role.trim();
+      if (!role) {
+        return null;
+      }
+
+      return {
+        role,
+        goal: getString(entry.goal),
+        expectedResult: getString(entry.expectedResult),
+      };
+    })
+    .filter((entry): entry is ActivationStarterTeamEntry => Boolean(entry));
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export function getCompanyActivation(description: string | null | undefined): ActivationMetadata | undefined {
   const metadata = parseCompanyDescription(description);
   const activationRaw = metadata.extra?.activation;
@@ -186,10 +248,11 @@ export function getCompanyActivation(description: string | null | undefined): Ac
     mode: getActivationMode(activationRaw.mode),
     newSiteInterview: normalizeNewSiteInterview(activationRaw.newSiteInterview),
     picassoBridge: normalizePicassoBridge(activationRaw.picassoBridge),
+    starterTeam: normalizeStarterTeam(activationRaw.starterTeam),
     sourceLinks: normalizeStringArray(activationRaw.sourceLinks),
   };
 
-  if (!activation.mode && !activation.newSiteInterview && !activation.picassoBridge && !activation.sourceLinks) {
+  if (!activation.mode && !activation.newSiteInterview && !activation.picassoBridge && !activation.starterTeam && !activation.sourceLinks) {
     return undefined;
   }
 
@@ -202,7 +265,7 @@ function normalizeWixBinding(raw: Record<string, unknown>): WixBindingMetadata |
     metaSiteId: getString(bindingSource.metaSiteId) || getString(raw.metaSiteId),
     siteId: getString(bindingSource.siteId) || getString(raw.siteId),
     siteName: getString(bindingSource.siteName) || getString(raw.siteName),
-    siteUrl: getString(bindingSource.siteUrl) || getString(raw.siteUrl),
+    siteUrl: normalizePublicSiteUrl(bindingSource.siteUrl) || normalizePublicSiteUrl(raw.siteUrl),
     activationIssueId:
       getString(bindingSource.activationIssueId) || getString(raw.activationIssueId),
     auth: getStringMap(bindingSource.auth) || getStringMap(raw.auth),
@@ -228,7 +291,7 @@ function normalizeVibeSite(raw: Record<string, unknown>): VibeSiteMetadata | und
   const vibeSource = isRecord(raw.vibeSite) ? raw.vibeSite : raw;
   const vibeSite: VibeSiteMetadata = {
     siteId: getString(vibeSource.siteId) || getString(raw.vibeSiteId),
-    siteUrl: getString(vibeSource.siteUrl) || getString(raw.vibeSiteUrl),
+    siteUrl: normalizePublicSiteUrl(vibeSource.siteUrl) || normalizePublicSiteUrl(raw.vibeSiteUrl),
     jobId: getString(vibeSource.jobId) || getString(raw.vibeSiteJobId),
     status: getString(vibeSource.status) || getString(raw.vibeSiteStatus),
     developmentUrl:
