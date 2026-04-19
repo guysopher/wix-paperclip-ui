@@ -1124,7 +1124,7 @@ async function collectAgentRunEvidence(companyId: string, agentId: string) {
     }),
   );
 
-  return logEvidence.filter((entry): entry is TextEvidence => Boolean(entry));
+  return logEvidence.filter(isNonNullable);
 }
 
 async function repairStartupSiteBindings(
@@ -1381,6 +1381,10 @@ async function reopenIncompleteStartupExecutionIssues(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isNonNullable<T>(value: T): value is NonNullable<T> {
+  return value !== null && value !== undefined;
 }
 
 function getConfiguredStarterTeam(company: PaperclipCompany): StarterTeamPlanEntry[] {
