@@ -44,6 +44,7 @@ import {
   issueNeedsReply,
   readInboxArchivedIds,
   readInboxReplyOverrides,
+  setInboxReplyOverride,
   subscribeInboxArchivedIds,
   subscribeInboxReplyOverrides,
   type InboxReplyOverrides,
@@ -53,9 +54,11 @@ import {
   getComments,
   invokeHeartbeat,
   pauseAgent,
+  postComment,
   resumeAgent,
   updateApproval,
   updateAgent,
+  updateIssue,
   createIssue,
   runCompanyHealthCheck,
   restartPaperclipServer,
@@ -166,6 +169,18 @@ function summarizeApproval(approval: Approval): { title: string; detail: string 
         ? payload.description.trim()
         : "Pending approval",
   };
+}
+
+function findReferencedApprovalIds(issue: Issue, approvals: Approval[]): string[] {
+  const source = `${issue.title}\n${issue.description}`;
+  const matches = source.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) || [];
+  const pendingIds = new Set(
+    approvals
+      .filter((approval) => approval.status === "pending")
+      .map((approval) => approval.id),
+  );
+
+  return Array.from(new Set(matches.filter((id) => pendingIds.has(id))));
 }
 
 
@@ -339,6 +354,8 @@ function DashboardContent() {
   const [ceoRequestCards, setCeoRequestCards] = useState<Record<string, CeoRequestCard>>({});
   const [ceoRequestsLoading, setCeoRequestsLoading] = useState(false);
   const [approvalActionId, setApprovalActionId] = useState<string | null>(null);
+  const [attentionActionId, setAttentionActionId] = useState<string | null>(null);
+  const [dismissedAttentionIssueIds, setDismissedAttentionIssueIds] = useState<string[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState<string | undefined>();
   const [workView, setWorkView] = useState<"open" | "completed">("completed");
@@ -569,6 +586,7 @@ function DashboardContent() {
   ]);
 
   const attentionRequests = attentionCandidateRequests
+    .filter((issue) => !dismissedAttentionIssueIds.includes(issue.id))
     .filter((issue) => attentionLatestAuthorByIssue[issue.id] !== "local-board")
     .slice(0, 3);
   const attentionHeadline =
@@ -588,6 +606,15 @@ function DashboardContent() {
   const pendingApprovals = approvals
     .filter((approval) => approval.status === "pending")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  useEffect(() => {
+    if (dismissedAttentionIssueIds.length === 0) {
+      return;
+    }
+
+    const visibleIds = new Set(attentionCandidateRequests.map((issue) => issue.id));
+    setDismissedAttentionIssueIds((prev) => prev.filter((issueId) => visibleIds.has(issueId)));
+  }, [attentionCandidateRequests, dismissedAttentionIssueIds.length]);
 
   useEffect(() => {
     const requestSnapshot = attentionRequests.map((issue) => ({
@@ -688,6 +715,82 @@ function DashboardContent() {
       await refresh();
     } finally {
       setApprovalActionId(null);
+    }
+  };
+
+  const handleAttentionIssueAction = async (
+    issue: Issue,
+    action: "done" | "ignore" | "approve" | "reject",
+  ) => {
+    if (!companyId || attentionActionId) {
+      return;
+    }
+
+    const taskRef = issue.identifier || "this request";
+    const approvalIds = findReferencedApprovalIds(issue, approvals);
+    const actionKey = `${issue.id}:${action}`;
+    const now = new Date().toISOString();
+    const noteByAction: Record<typeof action, string> = {
+      done: `Board marked ${taskRef} as done. Update the plan accordingly and close any follow-up work that is no longer needed.`,
+      ignore: `Board chose to ignore ${taskRef} for now. Adjust the plan accordingly and avoid surfacing it again unless something new changes.`,
+      approve: `Board approved ${taskRef}. Proceed with the approved work and update any related plan or approval state.`,
+      reject: `Board rejected ${taskRef}. Update the plan or approval state accordingly and route around it if needed.`,
+    };
+    const issueStatusByAction: Record<typeof action, "done" | "cancelled"> = {
+      done: "done",
+      approve: "done",
+      ignore: "cancelled",
+      reject: "cancelled",
+    };
+    const commentByAction: Record<typeof action, string> = {
+      done: `Board action: marked ${taskRef} as done.`,
+      ignore: `Board action: ignore ${taskRef} for now.`,
+      approve: `Board action: approved ${taskRef}.`,
+      reject: `Board action: rejected ${taskRef}.`,
+    };
+
+    setAttentionActionId(actionKey);
+    setDismissedAttentionIssueIds((prev) => (prev.includes(issue.id) ? prev : [...prev, issue.id]));
+
+    try {
+      if (action === "approve" || action === "reject") {
+        const nextApprovalStatus = action === "approve" ? "approved" : "rejected";
+        await Promise.all(
+          approvalIds.map((approvalId) =>
+            updateApproval(approvalId, {
+              status: nextApprovalStatus,
+              notes: `Board action from ${taskRef}.`,
+            }),
+          ),
+        );
+      }
+
+      await postComment(issue.id, commentByAction[action]);
+      setInboxReplyOverride(issue.id, now);
+      await updateIssue(issue.id, {
+        status: issueStatusByAction[action],
+      });
+
+      openCeoChatDiscussion({
+        companyId,
+        issueId: issue.id,
+        text: noteByAction[action],
+      });
+
+      const wakeAgentId = issue.assigneeAgentId || issue.assigneeId || ceoAgent?.id;
+      if (wakeAgentId) {
+        try {
+          await invokeHeartbeat(wakeAgentId);
+        } catch {
+          // Keep the board action successful even if wake-up fails.
+        }
+      }
+
+      await refresh();
+    } catch {
+      setDismissedAttentionIssueIds((prev) => prev.filter((issueId) => issueId !== issue.id));
+    } finally {
+      setAttentionActionId(null);
     }
   };
 
@@ -2006,6 +2109,9 @@ function DashboardContent() {
                         ? companyPath(`/tasks/${issue.identifier}`)
                         : companyPath(`/inbox?tab=needs-reply&issue=${issue.id}`);
                       const reviewLabel = issue.identifier ? "View Task" : "Open Request";
+                      const attentionActionBase = attentionActionId?.startsWith(`${issue.id}:`)
+                        ? attentionActionId.split(":")[1]
+                        : null;
                       return (
                         <div
                           key={issue.id}
@@ -2072,17 +2178,6 @@ function DashboardContent() {
                           >
                             {(() => {
                               const taskRef = issue.identifier || "this task";
-                              const sendDirective = (text: string) => {
-                                if (!companyId) {
-                                  return;
-                                }
-                                openCeoChatDiscussion({
-                                  companyId,
-                                  issueId: card.issueId,
-                                  text,
-                                });
-                              };
-
                               return (
                                 <>
                             <a
@@ -2139,6 +2234,7 @@ function DashboardContent() {
                                   >
                                     <PopoverMenu.MenuItem
                                       text="◉  Discuss"
+                                      disabled={Boolean(attentionActionBase)}
                                       onClick={() => {
                                         if (!companyId) {
                                           return;
@@ -2155,27 +2251,31 @@ function DashboardContent() {
                                     <PopoverMenu.Divider />
                                     <PopoverMenu.MenuItem
                                       text="✓  Mark as Done"
+                                      disabled={Boolean(attentionActionBase)}
                                       onClick={() => {
-                                        sendDirective(`Please handle ${taskRef} as done. Confirm whether it should be closed or otherwise updated, then make the necessary changes and let me know what you changed.`);
+                                        void handleAttentionIssueAction(issue, "done");
                                       }}
                                     />
                                     <PopoverMenu.MenuItem
                                       text="✓  Approve"
+                                      disabled={Boolean(attentionActionBase)}
                                       onClick={() => {
-                                        sendDirective(`Please approve ${taskRef}. Make the necessary updates so it can move forward, and let me know what you changed or approved.`);
+                                        void handleAttentionIssueAction(issue, "approve");
                                       }}
                                     />
                                     <PopoverMenu.MenuItem
                                       text="○  Ignore"
+                                      disabled={Boolean(attentionActionBase)}
                                       onClick={() => {
-                                        sendDirective(`Please ignore ${taskRef} for now. Deprioritize it, adjust the plan if needed, and tell me if anything remains blocked because of that decision.`);
+                                        void handleAttentionIssueAction(issue, "ignore");
                                       }}
                                     />
                                     <PopoverMenu.Divider />
                                     <PopoverMenu.MenuItem
                                       text="✕  Reject"
+                                      disabled={Boolean(attentionActionBase)}
                                       onClick={() => {
-                                        sendDirective(`Please reject ${taskRef}. Update the task, plan, or approvals accordingly, and tell me what follow-up changes are needed because of that rejection.`);
+                                        void handleAttentionIssueAction(issue, "reject");
                                       }}
                                     />
                                   </PopoverMenu>
