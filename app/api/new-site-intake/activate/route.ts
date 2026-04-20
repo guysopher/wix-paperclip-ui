@@ -727,9 +727,12 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "7. If the completed vibe-site job reports `isPublished: false`, an unpublished state, or a `published-site-urls` lookup returns an empty `urls` array, publish the verified vibe site first through the documented Wix publish endpoint and then repeat the published-site-urls lookup.",
     "8. If the builder or publish flow only returns a placeholder host or development/editor URL, do one explicit published-site-urls style lookup on the verified vibe-site id before you report vibeSiteUrl as unresolved.",
     "9. Resolve a real non-placeholder vibeSiteUrl when tooling exposes one. If only a development/editor URL is available, record it but keep pushing on public URL resolution or clearly document the blocker.",
-    "10. After each meaningful publish or placement pass, inspect the public vibe-site URL directly. If it still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
-    "11. Replace the experimental site's starter-template identity and placeholder sections with founder-source-derived Sweet Marley content before you mark this task done.",
-    "12. Do not mark this task done until a real vibe site exists with its own different verified site id, real public URL, and public-page content that no longer reads like a generic Wix starter template, or a concrete tooling blocker is clearly reported.",
+    "10. If Picasso creates a site container or returns a verified site id but then stalls in app-spec generation, job polling, or developer-machine startup without producing a real site pass, keep the task active, record the verified ids/status, and report the exact builder stall instead of counting that run as success.",
+    "11. After each meaningful publish or placement pass, inspect the public vibe-site URL directly. If it still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
+    "12. Compare the public vibe site directly against the current public main site. If the vibe site still feels like the same storefront shell, same section stack, same headline structure, or same plain commerce presentation, the task is still incomplete even if both URLs are valid.",
+    "13. The vibe site must be materially more expressive than the main site in tone, section framing, and overall creative direction while still staying faithful to the real business.",
+    "14. Replace the experimental site's starter-template identity and placeholder sections with founder-source-derived Sweet Marley content before you mark this task done.",
+    "15. Do not mark this task done until a real vibe site exists with its own different verified site id, real public URL, public-page content that no longer reads like a generic Wix starter template, and a clearly more distinct creative direction than the main site, or a concrete tooling blocker is clearly reported.",
   ];
 
   return {

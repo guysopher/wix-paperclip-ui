@@ -158,6 +158,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If a completed vibe-site job reports "isPublished: false", an unpublished state, or the first published-site-urls lookup returns an empty "urls" array, require one publish attempt on that verified vibe-site id before accepting that the public URL is still unresolved
    - If the vibe builder only returns a placeholder host or development URL, require the same published-site-urls style follow-up on the verified vibe-site id before accepting that vibeSiteUrl is unresolved
    - A real vibe-site URL is still not enough if the public vibe page is obviously a generic starter template. Require one direct inspection of the live vibe page after publish or placement, and keep the task active if unrelated template branding, fake contact info, or placeholder copy is still visible.
+   - A vibe site is also not acceptable if Picasso only created a raw site container and then stalled in app-spec generation, job polling, or dev-machine startup. In that case, require the exact verified ids and explicit tooling blocker notes instead of counting the run as a successful build.
+   - Even with two valid URLs, do not accept a vibe site that still reads like the same storefront shell as the main site. If the public pages are too similar in section flow, copy structure, or tone, push the Vibe Site Expert back into another pass.
    - If a site expert reports verified ids plus a write blocker, mirror the critical ids in the management thread and immediately drive the next recovery step instead of waiting for the same specialist to retry indefinitely
 
 7. ACTIVATION MODE

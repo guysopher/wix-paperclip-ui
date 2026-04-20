@@ -1044,7 +1044,95 @@ function extractVisibleSiteText(html: string) {
     .trim();
 }
 
-async function auditLiveSiteForStarterTemplate(url: string | undefined, businessName: string) {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const LOW_SIGNAL_SITE_WORDS = new Set([
+  "home",
+  "shop",
+  "about",
+  "contact",
+  "cart",
+  "menu",
+  "search",
+  "login",
+  "log",
+  "sign",
+  "account",
+  "subscribe",
+  "newsletter",
+  "read",
+  "more",
+  "view",
+  "all",
+  "book",
+  "now",
+  "instagram",
+  "facebook",
+  "pinterest",
+  "tiktok",
+  "twitter",
+  "follow",
+  "email",
+  "phone",
+  "collection",
+  "collections",
+  "product",
+  "products",
+  "store",
+  "online",
+  "new",
+  "best",
+  "seller",
+  "sellers",
+]);
+
+function tokenizeVisibleSiteTextForComparison(text: string, businessName: string) {
+  const normalized = text
+    .toLowerCase()
+    .replace(
+      businessName.trim() ? new RegExp(escapeRegExp(businessName.trim()), "gi") : /^$/,
+      " ",
+    )
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/www\.\S+/g, " ")
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalized
+    .split(" ")
+    .filter((word) => word.length >= 3 && !LOW_SIGNAL_SITE_WORDS.has(word));
+}
+
+function countLeadingSharedWords(left: string[], right: string[]) {
+  const limit = Math.min(left.length, right.length);
+  let count = 0;
+  while (count < limit && left[count] === right[count]) {
+    count += 1;
+  }
+  return count;
+}
+
+function computeWordSetOverlap(left: string[], right: string[]) {
+  if (left.length === 0 || right.length === 0) {
+    return 0;
+  }
+
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  let shared = 0;
+  for (const word of leftSet) {
+    if (rightSet.has(word)) {
+      shared += 1;
+    }
+  }
+
+  return shared / Math.min(leftSet.size, rightSet.size);
+}
+
+async function fetchLiveSiteSnapshot(url: string | undefined) {
   if (!isTrustworthySiteUrl(url)) {
     return null;
   }
@@ -1059,31 +1147,90 @@ async function auditLiveSiteForStarterTemplate(url: string | undefined, business
     }
 
     const html = await response.text();
-    const visibleText = extractVisibleSiteText(html);
-    const matchedMarkers = STARTER_TEMPLATE_MARKERS.filter((marker) => marker.pattern.test(visibleText));
-    const mentionsBusinessName =
-      businessName.trim().length > 0 &&
-      visibleText.toLowerCase().includes(businessName.trim().toLowerCase());
-    const hasStrongMarker = matchedMarkers.some((marker) => marker.strong);
-
-    if (!hasStrongMarker && matchedMarkers.length < 2) {
-      return null;
-    }
-
-    if (mentionsBusinessName && matchedMarkers.length < 3 && !hasStrongMarker) {
-      return null;
-    }
-
     return {
       url,
-      reason: `the live page still looks like a generic starter template (${matchedMarkers
-        .slice(0, 3)
-        .map((marker) => marker.label)
-        .join(", ")})`,
+      visibleText: extractVisibleSiteText(html),
     };
   } catch {
     return null;
   }
+}
+
+async function auditLiveSiteForStarterTemplate(url: string | undefined, businessName: string) {
+  const snapshot = await fetchLiveSiteSnapshot(url);
+  if (!snapshot) {
+    return null;
+  }
+
+  const matchedMarkers = STARTER_TEMPLATE_MARKERS.filter((marker) =>
+    marker.pattern.test(snapshot.visibleText),
+  );
+  const mentionsBusinessName =
+    businessName.trim().length > 0 &&
+    snapshot.visibleText.toLowerCase().includes(businessName.trim().toLowerCase());
+  const hasStrongMarker = matchedMarkers.some((marker) => marker.strong);
+
+  if (!hasStrongMarker && matchedMarkers.length < 2) {
+    return null;
+  }
+
+  if (mentionsBusinessName && matchedMarkers.length < 3 && !hasStrongMarker) {
+    return null;
+  }
+
+  return {
+    url: snapshot.url,
+    reason: `the live page still looks like a generic starter template (${matchedMarkers
+      .slice(0, 3)
+      .map((marker) => marker.label)
+      .join(", ")})`,
+  };
+}
+
+async function auditVibeSiteDifferentiation(
+  mainUrl: string | undefined,
+  vibeUrl: string | undefined,
+  businessName: string,
+) {
+  if (!isTrustworthySiteUrl(mainUrl) || !isTrustworthySiteUrl(vibeUrl)) {
+    return null;
+  }
+
+  if (mainUrl === vibeUrl) {
+    return {
+      reason: "the vibe site resolves to the same public URL as the main site",
+    };
+  }
+
+  const [mainSnapshot, vibeSnapshot] = await Promise.all([
+    fetchLiveSiteSnapshot(mainUrl),
+    fetchLiveSiteSnapshot(vibeUrl),
+  ]);
+
+  if (!mainSnapshot || !vibeSnapshot) {
+    return null;
+  }
+
+  const mainWindow = tokenizeVisibleSiteTextForComparison(mainSnapshot.visibleText, businessName).slice(0, 160);
+  const vibeWindow = tokenizeVisibleSiteTextForComparison(vibeSnapshot.visibleText, businessName).slice(0, 160);
+
+  if (mainWindow.length < 40 || vibeWindow.length < 40) {
+    return null;
+  }
+
+  const leadingSharedWords = countLeadingSharedWords(mainWindow, vibeWindow);
+  const overlap = computeWordSetOverlap(mainWindow, vibeWindow);
+  const duplicatedShell =
+    leadingSharedWords >= 24 || (leadingSharedWords >= 12 && overlap >= 0.82);
+
+  if (!duplicatedShell) {
+    return null;
+  }
+
+  return {
+    reason:
+      "the public vibe page still reads too much like the main site and looks like the same storefront shell instead of a distinct experimental direction",
+  };
 }
 
 function extractMainSiteBindingFromBodies(bodies: string[]) {
@@ -1462,6 +1609,11 @@ async function reopenIncompleteStartupExecutionIssues(
   const vibeSiteIssue = issues.find((issue) => /experimental vibe site/i.test(issue.title));
   const mainSiteAudit = await auditLiveSiteForStarterTemplate(wixBinding?.siteUrl, company.name);
   const vibeSiteAudit = await auditLiveSiteForStarterTemplate(vibeSite?.siteUrl, company.name);
+  const vibeDifferentiationAudit = await auditVibeSiteDifferentiation(
+    wixBinding?.siteUrl,
+    vibeSite?.siteUrl,
+    company.name,
+  );
   const contentProblems: string[] = [];
 
   let reopenedCount = 0;
@@ -1474,6 +1626,10 @@ async function reopenIncompleteStartupExecutionIssues(
 
   if (vibeSiteAudit) {
     contentProblems.push(`Vibe live site needs more work because ${vibeSiteAudit.reason}.`);
+  }
+
+  if (vibeDifferentiationAudit) {
+    contentProblems.push(`Vibe live site needs more work because ${vibeDifferentiationAudit.reason}.`);
   }
 
   if (mainSiteIssue?.status === "done") {
@@ -1513,7 +1669,7 @@ async function reopenIncompleteStartupExecutionIssues(
       ? "the verified vibe-site identity is still missing from company.description"
       : !hasVibePublicUrl
         ? "the vibe site still lacks a trustworthy public URL"
-        : vibeSiteAudit?.reason;
+        : vibeSiteAudit?.reason || vibeDifferentiationAudit?.reason;
 
     if (reason) {
 
@@ -1527,7 +1683,7 @@ async function reopenIncompleteStartupExecutionIssues(
       await paperclip(`/issues/${vibeSiteIssue.id}/comments`, {
         method: "POST",
         body: JSON.stringify({
-          body: `[System context - not visible to user]\nStartup validation reopened this vibe-site execution issue because ${reason}. Keep it open until the experimental site has its own verified identity, trustworthy public URL, and public-page content that no longer looks like a generic starter template, or leave it blocked with the exact tooling blocker.`,
+          body: `[System context - not visible to user]\nStartup validation reopened this vibe-site execution issue because ${reason}. Keep it open until the experimental site has its own verified identity, trustworthy public URL, public-page content that no longer looks like a generic starter template, and a clearly different public presentation than the main site, or leave it blocked with the exact tooling blocker.`,
         }),
       }).catch(() => null);
 
