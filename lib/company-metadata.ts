@@ -48,6 +48,8 @@ export interface PicassoBridgeMetadata {
   status?: string;
   siteId?: string;
   siteUrl?: string;
+  projectId?: string;
+  initialGenerationCompleted?: boolean;
   developmentUrl?: string;
   requestedAt?: string;
   updatedAt?: string;
@@ -96,6 +98,37 @@ function getString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function getBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function isDisallowedPublicSiteHost(hostname: string) {
+  return (
+    /^www\.wix\.com$/i.test(hostname) ||
+    /^manage\.wix\.com$/i.test(hostname) ||
+    /^dev\.wix\.com$/i.test(hostname) ||
+    /^www\.wixapis\.com$/i.test(hostname) ||
+    /^apis\.wix\.com$/i.test(hostname) ||
+    /^www\.instagram\.com$/i.test(hostname) ||
+    /^instagram\.com$/i.test(hostname) ||
+    /^m\.instagram\.com$/i.test(hostname) ||
+    /^www\.facebook\.com$/i.test(hostname) ||
+    /^facebook\.com$/i.test(hostname) ||
+    /^m\.facebook\.com$/i.test(hostname) ||
+    /^x\.com$/i.test(hostname) ||
+    /^www\.x\.com$/i.test(hostname) ||
+    /^twitter\.com$/i.test(hostname) ||
+    /^www\.twitter\.com$/i.test(hostname) ||
+    /^tiktok\.com$/i.test(hostname) ||
+    /^www\.tiktok\.com$/i.test(hostname) ||
+    /^youtube\.com$/i.test(hostname) ||
+    /^www\.youtube\.com$/i.test(hostname) ||
+    /^youtu\.be$/i.test(hostname) ||
+    /^linktr\.ee$/i.test(hostname) ||
+    /^www\.linktr\.ee$/i.test(hostname)
+  );
+}
+
 function normalizePublicSiteUrl(value: unknown): string | undefined {
   const raw = getString(value)?.trim();
   if (!raw) {
@@ -117,7 +150,7 @@ function normalizePublicSiteUrl(value: unknown): string | undefined {
     return undefined;
   }
 
-  if (/^manage\.wix\.com$/i.test(parsed.hostname)) {
+  if (isDisallowedPublicSiteHost(parsed.hostname)) {
     return undefined;
   }
 
@@ -190,6 +223,8 @@ function normalizePicassoBridge(value: unknown): PicassoBridgeMetadata | undefin
     status: getString(value.status),
     siteId: getString(value.siteId),
     siteUrl: normalizePublicSiteUrl(value.siteUrl),
+    projectId: getString(value.projectId),
+    initialGenerationCompleted: getBoolean(value.initialGenerationCompleted),
     developmentUrl: getString(value.developmentUrl),
     requestedAt: getString(value.requestedAt),
     updatedAt: getString(value.updatedAt),

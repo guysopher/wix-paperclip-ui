@@ -959,6 +959,33 @@ function sortEvidenceNewestFirst(evidence: TextEvidence[]) {
     .map((entry) => entry.body!.trim());
 }
 
+function isDisallowedPublicSiteHost(hostname: string) {
+  return (
+    /^www\.wix\.com$/i.test(hostname) ||
+    /^manage\.wix\.com$/i.test(hostname) ||
+    /^dev\.wix\.com$/i.test(hostname) ||
+    /^www\.wixapis\.com$/i.test(hostname) ||
+    /^apis\.wix\.com$/i.test(hostname) ||
+    /^www\.instagram\.com$/i.test(hostname) ||
+    /^instagram\.com$/i.test(hostname) ||
+    /^m\.instagram\.com$/i.test(hostname) ||
+    /^www\.facebook\.com$/i.test(hostname) ||
+    /^facebook\.com$/i.test(hostname) ||
+    /^m\.facebook\.com$/i.test(hostname) ||
+    /^x\.com$/i.test(hostname) ||
+    /^www\.x\.com$/i.test(hostname) ||
+    /^twitter\.com$/i.test(hostname) ||
+    /^www\.twitter\.com$/i.test(hostname) ||
+    /^tiktok\.com$/i.test(hostname) ||
+    /^www\.tiktok\.com$/i.test(hostname) ||
+    /^youtube\.com$/i.test(hostname) ||
+    /^www\.youtube\.com$/i.test(hostname) ||
+    /^youtu\.be$/i.test(hostname) ||
+    /^linktr\.ee$/i.test(hostname) ||
+    /^www\.linktr\.ee$/i.test(hostname)
+  );
+}
+
 function isTrustworthySiteUrl(url: string | undefined) {
   if (!url) {
     return false;
@@ -979,12 +1006,7 @@ function isTrustworthySiteUrl(url: string | undefined) {
     return false;
   }
 
-  if (
-    /^manage\.wix\.com$/i.test(parsed.hostname) ||
-    /^dev\.wix\.com$/i.test(parsed.hostname) ||
-    /^www\.wixapis\.com$/i.test(parsed.hostname) ||
-    /^apis\.wix\.com$/i.test(parsed.hostname)
-  ) {
+  if (isDisallowedPublicSiteHost(parsed.hostname)) {
     return false;
   }
 
@@ -1460,7 +1482,7 @@ async function repairStartupSiteBindings(
         wixBinding: {
           metaSiteId: extractedBinding.metaSiteId,
           siteId: extractedBinding.siteId,
-          siteUrl: extractedBinding.siteUrl || currentWixBinding?.siteUrl,
+          siteUrl: extractedBinding.siteUrl || (isTrustworthySiteUrl(currentWixBinding?.siteUrl) ? currentWixBinding?.siteUrl : undefined),
         },
       });
       mainBindingApplied = true;
@@ -1486,7 +1508,7 @@ async function repairStartupSiteBindings(
       nextDescription = mergeCompanyDescription(nextDescription, {
         vibeSite: {
           siteId: extractedVibeSite.siteId || currentVibeSite?.siteId,
-          siteUrl: extractedVibeSite.siteUrl || currentVibeSite?.siteUrl,
+          siteUrl: extractedVibeSite.siteUrl || (isTrustworthySiteUrl(currentVibeSite?.siteUrl) ? currentVibeSite?.siteUrl : undefined),
           jobId: extractedVibeSite.jobId || currentVibeSite?.jobId,
           status: extractedVibeSite.status || currentVibeSite?.status,
           developmentUrl: extractedVibeSite.developmentUrl || currentVibeSite?.developmentUrl,
