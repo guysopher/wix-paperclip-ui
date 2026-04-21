@@ -960,29 +960,48 @@ function sortEvidenceNewestFirst(evidence: TextEvidence[]) {
 }
 
 function isDisallowedPublicSiteHost(hostname: string) {
+  const normalizedHostname = hostname.trim().toLowerCase();
+
+  if (
+    normalizedHostname === "localhost" ||
+    normalizedHostname.endsWith(".localhost") ||
+    normalizedHostname === "0.0.0.0" ||
+    normalizedHostname === "::1" ||
+    normalizedHostname === "[::1]" ||
+    normalizedHostname.endsWith(".local") ||
+    normalizedHostname === "host.docker.internal" ||
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalizedHostname) ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalizedHostname) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(normalizedHostname) ||
+    /^169\.254\.\d{1,3}\.\d{1,3}$/.test(normalizedHostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(normalizedHostname)
+  ) {
+    return true;
+  }
+
   return (
-    /^www\.wix\.com$/i.test(hostname) ||
-    /^manage\.wix\.com$/i.test(hostname) ||
-    /^dev\.wix\.com$/i.test(hostname) ||
-    /^www\.wixapis\.com$/i.test(hostname) ||
-    /^apis\.wix\.com$/i.test(hostname) ||
-    /^www\.instagram\.com$/i.test(hostname) ||
-    /^instagram\.com$/i.test(hostname) ||
-    /^m\.instagram\.com$/i.test(hostname) ||
-    /^www\.facebook\.com$/i.test(hostname) ||
-    /^facebook\.com$/i.test(hostname) ||
-    /^m\.facebook\.com$/i.test(hostname) ||
-    /^x\.com$/i.test(hostname) ||
-    /^www\.x\.com$/i.test(hostname) ||
-    /^twitter\.com$/i.test(hostname) ||
-    /^www\.twitter\.com$/i.test(hostname) ||
-    /^tiktok\.com$/i.test(hostname) ||
-    /^www\.tiktok\.com$/i.test(hostname) ||
-    /^youtube\.com$/i.test(hostname) ||
-    /^www\.youtube\.com$/i.test(hostname) ||
-    /^youtu\.be$/i.test(hostname) ||
-    /^linktr\.ee$/i.test(hostname) ||
-    /^www\.linktr\.ee$/i.test(hostname)
+    /^www\.wix\.com$/i.test(normalizedHostname) ||
+    /^manage\.wix\.com$/i.test(normalizedHostname) ||
+    /^dev\.wix\.com$/i.test(normalizedHostname) ||
+    /^www\.wixapis\.com$/i.test(normalizedHostname) ||
+    /^apis\.wix\.com$/i.test(normalizedHostname) ||
+    /^www\.instagram\.com$/i.test(normalizedHostname) ||
+    /^instagram\.com$/i.test(normalizedHostname) ||
+    /^m\.instagram\.com$/i.test(normalizedHostname) ||
+    /^www\.facebook\.com$/i.test(normalizedHostname) ||
+    /^facebook\.com$/i.test(normalizedHostname) ||
+    /^m\.facebook\.com$/i.test(normalizedHostname) ||
+    /^x\.com$/i.test(normalizedHostname) ||
+    /^www\.x\.com$/i.test(normalizedHostname) ||
+    /^twitter\.com$/i.test(normalizedHostname) ||
+    /^www\.twitter\.com$/i.test(normalizedHostname) ||
+    /^tiktok\.com$/i.test(normalizedHostname) ||
+    /^www\.tiktok\.com$/i.test(normalizedHostname) ||
+    /^youtube\.com$/i.test(normalizedHostname) ||
+    /^www\.youtube\.com$/i.test(normalizedHostname) ||
+    /^youtu\.be$/i.test(normalizedHostname) ||
+    /^linktr\.ee$/i.test(normalizedHostname) ||
+    /^www\.linktr\.ee$/i.test(normalizedHostname)
   );
 }
 
@@ -1462,7 +1481,12 @@ async function repairStartupSiteBindings(
   let mainBindingApplied = false;
   let vibeBindingApplied = false;
 
-  if (mainSiteIssue && (!currentWixBinding?.metaSiteId || !currentWixBinding?.siteId || !currentWixBinding?.siteUrl)) {
+  if (
+    mainSiteIssue &&
+    (!currentWixBinding?.metaSiteId ||
+      !currentWixBinding?.siteId ||
+      !isTrustworthySiteUrl(currentWixBinding?.siteUrl))
+  ) {
     const mainEvidenceIssues = issues.filter(
       (issue) =>
         issue.id === mainSiteIssue.id ||
@@ -1489,7 +1513,14 @@ async function repairStartupSiteBindings(
     }
   }
 
-  if (vibeSiteIssue && (!currentVibeSite?.siteId || !currentVibeSite?.jobId || !currentVibeSite?.developmentUrl || !currentVibeSite?.status)) {
+  if (
+    vibeSiteIssue &&
+    (!currentVibeSite?.siteId ||
+      !currentVibeSite?.jobId ||
+      !currentVibeSite?.developmentUrl ||
+      !currentVibeSite?.status ||
+      !isTrustworthySiteUrl(currentVibeSite?.siteUrl))
+  ) {
     const vibeEvidenceIssues = issues.filter(
       (issue) =>
         issue.id === vibeSiteIssue.id ||
