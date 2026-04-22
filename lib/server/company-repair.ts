@@ -25,6 +25,7 @@ import {
 } from "@/lib/paperclip-runtime-defaults";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { renderPromptTemplate } from "@/lib/prompt-render";
+import { verifyPicassoProject } from "@/lib/server/picasso-project";
 
 const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
@@ -1309,23 +1310,6 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
     );
     metaSiteId ||= siteId;
 
-    const candidateSiteUrlFromKeys = parseUrlNearKey(body, [
-      "publishedSiteUrl",
-      "siteUrl",
-      "public url",
-      "live url",
-      "published site url",
-    ]);
-    if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrlFromKeys)) {
-      siteUrl = candidateSiteUrlFromKeys;
-    }
-    const candidateSiteUrl = parseUrlFromLine(
-      getLatestMatchingLine(body, /siteurl|public url|live url|publishedsiteurl/i),
-    );
-    if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrl)) {
-      siteUrl = candidateSiteUrl;
-    }
-
     if (!siteUrl) {
       const candidatePublishedUrl = parsePrimaryPublishedSiteUrl(body);
       if (candidatePublishedUrl) {
@@ -1348,7 +1332,6 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
 function extractVibeSiteBindingFromBodies(bodies: string[]) {
   let siteId: string | undefined;
   let jobId: string | undefined;
-  let siteUrl: string | undefined;
   let developmentUrl: string | undefined;
   let status: string | undefined;
 
@@ -1362,15 +1345,6 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
       "development url",
       "editor url",
     ]);
-    const candidateSiteUrlFromKeys = parseUrlNearKey(body, [
-      "vibeSiteUrl",
-      "publishedSiteUrl",
-      "siteUrl",
-      "public url",
-    ]);
-    if (!siteUrl && isTrustworthySiteUrl(candidateSiteUrlFromKeys)) {
-      siteUrl = candidateSiteUrlFromKeys;
-    }
     status ||= parseTextNearKey(body, ["vibeSiteStatus", "current vibe-site status", "status"]);
 
     siteId ||= parseUuidFromLine(
@@ -1383,20 +1357,6 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
       getLatestMatchingLine(body, /vibe[- ]site editor url|development url|editor url|vibesitedevelopmenturl/i),
     );
 
-    const candidatePublicUrl = parseUrlFromLine(
-      getLatestMatchingLine(body, /vibe[- ]site public url|vibe[- ]site url|vibesiteurl|publishedsiteurl/i),
-    );
-    if (!siteUrl && isTrustworthySiteUrl(candidatePublicUrl)) {
-      siteUrl = candidatePublicUrl;
-    }
-
-    if (!siteUrl) {
-      const candidatePublishedUrl = parsePrimaryPublishedSiteUrl(body);
-      if (candidatePublishedUrl) {
-        siteUrl = candidatePublishedUrl;
-      }
-    }
-
     if (!status) {
       const statusLine = getLatestMatchingLine(
         body,
@@ -1406,14 +1366,13 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
     }
   }
 
-  if (!siteId && !jobId && !siteUrl && !developmentUrl && !status) {
+  if (!siteId && !jobId && !developmentUrl && !status) {
     return null;
   }
 
   return {
     siteId,
     jobId,
-    siteUrl,
     developmentUrl,
     status,
   };
@@ -1492,6 +1451,7 @@ async function repairStartupSiteBindings(
   agents: PaperclipAgent[],
   aiTeamLeadId: string | null,
 ) {
+  const activation = getCompanyActivation(company.description);
   const currentWixBinding = getCompanyWixBinding(company.description);
   const currentVibeSite = getCompanyVibeSite(company.description);
   const mainSiteIssue = issues.find((issue) => /launch the first site version/i.test(issue.title));
@@ -1621,11 +1581,15 @@ async function repairStartupSiteBindings(
 
   if (
     vibeSiteIssue &&
-    (!currentVibeSite?.siteId ||
+    (
+      Boolean(currentVibeSite?.siteUrl) ||
+      Boolean(activation?.picassoBridge?.siteId) ||
+      !currentVibeSite?.siteId ||
       !currentVibeSite?.jobId ||
       !currentVibeSite?.developmentUrl ||
       !currentVibeSite?.status ||
-      !isTrustworthySiteUrl(currentVibeSite?.siteUrl))
+      !isTrustworthySiteUrl(currentVibeSite?.siteUrl)
+    )
   ) {
     const vibeEvidenceIssues = issues.filter(
       (issue) =>
@@ -1649,21 +1613,69 @@ async function repairStartupSiteBindings(
       extractedVibeSite.siteId !== effectiveMainBinding?.metaSiteId
         ? extractedVibeSite.siteId
         : undefined;
+    const vibeSiteIdForVerification =
+      sanitizedVibeSiteId ||
+      (currentVibeSite?.siteId &&
+      !isReservedPaperclipEntityId(currentVibeSite.siteId, company, issues, agents) &&
+      currentVibeSite.siteId !== effectiveMainBinding?.siteId &&
+      currentVibeSite.siteId !== effectiveMainBinding?.metaSiteId
+        ? currentVibeSite.siteId
+        : undefined) ||
+      activation?.picassoBridge?.siteId;
+    const picassoVerification = vibeSiteIdForVerification
+      ? await verifyPicassoProject(vibeSiteIdForVerification).catch(() => null)
+      : null;
+    const verifiedVibeSiteUrl =
+      picassoVerification?.effectiveStatus === "succeeded"
+        ? picassoVerification.primarySiteUrl || picassoVerification.siteUrl
+        : undefined;
     const sanitizedVibeSiteUrl =
-      extractedVibeSite?.siteUrl &&
-      extractedVibeSite.siteUrl !== effectiveMainBinding?.siteUrl
-        ? extractedVibeSite.siteUrl
+      verifiedVibeSiteUrl && verifiedVibeSiteUrl !== effectiveMainBinding?.siteUrl
+        ? verifiedVibeSiteUrl
         : undefined;
 
-    if (sanitizedVibeSiteId || extractedVibeSite?.jobId || extractedVibeSite?.developmentUrl || extractedVibeSite?.status) {
+    if (
+      sanitizedVibeSiteId ||
+      extractedVibeSite?.jobId ||
+      extractedVibeSite?.developmentUrl ||
+      extractedVibeSite?.status ||
+      sanitizedVibeSiteUrl ||
+      picassoVerification?.projectId ||
+      picassoVerification?.initialGenerationCompleted !== undefined
+    ) {
       nextDescription = mergeCompanyDescription(nextDescription, {
         vibeSite: {
           siteId: sanitizedVibeSiteId || currentVibeSite?.siteId,
-          siteUrl: sanitizedVibeSiteUrl || (isTrustworthySiteUrl(currentVibeSite?.siteUrl) ? currentVibeSite?.siteUrl : undefined),
+          siteUrl: sanitizedVibeSiteUrl,
           jobId: extractedVibeSite.jobId || currentVibeSite?.jobId,
-          status: extractedVibeSite.status || currentVibeSite?.status,
+          status:
+            picassoVerification?.effectiveStatus ||
+            extractedVibeSite.status ||
+            currentVibeSite?.status,
           developmentUrl: extractedVibeSite.developmentUrl || currentVibeSite?.developmentUrl,
         },
+        extra: activation
+          ? {
+              activation: {
+                ...activation,
+                picassoBridge: {
+                  ...(activation.picassoBridge || {}),
+                  siteId: vibeSiteIdForVerification || activation.picassoBridge?.siteId,
+                  siteUrl: sanitizedVibeSiteUrl,
+                  projectId: picassoVerification?.projectId || activation.picassoBridge?.projectId,
+                  initialGenerationCompleted:
+                    picassoVerification?.initialGenerationCompleted ??
+                    activation.picassoBridge?.initialGenerationCompleted,
+                  status:
+                    picassoVerification?.effectiveStatus ||
+                    activation.picassoBridge?.status,
+                  error:
+                    picassoVerification?.incompleteReason ||
+                    activation.picassoBridge?.error,
+                },
+              },
+            }
+          : undefined,
       });
       vibeBindingApplied = true;
     }
