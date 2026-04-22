@@ -1511,7 +1511,7 @@ async function repairStartupSiteBindings(
   const sanitizedCurrentVibeSiteUrl =
     isVibeSitePublicUrl(currentVibeSite?.siteUrl) &&
     currentVibeSite?.siteUrl !== sanitizedCurrentMainSiteUrl
-      ? currentVibeSite.siteUrl
+      ? currentVibeSite?.siteUrl
       : undefined;
 
   if (
