@@ -122,6 +122,7 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
 ];
 
 const REQUIRED_STARTUP_AGENT_TITLES = [
+  "Industry Advisor",
   "Wix Site Expert",
   "Vibe Site Expert",
   "Content Manager",
@@ -879,6 +880,32 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
   };
 }
 
+function buildBrandLeadTask(summary: IntakeSummary): KickoffTaskSpec {
+  return {
+    title: `Define the brand direction for ${summary.companyName}`,
+    description: [
+      `Turn the founder's taste and story into a clear brand direction for ${summary.companyName}.`,
+      "",
+      "Business summary:",
+      summary.businessDescription,
+      "",
+      "Approved site proposal:",
+      summary.siteProposal,
+      "",
+      "First-build brief:",
+      summary.firstBuildBrief,
+      "",
+      "Execution rules:",
+      "1. Define the core tone, promise, and visual direction the whole team should follow.",
+      "2. Make the live site feel distinctive, warm, and credible rather than generic or template-like.",
+      "3. Give the Wix Site Expert and Content Manager clear guidance on homepage story, offer framing, and trust-building direction.",
+      "4. Coordinate with Vibe Site Expert so the experimental site can push into a more expressive direction without duplicating the production site.",
+    ].join("\n"),
+    assigneeTitle: "Brand Lead",
+    priority: "high",
+  };
+}
+
 function buildDeterministicKickoffTasks(summary: IntakeSummary): KickoffTaskSpec[] {
   return [
     {
@@ -893,6 +920,7 @@ function buildDeterministicKickoffTasks(summary: IntakeSummary): KickoffTaskSpec
     },
     buildContentManagerTask(summary),
     buildIndustryAdvisorTask(summary),
+    buildBrandLeadTask(summary),
     buildManagementTask(summary),
   ];
 }
@@ -1078,6 +1106,8 @@ export async function POST(request: NextRequest) {
                     ? (contentManager?.id || ceoAgent.id)
                   : task.assigneeTitle === "Industry Advisor"
                     ? (industryAdvisor?.id || ceoAgent.id)
+                    : task.assigneeTitle === "Brand Lead"
+                      ? (brandLead?.id || ceoAgent.id)
                     : ceoAgent.id,
           }),
         }),
@@ -1169,16 +1199,10 @@ export async function POST(request: NextRequest) {
       }).catch(() => undefined);
     }
 
-    await Promise.all(
-      [ceoAgent.id, wixSiteExpert?.id, vibeSiteExpert?.id, contentManager?.id, industryAdvisor?.id, brandLead?.id]
-        .filter((id): id is string => Boolean(id))
-        .map((agentId) =>
-          paperclip(`/agents/${agentId}/heartbeat/invoke`, {
-            method: "POST",
-            body: JSON.stringify({}),
-          }).catch(() => undefined),
-        ),
-    );
+    await paperclip(`/agents/${ceoAgent.id}/heartbeat/invoke`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }).catch(() => undefined);
 
     const backendSignature = [
       "no-agent-comment",

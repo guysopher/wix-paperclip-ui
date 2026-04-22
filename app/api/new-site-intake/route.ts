@@ -30,9 +30,46 @@ function extractProposedTeamTitles(text: string): string[] {
     return [];
   }
 
-  return CANONICAL_AGENT_TITLES.filter((title) =>
-    new RegExp(`\\b${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
-  ).filter((title) => title !== "AI Team Lead");
+    return CANONICAL_AGENT_TITLES.filter((title) =>
+      new RegExp(`\\b${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
+    ).filter((title) => title !== "AI Team Lead");
+}
+
+const REQUIRED_PROPOSAL_TEAM_TITLES = [
+  "Industry Advisor",
+  "Wix Site Expert",
+  "Vibe Site Expert",
+  "Content Manager",
+  "Brand Lead",
+];
+
+const BUSINESS_FIT_PROPOSAL_ROLE_FALLBACKS = {
+  commerce: ["eCommerce Lead", "Catalog & Merchandising Manager"],
+  bookings: ["Bookings Operations Manager", "CRM & Lifecycle Manager"],
+  general: ["Growth Lead", "Content & SEO Manager"],
+} as const;
+
+function inferBusinessFitProposalRoles(context: string, existingRoles: Set<string>) {
+  const normalizedContext = context.toLowerCase();
+
+  const preferredTitles = /(tour|tours|booking|bookings|reservation|reservations|trip|trips|class|classes|appointment|appointments|service business|consultation)/.test(normalizedContext)
+    ? BUSINESS_FIT_PROPOSAL_ROLE_FALLBACKS.bookings
+    : /(shop|store|product|products|collection|collections|inventory|retail|ecommerce|e-commerce|sell|sales|catalog|merchandising|handmade|physical goods)/.test(normalizedContext)
+      ? BUSINESS_FIT_PROPOSAL_ROLE_FALLBACKS.commerce
+      : BUSINESS_FIT_PROPOSAL_ROLE_FALLBACKS.general;
+
+  return preferredTitles.filter((title) => !existingRoles.has(title)).slice(0, 2);
+}
+
+function ensureProposedTeamTitles(messages: IntakeMessage[], replyText: string) {
+  const extractedTitles = extractProposedTeamTitles(replyText);
+  const mergedTitles = Array.from(new Set([...REQUIRED_PROPOSAL_TEAM_TITLES, ...extractedTitles]));
+  const businessFitTitles = inferBusinessFitProposalRoles(
+    messages.map((message) => message.text).join("\n"),
+    new Set(mergedTitles),
+  );
+
+  return [...mergedTitles, ...businessFitTitles];
 }
 
 type ConversationStatus = "gathering" | "ready_to_activate";
@@ -274,7 +311,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       text: replyText,
       conversationStatus,
-      proposedTeamTitles: extractProposedTeamTitles(replyText),
+      proposedTeamTitles: ensureProposedTeamTitles(messages, replyText),
     });
   } catch (error) {
     console.error("New site intake error:", error);

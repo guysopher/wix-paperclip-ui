@@ -70,6 +70,10 @@ export interface ActivationMetadata {
   sourceLinks?: string[];
 }
 
+function isNonNullable<T>(value: T): value is NonNullable<T> {
+  return value !== null && value !== undefined;
+}
+
 const LEGACY_METASITE_PATTERN = /metasite\s+([0-9a-fA-F-]{36})/i;
 const KNOWN_TOP_LEVEL_KEYS = new Set([
   "version",
@@ -124,6 +128,7 @@ function isDisallowedPublicSiteHost(hostname: string) {
 
   return (
     /^www\.wix\.com$/i.test(normalizedHostname) ||
+    /^wix\.to$/i.test(normalizedHostname) ||
     /^manage\.wix\.com$/i.test(normalizedHostname) ||
     /^dev\.wix\.com$/i.test(normalizedHostname) ||
     /^www\.wixapis\.com$/i.test(normalizedHostname) ||
@@ -286,7 +291,7 @@ function normalizeStarterTeam(value: unknown): ActivationStarterTeamEntry[] | un
         expectedResult: getString(entry.expectedResult),
       };
     })
-    .filter((entry): entry is ActivationStarterTeamEntry => Boolean(entry));
+    .filter(isNonNullable);
 
   return normalized.length > 0 ? normalized : undefined;
 }

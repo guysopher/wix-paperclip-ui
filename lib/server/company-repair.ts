@@ -981,6 +981,7 @@ function isDisallowedPublicSiteHost(hostname: string) {
 
   return (
     /^www\.wix\.com$/i.test(normalizedHostname) ||
+    /^wix\.to$/i.test(normalizedHostname) ||
     /^manage\.wix\.com$/i.test(normalizedHostname) ||
     /^dev\.wix\.com$/i.test(normalizedHostname) ||
     /^www\.wixapis\.com$/i.test(normalizedHostname) ||
@@ -1030,6 +1031,27 @@ function isTrustworthySiteUrl(url: string | undefined) {
   }
 
   return true;
+}
+
+function isReservedPaperclipEntityId(
+  candidateId: string | undefined,
+  company: PaperclipCompany,
+  issues: PaperclipIssue[],
+  agents: PaperclipAgent[],
+) {
+  if (!candidateId) {
+    return false;
+  }
+
+  if (candidateId === company.id) {
+    return true;
+  }
+
+  if (issues.some((issue) => issue.id === candidateId)) {
+    return true;
+  }
+
+  return agents.some((agent) => agent.id === candidateId);
 }
 
 const STARTER_TEMPLATE_MARKERS: Array<{
@@ -1480,6 +1502,72 @@ async function repairStartupSiteBindings(
   let nextDescription = company.description;
   let mainBindingApplied = false;
   let vibeBindingApplied = false;
+  let bindingsSanitized = false;
+
+  const sanitizedCurrentMainMetaSiteId =
+    currentWixBinding?.metaSiteId &&
+    !isReservedPaperclipEntityId(currentWixBinding.metaSiteId, company, issues, agents) &&
+    currentWixBinding.metaSiteId !== currentVibeSite?.siteId
+      ? currentWixBinding.metaSiteId
+      : undefined;
+  const sanitizedCurrentMainSiteId =
+    currentWixBinding?.siteId &&
+    !isReservedPaperclipEntityId(currentWixBinding.siteId, company, issues, agents) &&
+    currentWixBinding.siteId !== currentVibeSite?.siteId
+      ? currentWixBinding.siteId
+      : undefined;
+  const sanitizedCurrentMainSiteUrl =
+    isTrustworthySiteUrl(currentWixBinding?.siteUrl) &&
+    currentWixBinding?.siteUrl !== currentVibeSite?.siteUrl
+      ? currentWixBinding.siteUrl
+      : undefined;
+
+  if (
+    currentWixBinding &&
+    (
+      currentWixBinding.metaSiteId !== sanitizedCurrentMainMetaSiteId ||
+      currentWixBinding.siteId !== sanitizedCurrentMainSiteId ||
+      currentWixBinding.siteUrl !== sanitizedCurrentMainSiteUrl
+    )
+  ) {
+    nextDescription = mergeCompanyDescription(nextDescription, {
+      wixBinding: {
+        metaSiteId: sanitizedCurrentMainMetaSiteId,
+        siteId: sanitizedCurrentMainSiteId,
+        siteUrl: sanitizedCurrentMainSiteUrl,
+      },
+    });
+    bindingsSanitized = true;
+  }
+
+  const sanitizedCurrentVibeSiteId =
+    currentVibeSite?.siteId &&
+    !isReservedPaperclipEntityId(currentVibeSite.siteId, company, issues, agents) &&
+    currentVibeSite.siteId !== sanitizedCurrentMainSiteId &&
+    currentVibeSite.siteId !== sanitizedCurrentMainMetaSiteId
+      ? currentVibeSite.siteId
+      : undefined;
+  const sanitizedCurrentVibeSiteUrl =
+    isTrustworthySiteUrl(currentVibeSite?.siteUrl) &&
+    currentVibeSite?.siteUrl !== sanitizedCurrentMainSiteUrl
+      ? currentVibeSite.siteUrl
+      : undefined;
+
+  if (
+    currentVibeSite &&
+    (
+      currentVibeSite.siteId !== sanitizedCurrentVibeSiteId ||
+      currentVibeSite.siteUrl !== sanitizedCurrentVibeSiteUrl
+    )
+  ) {
+    nextDescription = mergeCompanyDescription(nextDescription, {
+      vibeSite: {
+        siteId: sanitizedCurrentVibeSiteId,
+        siteUrl: sanitizedCurrentVibeSiteUrl,
+      },
+    });
+    bindingsSanitized = true;
+  }
 
   if (
     mainSiteIssue &&
@@ -1501,12 +1589,30 @@ async function repairStartupSiteBindings(
       ...mainRunEvidence,
     ]);
     const extractedBinding = extractMainSiteBindingFromBodies(mainEvidence);
-    if (extractedBinding?.siteId || extractedBinding?.siteUrl) {
+    const sanitizedMainSiteId =
+      extractedBinding?.siteId &&
+      !isReservedPaperclipEntityId(extractedBinding.siteId, company, issues, agents) &&
+      extractedBinding.siteId !== currentVibeSite?.siteId
+        ? extractedBinding.siteId
+        : undefined;
+    const sanitizedMainMetaSiteId =
+      extractedBinding?.metaSiteId &&
+      !isReservedPaperclipEntityId(extractedBinding.metaSiteId, company, issues, agents) &&
+      extractedBinding.metaSiteId !== currentVibeSite?.siteId
+        ? extractedBinding.metaSiteId
+        : sanitizedMainSiteId;
+    const sanitizedMainSiteUrl =
+      extractedBinding?.siteUrl &&
+      extractedBinding.siteUrl !== currentVibeSite?.siteUrl
+        ? extractedBinding.siteUrl
+        : undefined;
+
+    if (sanitizedMainSiteId || sanitizedMainSiteUrl) {
       nextDescription = mergeCompanyDescription(nextDescription, {
         wixBinding: {
-          metaSiteId: extractedBinding.metaSiteId,
-          siteId: extractedBinding.siteId,
-          siteUrl: extractedBinding.siteUrl || (isTrustworthySiteUrl(currentWixBinding?.siteUrl) ? currentWixBinding?.siteUrl : undefined),
+          metaSiteId: sanitizedMainMetaSiteId,
+          siteId: sanitizedMainSiteId,
+          siteUrl: sanitizedMainSiteUrl || (isTrustworthySiteUrl(currentWixBinding?.siteUrl) ? currentWixBinding?.siteUrl : undefined),
         },
       });
       mainBindingApplied = true;
@@ -1535,11 +1641,25 @@ async function repairStartupSiteBindings(
       ...vibeRunEvidence,
     ]);
     const extractedVibeSite = extractVibeSiteBindingFromBodies(vibeEvidence);
-    if (extractedVibeSite?.siteId || extractedVibeSite?.jobId || extractedVibeSite?.developmentUrl || extractedVibeSite?.status) {
+    const effectiveMainBinding = getCompanyWixBinding(nextDescription);
+    const sanitizedVibeSiteId =
+      extractedVibeSite?.siteId &&
+      !isReservedPaperclipEntityId(extractedVibeSite.siteId, company, issues, agents) &&
+      extractedVibeSite.siteId !== effectiveMainBinding?.siteId &&
+      extractedVibeSite.siteId !== effectiveMainBinding?.metaSiteId
+        ? extractedVibeSite.siteId
+        : undefined;
+    const sanitizedVibeSiteUrl =
+      extractedVibeSite?.siteUrl &&
+      extractedVibeSite.siteUrl !== effectiveMainBinding?.siteUrl
+        ? extractedVibeSite.siteUrl
+        : undefined;
+
+    if (sanitizedVibeSiteId || extractedVibeSite?.jobId || extractedVibeSite?.developmentUrl || extractedVibeSite?.status) {
       nextDescription = mergeCompanyDescription(nextDescription, {
         vibeSite: {
-          siteId: extractedVibeSite.siteId || currentVibeSite?.siteId,
-          siteUrl: extractedVibeSite.siteUrl || (isTrustworthySiteUrl(currentVibeSite?.siteUrl) ? currentVibeSite?.siteUrl : undefined),
+          siteId: sanitizedVibeSiteId || currentVibeSite?.siteId,
+          siteUrl: sanitizedVibeSiteUrl || (isTrustworthySiteUrl(currentVibeSite?.siteUrl) ? currentVibeSite?.siteUrl : undefined),
           jobId: extractedVibeSite.jobId || currentVibeSite?.jobId,
           status: extractedVibeSite.status || currentVibeSite?.status,
           developmentUrl: extractedVibeSite.developmentUrl || currentVibeSite?.developmentUrl,
@@ -1549,7 +1669,7 @@ async function repairStartupSiteBindings(
     }
   }
 
-  if (!mainBindingApplied && !vibeBindingApplied) {
+  if (!mainBindingApplied && !vibeBindingApplied && !bindingsSanitized) {
     return { company, mainBindingApplied, vibeBindingApplied };
   }
 
@@ -1783,16 +1903,75 @@ function getConfiguredStarterTeam(company: PaperclipCompany): StarterTeamPlanEnt
     .filter((entry): entry is StarterTeamPlanEntry => Boolean(entry && entry.role));
 }
 
+const REQUIRED_STARTER_TEAM_REPAIR_ENTRIES: StarterTeamPlanEntry[] = [
+  { role: "Industry Advisor" },
+  { role: "Wix Site Expert" },
+  { role: "Vibe Site Expert" },
+  { role: "Content Manager" },
+  { role: "Brand Lead" },
+];
+
+const BUSINESS_FIT_REPAIR_ROLE_FALLBACKS: Record<string, StarterTeamPlanEntry> = {
+  "eCommerce Lead": { role: "eCommerce Lead" },
+  "Catalog & Merchandising Manager": { role: "Catalog & Merchandising Manager" },
+  "Growth Lead": { role: "Growth Lead" },
+  "Content & SEO Manager": { role: "Content & SEO Manager" },
+  "Bookings Operations Manager": { role: "Bookings Operations Manager" },
+  "CRM & Lifecycle Manager": { role: "CRM & Lifecycle Manager" },
+};
+
+function inferRepairBusinessFitStarterRoles(
+  company: PaperclipCompany,
+  existingRoles: Set<string>,
+): StarterTeamPlanEntry[] {
+  const metadata = parseCompanyDescription(company.description);
+  const activation = metadata.extra?.activation;
+  const activationSummary = [
+    metadata.businessDescription || "",
+    isRecord(activation) && typeof activation.siteProposal === "string" ? activation.siteProposal : "",
+    isRecord(activation) && typeof activation.firstBuildBrief === "string" ? activation.firstBuildBrief : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+
+  let preferredTitles: string[];
+  if (/(tour|tours|booking|bookings|reservation|reservations|trip|trips|class|classes|appointment|appointments|service business|consultation)/.test(activationSummary)) {
+    preferredTitles = ["Bookings Operations Manager", "CRM & Lifecycle Manager"];
+  } else if (/(shop|store|product|products|collection|collections|inventory|retail|ecommerce|e-commerce|sell|sales|catalog|merchandising|handmade|physical goods)/.test(activationSummary)) {
+    preferredTitles = ["eCommerce Lead", "Catalog & Merchandising Manager"];
+  } else {
+    preferredTitles = ["Growth Lead", "Content & SEO Manager"];
+  }
+
+  return preferredTitles
+    .filter((title) => !existingRoles.has(title))
+    .map((title) => BUSINESS_FIT_REPAIR_ROLE_FALLBACKS[title])
+    .filter(isNonNullable)
+    .slice(0, 2);
+}
+
+function ensureRepairStarterTeamCoverage(company: PaperclipCompany, starterTeam: StarterTeamPlanEntry[]) {
+  const normalizedCoreTeam = REQUIRED_STARTER_TEAM_REPAIR_ENTRIES.map((requiredEntry) => {
+    return starterTeam.find((entry) => entry.role === requiredEntry.role) || requiredEntry;
+  });
+  const additionalEntries = starterTeam.filter((entry) =>
+    !REQUIRED_STARTER_TEAM_REPAIR_ENTRIES.some((requiredEntry) => requiredEntry.role === entry.role),
+  );
+  const coveredTeam = [...normalizedCoreTeam, ...additionalEntries];
+  const existingRoles = new Set(coveredTeam.map((entry) => entry.role));
+  const inferredBusinessFitRoles = inferRepairBusinessFitStarterRoles(company, existingRoles);
+
+  return [...coveredTeam, ...inferredBusinessFitRoles];
+}
+
 async function createStarterTeamAgents(company: PaperclipCompany, existingAgents: PaperclipAgent[]) {
   const configuredStarterTeam = getConfiguredStarterTeam(company);
-  const fallbackStarterTeam: StarterTeamPlanEntry[] = [
-    { role: "Industry Advisor" },
-    { role: "Wix Site Expert" },
-    { role: "Vibe Site Expert" },
-    { role: "Content Manager" },
-    { role: "Bookings Operations Manager" },
-  ];
-  const starterTeam = (configuredStarterTeam.length > 0 ? configuredStarterTeam : fallbackStarterTeam)
+  const fallbackStarterTeam: StarterTeamPlanEntry[] = ensureRepairStarterTeamCoverage(company, []);
+  const starterTeam = ensureRepairStarterTeamCoverage(
+    company,
+    configuredStarterTeam.length > 0 ? configuredStarterTeam : fallbackStarterTeam,
+  )
     .filter((entry) => entry.role !== "AI Team Lead");
 
   const existingTitles = new Set(
