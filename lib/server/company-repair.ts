@@ -27,6 +27,7 @@ import {
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { renderPromptTemplate } from "@/lib/prompt-render";
 import { verifyPicassoProject } from "@/lib/server/picasso-project";
+import { verifyPublicUrlReachable } from "@/lib/server/public-url";
 
 const PAPERCLIP_API_URL =
   process.env.PAPERCLIP_API_URL ||
@@ -228,26 +229,6 @@ function isLiveSpecialist(agent: PaperclipAgent, aiTeamLeadId: string | null) {
   }
 
   return agent.status !== "pending_approval";
-}
-
-async function waitForLiveSpecialists(companyId: string, aiTeamLeadId: string, fallbackAgents: PaperclipAgent[]) {
-  const deadline = Date.now() + 12_000;
-  let latestAgents = fallbackAgents;
-
-  while (Date.now() < deadline) {
-    latestAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => latestAgents);
-    const pendingSpecialists = latestAgents.filter(
-      (agent) => agent.id !== aiTeamLeadId && agent.status === "pending_approval",
-    );
-
-    if (pendingSpecialists.length === 0) {
-      return latestAgents;
-    }
-
-    await sleep(1_000);
-  }
-
-  return latestAgents;
 }
 
 function buildReadBackfillScript() {
@@ -688,28 +669,6 @@ async function countPendingApprovals(companyId: string) {
   const pendingApprovals = approvals.filter((approval) => approval.status === "pending");
 
   return pendingApprovals.length;
-}
-
-async function autoApprovePendingHireApprovals(companyId: string) {
-  const approvals = await paperclip<PaperclipApproval[]>(`/companies/${companyId}/approvals`).catch(() => []);
-  const pendingHireApprovals = approvals.filter(
-    (approval) => approval.status === "pending" && approval.type === "hire_agent",
-  );
-
-  if (pendingHireApprovals.length === 0) {
-    return 0;
-  }
-
-  await Promise.all(
-    pendingHireApprovals.map((approval) =>
-      paperclip(`/approvals/${approval.id}/approve`, {
-        method: "POST",
-        body: JSON.stringify({ notes: "Auto-approved during startup repair." }),
-      }).catch(() => null),
-    ),
-  );
-
-  return pendingHireApprovals.length;
 }
 
 async function wakeAiTeamLead(companyId: string) {
@@ -1582,6 +1541,25 @@ async function repairStartupSiteBindings(
   let vibeBindingApplied = false;
   let bindingsSanitized = false;
 
+  const currentMainSiteUrlCandidate =
+    isTrustworthySiteUrl(currentWixBinding?.siteUrl) &&
+    currentWixBinding?.siteUrl !== currentVibeSite?.siteUrl
+      ? currentWixBinding.siteUrl
+      : undefined;
+  const currentMainSiteUrlVerified = currentMainSiteUrlCandidate
+    ? currentWixBinding?.publicUrlVerified === true ||
+      await verifyPublicUrlReachable(currentMainSiteUrlCandidate)
+    : false;
+  const currentVibeSiteUrlCandidate =
+    isVibeSitePublicUrl(currentVibeSite?.siteUrl) &&
+    currentVibeSite?.siteUrl !== currentWixBinding?.siteUrl
+      ? currentVibeSite.siteUrl
+      : undefined;
+  const currentVibeSiteUrlVerified = currentVibeSiteUrlCandidate
+    ? currentVibeSite?.publicUrlVerified === true ||
+      await verifyPublicUrlReachable(currentVibeSiteUrlCandidate)
+    : false;
+
   const sanitizedCurrentMainMetaSiteId =
     currentWixBinding?.metaSiteId &&
     !isReservedPaperclipEntityId(currentWixBinding.metaSiteId, company, issues, agents) &&
@@ -1594,11 +1572,9 @@ async function repairStartupSiteBindings(
     currentWixBinding.siteId !== currentVibeSite?.siteId
       ? currentWixBinding.siteId
       : undefined;
-  const sanitizedCurrentMainSiteUrl =
-    isTrustworthySiteUrl(currentWixBinding?.siteUrl) &&
-    currentWixBinding?.siteUrl !== currentVibeSite?.siteUrl
-      ? currentWixBinding?.siteUrl
-      : undefined;
+  const sanitizedCurrentMainSiteUrl = currentMainSiteUrlVerified
+    ? currentMainSiteUrlCandidate
+    : undefined;
 
   if (
     currentWixBinding &&
@@ -1613,6 +1589,7 @@ async function repairStartupSiteBindings(
         metaSiteId: sanitizedCurrentMainMetaSiteId,
         siteId: sanitizedCurrentMainSiteId,
         siteUrl: sanitizedCurrentMainSiteUrl,
+        publicUrlVerified: sanitizedCurrentMainSiteUrl ? true : undefined,
       },
     });
     bindingsSanitized = true;
@@ -1626,9 +1603,9 @@ async function repairStartupSiteBindings(
       ? currentVibeSite?.siteId
       : undefined;
   const sanitizedCurrentVibeSiteUrl =
-    isVibeSitePublicUrl(currentVibeSite?.siteUrl) &&
-    currentVibeSite?.siteUrl !== sanitizedCurrentMainSiteUrl
-      ? currentVibeSite?.siteUrl
+    currentVibeSiteUrlVerified &&
+    currentVibeSiteUrlCandidate !== sanitizedCurrentMainSiteUrl
+      ? currentVibeSiteUrlCandidate
       : undefined;
 
   if (
@@ -1642,6 +1619,7 @@ async function repairStartupSiteBindings(
       vibeSite: {
         siteId: sanitizedCurrentVibeSiteId,
         siteUrl: sanitizedCurrentVibeSiteUrl,
+        publicUrlVerified: sanitizedCurrentVibeSiteUrl ? true : undefined,
       },
     });
     bindingsSanitized = true;
@@ -1679,10 +1657,15 @@ async function repairStartupSiteBindings(
       extractedBinding.metaSiteId !== currentVibeSite?.siteId
         ? extractedBinding.metaSiteId
         : sanitizedMainSiteId;
-    const sanitizedMainSiteUrl =
+    const extractedMainSiteUrlCandidate =
       extractedBinding?.siteUrl &&
       extractedBinding.siteUrl !== currentVibeSite?.siteUrl
         ? extractedBinding.siteUrl
+        : undefined;
+    const sanitizedMainSiteUrl =
+      extractedMainSiteUrlCandidate &&
+      await verifyPublicUrlReachable(extractedMainSiteUrlCandidate)
+        ? extractedMainSiteUrlCandidate
         : undefined;
 
     if (sanitizedMainSiteId || sanitizedMainSiteUrl) {
@@ -1690,7 +1673,9 @@ async function repairStartupSiteBindings(
         wixBinding: {
           metaSiteId: sanitizedMainMetaSiteId,
           siteId: sanitizedMainSiteId,
-          siteUrl: sanitizedMainSiteUrl || (isTrustworthySiteUrl(currentWixBinding?.siteUrl) ? currentWixBinding?.siteUrl : undefined),
+          siteUrl: sanitizedMainSiteUrl || sanitizedCurrentMainSiteUrl,
+          publicUrlVerified:
+            sanitizedMainSiteUrl || sanitizedCurrentMainSiteUrl ? true : undefined,
         },
       });
       mainBindingApplied = true;
@@ -1744,7 +1729,8 @@ async function repairStartupSiteBindings(
       ? await verifyPicassoProject(vibeSiteIdForVerification).catch(() => null)
       : null;
     const verifiedVibeSiteUrl =
-      picassoVerification?.effectiveStatus === "succeeded"
+      picassoVerification?.effectiveStatus === "succeeded" &&
+      picassoVerification?.publicUrlVerified === true
         ? picassoVerification.primarySiteUrl || picassoVerification.siteUrl
         : undefined;
     const sanitizedVibeSiteUrl =
@@ -1752,10 +1738,13 @@ async function repairStartupSiteBindings(
         ? verifiedVibeSiteUrl
         : undefined;
     const hasInvalidStoredVibeSiteUrl =
-      Boolean(currentVibeSite?.siteUrl) && !isVibeSitePublicUrl(currentVibeSite?.siteUrl);
+      Boolean(currentVibeSite?.siteUrl) &&
+      (!isVibeSitePublicUrl(currentVibeSite?.siteUrl) ||
+        currentVibeSite?.publicUrlVerified !== true);
     const hasInvalidStoredPicassoSiteUrl =
       Boolean(activation?.picassoBridge?.siteUrl) &&
-      !isVibeSitePublicUrl(activation?.picassoBridge?.siteUrl);
+      (!isVibeSitePublicUrl(activation?.picassoBridge?.siteUrl) ||
+        activation?.picassoBridge?.publicUrlVerified !== true);
     const shouldClearStoredVibeSiteUrl =
       !sanitizedVibeSiteUrl &&
       (hasInvalidStoredVibeSiteUrl || hasInvalidStoredPicassoSiteUrl);
@@ -1782,6 +1771,12 @@ async function repairStartupSiteBindings(
           siteUrl:
             sanitizedVibeSiteUrl ||
             (shouldClearStoredVibeSiteUrl ? "" : currentVibeSite?.siteUrl),
+          publicUrlVerified:
+            sanitizedVibeSiteUrl
+              ? true
+              : shouldClearStoredVibeSiteUrl
+                ? false
+                : currentVibeSite?.publicUrlVerified,
           jobId: extractedVibeSite?.jobId || currentVibeSite?.jobId,
           status: nextVibeSiteStatus || (shouldClearStoredVibeSiteUrl ? "" : undefined),
           developmentUrl: extractedVibeSite?.developmentUrl || currentVibeSite?.developmentUrl,
@@ -1798,6 +1793,11 @@ async function repairStartupSiteBindings(
                     (shouldClearStoredVibeSiteUrl
                       ? ""
                       : activation.picassoBridge?.siteUrl),
+                  publicUrlVerified:
+                    sanitizedVibeSiteUrl
+                      ? true
+                      : picassoVerification?.publicUrlVerified ??
+                        activation.picassoBridge?.publicUrlVerified,
                   projectId: picassoVerification?.projectId || activation.picassoBridge?.projectId,
                   initialGenerationCompleted:
                     picassoVerification?.initialGenerationCompleted ??
@@ -1926,11 +1926,19 @@ async function reopenIncompleteStartupExecutionIssues(
   const vibeSite = getCompanyVibeSite(company.description);
   const mainSiteIssue = issues.find((issue) => /launch the first site version/i.test(issue.title));
   const vibeSiteIssue = issues.find((issue) => /experimental vibe site/i.test(issue.title));
-  const mainSiteAudit = await auditLiveSiteForStarterTemplate(wixBinding?.siteUrl, company.name);
-  const vibeSiteAudit = await auditLiveSiteForStarterTemplate(vibeSite?.siteUrl, company.name);
+  const verifiedMainSiteUrl =
+    wixBinding?.publicUrlVerified === true && isTrustworthySiteUrl(wixBinding?.siteUrl)
+      ? wixBinding.siteUrl
+      : undefined;
+  const verifiedVibeSiteUrl =
+    vibeSite?.publicUrlVerified === true && isVibeSitePublicUrl(vibeSite?.siteUrl)
+      ? vibeSite.siteUrl
+      : undefined;
+  const mainSiteAudit = await auditLiveSiteForStarterTemplate(verifiedMainSiteUrl, company.name);
+  const vibeSiteAudit = await auditLiveSiteForStarterTemplate(verifiedVibeSiteUrl, company.name);
   const vibeDifferentiationAudit = await auditVibeSiteDifferentiation(
-    wixBinding?.siteUrl,
-    vibeSite?.siteUrl,
+    verifiedMainSiteUrl,
+    verifiedVibeSiteUrl,
     company.name,
   );
   const contentProblems: string[] = [];
@@ -1953,7 +1961,8 @@ async function reopenIncompleteStartupExecutionIssues(
 
   if (mainSiteIssue?.status === "done") {
     const hasMainIdentity = Boolean(wixBinding?.metaSiteId || wixBinding?.siteId);
-    const hasMainLiveUrl = isTrustworthySiteUrl(wixBinding?.siteUrl);
+    const hasMainLiveUrl =
+      wixBinding?.publicUrlVerified === true && isTrustworthySiteUrl(wixBinding?.siteUrl);
     const reason = !hasMainIdentity
       ? "the verified main-site identity is still missing from company.description"
       : !hasMainLiveUrl
@@ -1983,7 +1992,8 @@ async function reopenIncompleteStartupExecutionIssues(
 
   if (vibeSiteIssue?.status === "done") {
     const hasVibeIdentity = Boolean(vibeSite?.siteId || vibeSite?.jobId);
-    const hasVibePublicUrl = isVibeSitePublicUrl(vibeSite?.siteUrl);
+    const hasVibePublicUrl =
+      vibeSite?.publicUrlVerified === true && isVibeSitePublicUrl(vibeSite?.siteUrl);
     const reason = !hasVibeIdentity
       ? "the verified vibe-site identity is still missing from company.description"
       : !hasVibePublicUrl
@@ -2316,7 +2326,7 @@ async function closeResolvedStartupFollowups(
 export async function repairCompanyState(companyId: string, options?: { startup?: boolean }): Promise<CompanyRepairResult> {
   const startup = Boolean(options?.startup);
   const company = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
-  let approvalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
+  let approvalsApproved = 0;
   const { promptSync, instructionFilesSynced, timeoutDefaultsUpdated, heartbeatDefaultsUpdated } =
     await syncPromptsAndInstructions(company);
   const refreshedCompany = await paperclip<PaperclipCompany>(`/companies/${companyId}`);
@@ -2358,14 +2368,6 @@ export async function repairCompanyState(companyId: string, options?: { startup?
     let workingIssues = issues;
     let wokeStartupTeam = false;
 
-    if (specialistShellCount > 0) {
-      const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
-      if (startupApprovalsApproved > 0) {
-        approvalsApproved += startupApprovalsApproved;
-        workingAgents = await waitForLiveSpecialists(companyId, aiTeamLead.id, agents);
-      }
-    }
-
     const startupAgentIds = workingAgents
       .filter((agent) => agent.id === aiTeamLead.id || isLiveSpecialist(agent, aiTeamLead.id))
       .map((agent) => agent.id);
@@ -2389,11 +2391,6 @@ export async function repairCompanyState(companyId: string, options?: { startup?
         if (starterAgentsCreated > 0) {
           createdAgentIds.forEach((agentId) => agentsToWake.add(agentId));
           workingAgents = await paperclip<PaperclipAgent[]>(`/companies/${companyId}/agents`).catch(() => agents);
-          const startupApprovalsApproved = await autoApprovePendingHireApprovals(companyId).catch(() => 0);
-          if (startupApprovalsApproved > 0) {
-            approvalsApproved += startupApprovalsApproved;
-            workingAgents = await waitForLiveSpecialists(companyId, aiTeamLead.id, workingAgents);
-          }
         }
       }
 

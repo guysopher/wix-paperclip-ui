@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { getCompanyBusinessDescription, getCompanyWixBinding } from "@/lib/company-metadata";
+import {
+  getCompanyBusinessDescription,
+  getCompanyWixBinding,
+  getVerifiedWixSiteUrl,
+} from "@/lib/company-metadata";
 
 const client = new OpenAI();
 
@@ -209,7 +213,7 @@ export async function POST(request: NextRequest) {
     const prompt = [
       `Company: ${company.name}`,
       `Business summary: ${businessDescription || "Not captured yet."}`,
-      `Wix site: ${wixBinding?.siteUrl || "Unknown"}`,
+      `Wix site: ${getVerifiedWixSiteUrl(wixBinding) || "Unknown"}`,
       `Budget: monthly $${((company.budgetMonthlyCents || 0) / 100).toFixed(2)}, spent $${((company.spentMonthlyCents || 0) / 100).toFixed(2)}`,
       `Dashboard tasks: ${JSON.stringify(dashboard.tasks || {})}`,
       `Pending approvals: ${dashboard.pendingApprovals || 0}`,

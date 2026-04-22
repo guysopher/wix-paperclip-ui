@@ -5,6 +5,7 @@ export interface WixBindingMetadata {
   siteId?: string;
   siteName?: string;
   siteUrl?: string;
+  publicUrlVerified?: boolean;
   activationIssueId?: string;
   auth?: Record<string, string>;
   data?: Record<string, unknown>;
@@ -13,6 +14,7 @@ export interface WixBindingMetadata {
 export interface VibeSiteMetadata {
   siteId?: string;
   siteUrl?: string;
+  publicUrlVerified?: boolean;
   jobId?: string;
   status?: string;
   developmentUrl?: string;
@@ -48,6 +50,7 @@ export interface PicassoBridgeMetadata {
   status?: string;
   siteId?: string;
   siteUrl?: string;
+  publicUrlVerified?: boolean;
   projectId?: string;
   initialGenerationCompleted?: boolean;
   developmentUrl?: string;
@@ -86,6 +89,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "vibeSite",
   "vibeSiteId",
   "vibeSiteUrl",
+  "vibeSitePublicUrlVerified",
   "vibeSiteJobId",
   "vibeSiteStatus",
   "vibeSiteDevelopmentUrl",
@@ -285,6 +289,7 @@ function normalizePicassoBridge(value: unknown): PicassoBridgeMetadata | undefin
     status: getString(value.status),
     siteId: getString(value.siteId),
     siteUrl: directSiteUrl,
+    publicUrlVerified: directSiteUrl ? getBoolean(value.publicUrlVerified) : undefined,
     projectId: getString(value.projectId),
     initialGenerationCompleted: getBoolean(value.initialGenerationCompleted),
     developmentUrl: rawDevelopmentUrl || fallbackDevelopmentUrl,
@@ -358,11 +363,15 @@ export function getCompanyActivation(description: string | null | undefined): Ac
 
 function normalizeWixBinding(raw: Record<string, unknown>): WixBindingMetadata | undefined {
   const bindingSource = isRecord(raw.wixBinding) ? raw.wixBinding : raw;
+  const siteUrl = normalizePublicSiteUrl(bindingSource.siteUrl) || normalizePublicSiteUrl(raw.siteUrl);
   const binding: WixBindingMetadata = {
     metaSiteId: getString(bindingSource.metaSiteId) || getString(raw.metaSiteId),
     siteId: getString(bindingSource.siteId) || getString(raw.siteId),
     siteName: getString(bindingSource.siteName) || getString(raw.siteName),
-    siteUrl: normalizePublicSiteUrl(bindingSource.siteUrl) || normalizePublicSiteUrl(raw.siteUrl),
+    siteUrl,
+    publicUrlVerified: siteUrl
+      ? (getBoolean(bindingSource.publicUrlVerified) ?? getBoolean(raw.publicUrlVerified))
+      : undefined,
     activationIssueId:
       getString(bindingSource.activationIssueId) || getString(raw.activationIssueId),
     auth: getStringMap(bindingSource.auth) || getStringMap(raw.auth),
@@ -397,6 +406,9 @@ function normalizeVibeSite(raw: Record<string, unknown>): VibeSiteMetadata | und
   const vibeSite: VibeSiteMetadata = {
     siteId: getString(vibeSource.siteId) || getString(raw.vibeSiteId),
     siteUrl: directSiteUrl,
+    publicUrlVerified: directSiteUrl
+      ? (getBoolean(vibeSource.publicUrlVerified) ?? getBoolean(raw.vibeSitePublicUrlVerified))
+      : undefined,
     jobId: getString(vibeSource.jobId) || getString(raw.vibeSiteJobId),
     status: getString(vibeSource.status) || getString(raw.vibeSiteStatus),
     developmentUrl: rawDevelopmentUrl || fallbackDevelopmentUrl,
@@ -461,6 +473,14 @@ export function getCompanyVibeSite(
   return parseCompanyDescription(description).vibeSite;
 }
 
+export function getVerifiedWixSiteUrl(binding: WixBindingMetadata | undefined): string | undefined {
+  return binding?.publicUrlVerified ? binding.siteUrl : undefined;
+}
+
+export function getVerifiedVibeSiteUrl(vibeSite: VibeSiteMetadata | undefined): string | undefined {
+  return vibeSite?.publicUrlVerified ? vibeSite.siteUrl : undefined;
+}
+
 export function buildCompanyDescription(metadata: CompanyDescriptionMetadata): string {
   const next: Record<string, unknown> = {
     version: 1,
@@ -473,6 +493,7 @@ export function buildCompanyDescription(metadata: CompanyDescriptionMetadata): s
       siteId: metadata.wixBinding.siteId || undefined,
       siteName: metadata.wixBinding.siteName || undefined,
       siteUrl: metadata.wixBinding.siteUrl || undefined,
+      publicUrlVerified: metadata.wixBinding.publicUrlVerified ?? undefined,
       activationIssueId: metadata.wixBinding.activationIssueId || undefined,
       auth: metadata.wixBinding.auth || undefined,
       data: metadata.wixBinding.data || undefined,
@@ -482,6 +503,7 @@ export function buildCompanyDescription(metadata: CompanyDescriptionMetadata): s
   if (metadata.vibeSite) {
     next.vibeSiteId = metadata.vibeSite.siteId || undefined;
     next.vibeSiteUrl = metadata.vibeSite.siteUrl || undefined;
+    next.vibeSitePublicUrlVerified = metadata.vibeSite.publicUrlVerified ?? undefined;
     next.vibeSiteJobId = metadata.vibeSite.jobId || undefined;
     next.vibeSiteStatus = metadata.vibeSite.status || undefined;
     next.vibeSiteDevelopmentUrl = metadata.vibeSite.developmentUrl || undefined;

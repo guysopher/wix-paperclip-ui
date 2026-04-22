@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { normalizeVibeSiteUrl } from "@/lib/company-metadata";
+import { verifyPublicUrlReachable } from "@/lib/server/public-url";
 
 const WIX_PROJECTS_API_BASE = "https://www.wix.com/_api/projects";
 
@@ -41,6 +42,7 @@ export interface PicassoProjectVerification {
   projectId?: string;
   siteUrl?: string;
   primarySiteUrl?: string;
+  publicUrlVerified?: boolean;
   initialGenerationCompleted?: boolean;
   devMachineStatus?: string;
   incompleteReason?: string;
@@ -144,8 +146,10 @@ export async function verifyPicassoProject(siteId: string): Promise<PicassoProje
   const projectId = getString(picassoProject?.id);
   const siteUrl = normalizeVibeSiteUrl(picassoProject?.siteUrl);
   const primarySiteUrl = normalizeVibeSiteUrl(picassoProject?.primarySiteUrl);
+  const candidatePublicUrl = primarySiteUrl || siteUrl;
+  const publicUrlVerified = await verifyPublicUrlReachable(candidatePublicUrl);
 
-  if (initialGenerationCompleted) {
+  if (initialGenerationCompleted && publicUrlVerified) {
     return {
       siteId,
       verified: true,
@@ -153,6 +157,7 @@ export async function verifyPicassoProject(siteId: string): Promise<PicassoProje
       projectId,
       siteUrl,
       primarySiteUrl,
+      publicUrlVerified: true,
       initialGenerationCompleted: true,
       devMachineStatus,
     };
@@ -170,9 +175,18 @@ export async function verifyPicassoProject(siteId: string): Promise<PicassoProje
     projectId,
     siteUrl,
     primarySiteUrl,
-    initialGenerationCompleted: picassoProject?.initialGenerationCompleted === false ? false : undefined,
+    publicUrlVerified,
+    initialGenerationCompleted:
+      picassoProject?.initialGenerationCompleted === true
+        ? true
+        : picassoProject?.initialGenerationCompleted === false
+          ? false
+          : undefined,
     devMachineStatus,
     incompleteReason:
+      (initialGenerationCompleted && !publicUrlVerified
+        ? "A vibe-site URL was assigned, but the public wix-vibe-site.com URL is not reachable yet."
+        : undefined) ||
       devMachineErrorMessage ||
       "Picasso project exists, but initial generation is not complete yet.",
   };

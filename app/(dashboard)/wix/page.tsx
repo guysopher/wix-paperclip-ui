@@ -11,7 +11,12 @@ import {
 } from "@wix/design-system";
 import { Refresh, ExternalLink } from "@wix/wix-ui-icons-common";
 import { useCompanyData } from "../../providers";
-import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
+import {
+  getCompanyVibeSite,
+  getCompanyWixBinding,
+  getVerifiedVibeSiteUrl,
+  getVerifiedWixSiteUrl,
+} from "@/lib/company-metadata";
 
 async function copyToClipboard(value: string) {
   try {
@@ -44,9 +49,9 @@ function WixContent() {
   const metaSiteId = binding?.metaSiteId || "";
   const siteId = binding?.siteId || "";
   const siteName = binding?.siteName || company.name;
-  const siteUrl = binding?.siteUrl || "";
+  const siteUrl = getVerifiedWixSiteUrl(binding) || "";
   const vibeSiteId = vibeSite?.siteId || "";
-  const vibeSiteUrl = vibeSite?.siteUrl || "";
+  const vibeSiteUrl = getVerifiedVibeSiteUrl(vibeSite) || "";
   const vibeSiteStatus = vibeSite?.status || "";
   const vibeSiteJobId = vibeSite?.jobId || "";
   const vibeSiteDevelopmentUrl = vibeSite?.developmentUrl || "";

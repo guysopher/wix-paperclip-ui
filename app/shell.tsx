@@ -22,7 +22,12 @@ import {
 import { useBadgeCounts, useCompany, type BadgeCounts } from "./providers";
 import { CeoChatPanel } from "./ceo-chat-panel";
 import { CreateCompanyWizard } from "./create-company-wizard";
-import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
+import {
+  getCompanyVibeSite,
+  getCompanyWixBinding,
+  getVerifiedVibeSiteUrl,
+  getVerifiedWixSiteUrl,
+} from "@/lib/company-metadata";
 
 type CountKey = keyof BadgeCounts;
 
@@ -103,8 +108,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const hasActiveCompany = Boolean(currentCompany);
   const wixBinding = currentCompany ? getCompanyWixBinding(currentCompany.description) : undefined;
   const vibeSite = currentCompany ? getCompanyVibeSite(currentCompany.description) : undefined;
-  const liveSiteUrl = wixBinding?.siteUrl || "";
-  const vibeSiteUrl = vibeSite?.siteUrl || "";
+  const liveSiteUrl = getVerifiedWixSiteUrl(wixBinding) || "";
+  const vibeSiteUrl = getVerifiedVibeSiteUrl(vibeSite) || "";
   const metaSiteId = wixBinding?.metaSiteId || "";
   const businessManagerUrl = metaSiteId ? `https://manage.wix.com/dashboard/${metaSiteId}` : "";
   const editorUrl = metaSiteId ? `https://www.wix.com/editor/${metaSiteId}` : "";

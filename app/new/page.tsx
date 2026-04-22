@@ -1048,14 +1048,18 @@ function NewCompanyPageContent() {
             nextBridgeJob,
             picassoVerification,
           );
-          const verifiedSiteUrl =
+          const candidatePublicSiteUrl =
             normalizeVibeSiteUrl(picassoVerification?.primarySiteUrl) ||
             normalizeVibeSiteUrl(picassoVerification?.siteUrl) ||
             normalizeVibeSiteUrl(nextBridgeJob.result?.siteUrl) ||
             undefined;
+          const verifiedSiteUrl =
+            picassoVerification?.publicUrlVerified === true ? candidatePublicSiteUrl : undefined;
           const developmentUrl =
             nextBridgeJob.result?.developmentUrl ||
-            (!verifiedSiteUrl ? nextBridgeJob.result?.siteUrl || undefined : undefined);
+            (!verifiedSiteUrl
+              ? candidatePublicSiteUrl || nextBridgeJob.result?.siteUrl || undefined
+              : undefined);
           const nextActivation: ActivationMetadata = {
             mode: "new_site",
             newSiteInterview: {
@@ -1068,7 +1072,8 @@ function NewCompanyPageContent() {
               jobId: nextBridgeJob.id,
               status: effectiveBridgeStatus,
               siteId: nextBridgeJob.result?.siteId || undefined,
-              siteUrl: verifiedSiteUrl,
+              siteUrl: candidatePublicSiteUrl,
+              publicUrlVerified: picassoVerification?.publicUrlVerified === true,
               projectId:
                 picassoVerification?.projectId ||
                 nextBridgeJob.result?.projectId ||
@@ -1092,6 +1097,7 @@ function NewCompanyPageContent() {
             currentPicasso?.status !== nextActivation.picassoBridge?.status ||
             currentPicasso?.siteId !== nextActivation.picassoBridge?.siteId ||
             currentPicasso?.siteUrl !== nextActivation.picassoBridge?.siteUrl ||
+            currentPicasso?.publicUrlVerified !== nextActivation.picassoBridge?.publicUrlVerified ||
             currentPicasso?.developmentUrl !== nextActivation.picassoBridge?.developmentUrl ||
             currentPicasso?.error !== nextActivation.picassoBridge?.error;
 
@@ -1100,6 +1106,7 @@ function NewCompanyPageContent() {
               vibeSite: {
                 siteId: nextBridgeJob.result?.siteId || undefined,
                 siteUrl: verifiedSiteUrl,
+                publicUrlVerified: picassoVerification?.publicUrlVerified === true,
                 jobId: nextBridgeJob.id,
                 status: effectiveBridgeStatus,
                 developmentUrl,

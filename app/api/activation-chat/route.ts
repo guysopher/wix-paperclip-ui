@@ -5,6 +5,8 @@ import {
   getCompanyBusinessDescription,
   getCompanyVibeSite,
   getCompanyWixBinding,
+  getVerifiedVibeSiteUrl,
+  getVerifiedWixSiteUrl,
   parseCompanyDescription,
 } from "@/lib/company-metadata";
 import { verifyPicassoProject } from "@/lib/server/picasso-project";
@@ -265,9 +267,10 @@ export async function POST(request: NextRequest) {
         activation.picassoBridge?.status ||
         "not_started";
       const vibeSiteUrl =
-        picassoVerification?.primarySiteUrl ||
-        picassoVerification?.siteUrl ||
-        vibeSite?.siteUrl ||
+        (picassoVerification?.publicUrlVerified
+          ? picassoVerification?.primarySiteUrl || picassoVerification?.siteUrl
+          : undefined) ||
+        getVerifiedVibeSiteUrl(vibeSite) ||
         "Unknown";
 
       const buildPrompt = `You are the founder-facing AI Team Lead for a brand new Wix site creation flow.
@@ -291,7 +294,7 @@ ${issue.description || "No activation brief available."}
 
 Current build state:
 - Main site meta site ID: ${wixBinding?.metaSiteId || "Unknown"}
-- Main site URL: ${wixBinding?.siteUrl || "Unknown"}
+- Main site URL: ${getVerifiedWixSiteUrl(wixBinding) || "Unknown"}
 - Experimental vibe site status: ${vibeStatus}
 - Experimental vibe site ID: ${vibeSite?.siteId || "Unknown"}
 - Experimental vibe site URL: ${vibeSiteUrl}
@@ -371,7 +374,7 @@ Current activation state:
 - Business description: ${businessDescription || "Not filled yet"}
 - Meta site ID: ${wixBinding?.metaSiteId || "Unknown"}
 - Site name: ${wixBinding?.siteName || "Unknown"}
-- Site URL: ${wixBinding?.siteUrl || "Unknown"}
+- Site URL: ${getVerifiedWixSiteUrl(wixBinding) || "Unknown"}
 - Installed apps: ${summarizeInstalledApps(company.description)}
 - Active background runs: ${activeRunCount}
 - Current activation issue: ${issue.identifier} - ${issue.title} [${issue.status}]

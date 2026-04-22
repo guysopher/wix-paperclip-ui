@@ -26,7 +26,12 @@ import {
   createGoal,
   deleteGoal,
 } from "@/lib/api";
-import { getCompanyVibeSite, getCompanyWixBinding } from "@/lib/company-metadata";
+import {
+  getCompanyVibeSite,
+  getCompanyWixBinding,
+  getVerifiedVibeSiteUrl,
+  getVerifiedWixSiteUrl,
+} from "@/lib/company-metadata";
 
 function formatDescriptionForEditor(description: string): string {
   const raw = description.trim();
@@ -205,8 +210,8 @@ function CompanyContent() {
   const descriptionError = getDescriptionValidationError(editDescription);
   const wixBinding = getCompanyWixBinding(company.description);
   const vibeSite = getCompanyVibeSite(company.description);
-  const siteUrl = wixBinding?.siteUrl || "";
-  const vibeSiteUrl = vibeSite?.siteUrl || "";
+  const siteUrl = getVerifiedWixSiteUrl(wixBinding) || "";
+  const vibeSiteUrl = getVerifiedVibeSiteUrl(vibeSite) || "";
 
   return (
     <>
