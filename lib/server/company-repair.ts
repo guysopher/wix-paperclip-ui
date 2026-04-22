@@ -1638,7 +1638,7 @@ async function repairStartupSiteBindings(
       Boolean(currentVibeSite?.siteUrl) && !isVibeSitePublicUrl(currentVibeSite?.siteUrl);
     const hasInvalidStoredPicassoSiteUrl =
       Boolean(activation?.picassoBridge?.siteUrl) &&
-      !isVibeSitePublicUrl(activation.picassoBridge?.siteUrl);
+      !isVibeSitePublicUrl(activation?.picassoBridge?.siteUrl);
     const shouldClearStoredVibeSiteUrl =
       !sanitizedVibeSiteUrl &&
       (hasInvalidStoredVibeSiteUrl || hasInvalidStoredPicassoSiteUrl);
