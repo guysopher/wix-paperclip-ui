@@ -1503,10 +1503,10 @@ async function repairStartupSiteBindings(
 
   const sanitizedCurrentVibeSiteId =
     currentVibeSite?.siteId &&
-    !isReservedPaperclipEntityId(currentVibeSite.siteId, company, issues, agents) &&
-    currentVibeSite.siteId !== sanitizedCurrentMainSiteId &&
-    currentVibeSite.siteId !== sanitizedCurrentMainMetaSiteId
-      ? currentVibeSite.siteId
+    !isReservedPaperclipEntityId(currentVibeSite?.siteId, company, issues, agents) &&
+    currentVibeSite?.siteId !== sanitizedCurrentMainSiteId &&
+    currentVibeSite?.siteId !== sanitizedCurrentMainMetaSiteId
+      ? currentVibeSite?.siteId
       : undefined;
   const sanitizedCurrentVibeSiteUrl =
     isVibeSitePublicUrl(currentVibeSite?.siteUrl) &&
@@ -1609,18 +1609,18 @@ async function repairStartupSiteBindings(
     const effectiveMainBinding = getCompanyWixBinding(nextDescription);
     const sanitizedVibeSiteId =
       extractedVibeSite?.siteId &&
-      !isReservedPaperclipEntityId(extractedVibeSite.siteId, company, issues, agents) &&
-      extractedVibeSite.siteId !== effectiveMainBinding?.siteId &&
-      extractedVibeSite.siteId !== effectiveMainBinding?.metaSiteId
-        ? extractedVibeSite.siteId
+      !isReservedPaperclipEntityId(extractedVibeSite?.siteId, company, issues, agents) &&
+      extractedVibeSite?.siteId !== effectiveMainBinding?.siteId &&
+      extractedVibeSite?.siteId !== effectiveMainBinding?.metaSiteId
+        ? extractedVibeSite?.siteId
         : undefined;
     const vibeSiteIdForVerification =
       sanitizedVibeSiteId ||
       (currentVibeSite?.siteId &&
-      !isReservedPaperclipEntityId(currentVibeSite.siteId, company, issues, agents) &&
-      currentVibeSite.siteId !== effectiveMainBinding?.siteId &&
-      currentVibeSite.siteId !== effectiveMainBinding?.metaSiteId
-        ? currentVibeSite.siteId
+      !isReservedPaperclipEntityId(currentVibeSite?.siteId, company, issues, agents) &&
+      currentVibeSite?.siteId !== effectiveMainBinding?.siteId &&
+      currentVibeSite?.siteId !== effectiveMainBinding?.metaSiteId
+        ? currentVibeSite?.siteId
         : undefined) ||
       activation?.picassoBridge?.siteId;
     const picassoVerification = vibeSiteIdForVerification
@@ -1644,7 +1644,7 @@ async function repairStartupSiteBindings(
       (hasInvalidStoredVibeSiteUrl || hasInvalidStoredPicassoSiteUrl);
     const nextVibeSiteStatus =
       picassoVerification?.effectiveStatus ||
-      extractedVibeSite.status ||
+      extractedVibeSite?.status ||
       (shouldClearStoredVibeSiteUrl ? undefined : currentVibeSite?.status);
     const nextPicassoStatus =
       picassoVerification?.effectiveStatus ||
@@ -1665,9 +1665,9 @@ async function repairStartupSiteBindings(
           siteUrl:
             sanitizedVibeSiteUrl ||
             (shouldClearStoredVibeSiteUrl ? "" : currentVibeSite?.siteUrl),
-          jobId: extractedVibeSite.jobId || currentVibeSite?.jobId,
+          jobId: extractedVibeSite?.jobId || currentVibeSite?.jobId,
           status: nextVibeSiteStatus || (shouldClearStoredVibeSiteUrl ? "" : undefined),
-          developmentUrl: extractedVibeSite.developmentUrl || currentVibeSite?.developmentUrl,
+          developmentUrl: extractedVibeSite?.developmentUrl || currentVibeSite?.developmentUrl,
         },
         extra: activation
           ? {
