@@ -1634,6 +1634,21 @@ async function repairStartupSiteBindings(
       verifiedVibeSiteUrl && verifiedVibeSiteUrl !== effectiveMainBinding?.siteUrl
         ? verifiedVibeSiteUrl
         : undefined;
+    const hasInvalidStoredVibeSiteUrl =
+      Boolean(currentVibeSite?.siteUrl) && !isVibeSitePublicUrl(currentVibeSite.siteUrl);
+    const hasInvalidStoredPicassoSiteUrl =
+      Boolean(activation?.picassoBridge?.siteUrl) &&
+      !isVibeSitePublicUrl(activation.picassoBridge?.siteUrl);
+    const shouldClearStoredVibeSiteUrl =
+      !sanitizedVibeSiteUrl &&
+      (hasInvalidStoredVibeSiteUrl || hasInvalidStoredPicassoSiteUrl);
+    const nextVibeSiteStatus =
+      picassoVerification?.effectiveStatus ||
+      extractedVibeSite.status ||
+      (shouldClearStoredVibeSiteUrl ? undefined : currentVibeSite?.status);
+    const nextPicassoStatus =
+      picassoVerification?.effectiveStatus ||
+      (shouldClearStoredVibeSiteUrl ? undefined : activation?.picassoBridge?.status);
 
     if (
       sanitizedVibeSiteId ||
@@ -1647,12 +1662,11 @@ async function repairStartupSiteBindings(
       nextDescription = mergeCompanyDescription(nextDescription, {
         vibeSite: {
           siteId: sanitizedVibeSiteId || currentVibeSite?.siteId,
-          siteUrl: sanitizedVibeSiteUrl,
+          siteUrl:
+            sanitizedVibeSiteUrl ||
+            (shouldClearStoredVibeSiteUrl ? "" : currentVibeSite?.siteUrl),
           jobId: extractedVibeSite.jobId || currentVibeSite?.jobId,
-          status:
-            picassoVerification?.effectiveStatus ||
-            extractedVibeSite.status ||
-            currentVibeSite?.status,
+          status: nextVibeSiteStatus || (shouldClearStoredVibeSiteUrl ? "" : undefined),
           developmentUrl: extractedVibeSite.developmentUrl || currentVibeSite?.developmentUrl,
         },
         extra: activation
@@ -1662,14 +1676,16 @@ async function repairStartupSiteBindings(
                 picassoBridge: {
                   ...(activation.picassoBridge || {}),
                   siteId: vibeSiteIdForVerification || activation.picassoBridge?.siteId,
-                  siteUrl: sanitizedVibeSiteUrl,
+                  siteUrl:
+                    sanitizedVibeSiteUrl ||
+                    (shouldClearStoredVibeSiteUrl
+                      ? ""
+                      : activation.picassoBridge?.siteUrl),
                   projectId: picassoVerification?.projectId || activation.picassoBridge?.projectId,
                   initialGenerationCompleted:
                     picassoVerification?.initialGenerationCompleted ??
                     activation.picassoBridge?.initialGenerationCompleted,
-                  status:
-                    picassoVerification?.effectiveStatus ||
-                    activation.picassoBridge?.status,
+                  status: nextPicassoStatus || (shouldClearStoredVibeSiteUrl ? "" : undefined),
                   error:
                     picassoVerification?.incompleteReason ||
                     activation.picassoBridge?.error,
