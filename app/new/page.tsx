@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Loader, Text } from "@wix/design-system";
 import { WixDesignSystemProvider } from "@wix/design-system";
@@ -362,6 +362,7 @@ function NewCompanyPageContent() {
   const [startingNewSite, setStartingNewSite] = useState(false);
   const [selectedDraftHireTitles, setSelectedDraftHireTitles] = useState<string[]>([]);
   const [draftProposedTeamTitles, setDraftProposedTeamTitles] = useState<string[]>([]);
+  const [draftConversationRestored, setDraftConversationRestored] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -399,6 +400,19 @@ function NewCompanyPageContent() {
   const isNewSiteSelected = effectiveActivationMode === "new_site";
   const isDraftNewSiteFlow = isNewSiteSelected && !activationSession;
   const isNewSiteFlow = isNewSiteSelected;
+  const draftConversationStorageKey = useMemo(() => {
+    if (!isDraftNewSiteFlow) {
+      return null;
+    }
+
+    return [
+      "new-site-draft",
+      msid || "no-msid",
+      siteId || "no-site-id",
+      siteName || "no-site-name",
+      siteUrl || "no-site-url",
+    ].join(":");
+  }, [isDraftNewSiteFlow, msid, siteId, siteName, siteUrl]);
   const canHireTeam =
     isDraftNewSiteFlow &&
     proposedDraftTeamTitles.length > 0 &&
@@ -488,8 +502,70 @@ function NewCompanyPageContent() {
   useEffect(() => {
     if (!isDraftNewSiteFlow) {
       setDraftProposedTeamTitles([]);
+      setDraftConversationRestored(false);
     }
   }, [isDraftNewSiteFlow]);
+
+  useEffect(() => {
+    if (!draftConversationStorageKey || typeof window === "undefined") {
+      setDraftConversationRestored(!isDraftNewSiteFlow);
+      return;
+    }
+
+    try {
+      const stored = window.sessionStorage.getItem(draftConversationStorageKey);
+      if (!stored) {
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as {
+        chatMessages?: UiMessage[];
+        conversationStatus?: NewSiteConversationStatus;
+        proposedTeamTitles?: string[];
+        selectedTeamTitles?: string[];
+      };
+
+      if (Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0) {
+        setChatMessages(parsed.chatMessages);
+      }
+      if (parsed.conversationStatus) {
+        setNewSiteConversationStatus(parsed.conversationStatus);
+      }
+      if (Array.isArray(parsed.proposedTeamTitles) && parsed.proposedTeamTitles.length > 0) {
+        setDraftProposedTeamTitles(uniqueTitles(parsed.proposedTeamTitles));
+      }
+      if (Array.isArray(parsed.selectedTeamTitles) && parsed.selectedTeamTitles.length > 0) {
+        setSelectedDraftHireTitles(uniqueTitles(parsed.selectedTeamTitles));
+      }
+    } catch {
+      // Ignore corrupt draft storage and continue with a fresh interview state.
+    } finally {
+      setDraftConversationRestored(true);
+    }
+  }, [draftConversationStorageKey, isDraftNewSiteFlow]);
+
+  useEffect(() => {
+    if (!draftConversationStorageKey || typeof window === "undefined" || !draftConversationRestored) {
+      return;
+    }
+
+    window.sessionStorage.setItem(
+      draftConversationStorageKey,
+      JSON.stringify({
+        chatMessages,
+        conversationStatus: newSiteConversationStatus,
+        proposedTeamTitles: draftProposedTeamTitles,
+        selectedTeamTitles: selectedDraftHireTitles,
+      }),
+    );
+  }, [
+    chatMessages,
+    draftConversationRestored,
+    draftConversationStorageKey,
+    draftProposedTeamTitles,
+    newSiteConversationStatus,
+    selectedDraftHireTitles,
+  ]);
 
   useEffect(() => {
     if (!showDraftHireWidget) {
@@ -841,6 +917,9 @@ function NewCompanyPageContent() {
 
       const data = (await response.json()) as NewSiteActivationResponse;
       setError("");
+      if (draftConversationStorageKey && typeof window !== "undefined") {
+        window.sessionStorage.removeItem(draftConversationStorageKey);
+      }
       const nextPath = getWorkspacePath("/", data.activationSession);
       window.location.assign(nextPath);
     } catch (activationError) {
@@ -852,7 +931,7 @@ function NewCompanyPageContent() {
     } finally {
       setStartingNewSite(false);
     }
-  }, [router]);
+  }, [draftConversationStorageKey, router]);
 
   const updateActivationState = useCallback(async (args: {
     name?: string;
@@ -1115,13 +1194,14 @@ function NewCompanyPageContent() {
       return;
     }
 
-    if (isDraftNewSiteFlow) {
+    if (isDraftNewSiteFlow && draftConversationRestored) {
       void requestNewSiteIntakeReply([], "initial_open");
     }
   }, [
     activationSession,
     bootstrapState,
     chatMessages.length,
+    draftConversationRestored,
     isDraftNewSiteFlow,
     requestActivationReply,
     requestNewSiteIntakeReply,
@@ -1182,6 +1262,9 @@ function NewCompanyPageContent() {
   };
 
   const handleRetry = () => {
+    if (draftConversationStorageKey && typeof window !== "undefined") {
+      window.sessionStorage.removeItem(draftConversationStorageKey);
+    }
     setConversationVersion((current) => current + 1);
   };
 

@@ -41,26 +41,34 @@ html, body {
   margin-bottom: 2px;
 }
 .timeline-markdown code {
-  background: #f0f4f7;
-  padding: 1px 5px;
-  border-radius: 3px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f2740;
+  padding: 1px 6px;
+  border-radius: 5px;
   font-size: 12px;
-  font-family: monospace;
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", Monaco, Consolas, monospace;
 }
 .timeline-markdown pre {
-  background: #f0f4f7;
-  padding: 10px 12px;
-  border-radius: 6px;
+  background: linear-gradient(180deg, #09111d 0%, #0f1726 100%);
+  color: #d8e7ff;
+  padding: 14px 16px;
+  border-radius: 12px;
   overflow-x: auto;
-  margin: 6px 0;
+  margin: 8px 0;
+  border: 1px solid rgba(118, 150, 188, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 24px rgba(9, 17, 29, 0.18);
 }
 .timeline-markdown pre code {
   background: none;
   padding: 0;
-  font-family: 'SF Mono', Monaco, Consolas, monospace !important;
+  color: inherit;
+  text-shadow: 0 0 0 transparent;
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", Monaco, Consolas, monospace !important;
+  font-size: 13px;
+  line-height: 1.7;
 }
 .timeline-markdown code {
-  font-family: 'SF Mono', Monaco, Consolas, monospace !important;
+  font-family: "SF Mono", "Fira Code", "JetBrains Mono", Monaco, Consolas, monospace !important;
 }
 .timeline-markdown h1, .timeline-markdown h2, .timeline-markdown h3 {
   font-size: 14px;
