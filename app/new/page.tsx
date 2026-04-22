@@ -39,6 +39,7 @@ import {
   getCompanyActivation,
   getCompanyWixBinding,
   mergeCompanyDescription,
+  normalizeVibeSiteUrl,
 } from "@/lib/company-metadata";
 import { MetasiteIdEntry } from "@/components/metasite-id-entry";
 import { AI_TEAM_LEAD_PROMPT } from "@/lib/ai-team-lead-prompt";
@@ -969,10 +970,13 @@ function NewCompanyPageContent() {
             picassoVerification,
           );
           const verifiedSiteUrl =
-            picassoVerification?.primarySiteUrl ||
-            picassoVerification?.siteUrl ||
-            nextBridgeJob.result?.siteUrl ||
+            normalizeVibeSiteUrl(picassoVerification?.primarySiteUrl) ||
+            normalizeVibeSiteUrl(picassoVerification?.siteUrl) ||
+            normalizeVibeSiteUrl(nextBridgeJob.result?.siteUrl) ||
             undefined;
+          const developmentUrl =
+            nextBridgeJob.result?.developmentUrl ||
+            (!verifiedSiteUrl ? nextBridgeJob.result?.siteUrl || undefined : undefined);
           const nextActivation: ActivationMetadata = {
             mode: "new_site",
             newSiteInterview: {
@@ -992,7 +996,7 @@ function NewCompanyPageContent() {
                 undefined,
               initialGenerationCompleted:
                 picassoVerification?.initialGenerationCompleted,
-              developmentUrl: nextBridgeJob.result?.developmentUrl || undefined,
+              developmentUrl,
               requestedAt: currentActivation?.picassoBridge?.requestedAt,
               updatedAt: nextBridgeJob.updatedAt,
               error:
@@ -1019,7 +1023,7 @@ function NewCompanyPageContent() {
                 siteUrl: verifiedSiteUrl,
                 jobId: nextBridgeJob.id,
                 status: effectiveBridgeStatus,
-                developmentUrl: nextBridgeJob.result?.developmentUrl || undefined,
+                developmentUrl,
               },
               activation: nextActivation,
             });

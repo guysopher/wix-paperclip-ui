@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { normalizeVibeSiteUrl } from "@/lib/company-metadata";
 
 const WIX_PROJECTS_API_BASE = "https://www.wix.com/_api/projects";
 
@@ -51,23 +52,6 @@ function authFilePath(siteId: string) {
 
 function getString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
-}
-
-function normalizePublicUrl(value: unknown): string | undefined {
-  const raw = getString(value);
-  if (!raw) {
-    return undefined;
-  }
-
-  try {
-    const parsed = new URL(raw);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return undefined;
-    }
-    return parsed.toString();
-  } catch {
-    return undefined;
-  }
 }
 
 async function readSiteAccessToken(siteId: string) {
@@ -158,8 +142,8 @@ export async function verifyPicassoProject(siteId: string): Promise<PicassoProje
   const picassoProject = project.picassoProject;
   const initialGenerationCompleted = picassoProject?.initialGenerationCompleted === true;
   const projectId = getString(picassoProject?.id);
-  const siteUrl = normalizePublicUrl(picassoProject?.siteUrl);
-  const primarySiteUrl = normalizePublicUrl(picassoProject?.primarySiteUrl);
+  const siteUrl = normalizeVibeSiteUrl(picassoProject?.siteUrl);
+  const primarySiteUrl = normalizeVibeSiteUrl(picassoProject?.primarySiteUrl);
 
   if (initialGenerationCompleted) {
     return {

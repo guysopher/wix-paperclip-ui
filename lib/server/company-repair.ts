@@ -8,6 +8,7 @@ import {
 } from "@/lib/agent-templates";
 import {
   getCompanyActivation,
+  isVibeSitePublicUrl,
   getCompanyWixBinding,
   getCompanyVibeSite,
   mergeCompanyDescription,
@@ -1508,7 +1509,7 @@ async function repairStartupSiteBindings(
       ? currentVibeSite.siteId
       : undefined;
   const sanitizedCurrentVibeSiteUrl =
-    isTrustworthySiteUrl(currentVibeSite?.siteUrl) &&
+    isVibeSitePublicUrl(currentVibeSite?.siteUrl) &&
     currentVibeSite?.siteUrl !== sanitizedCurrentMainSiteUrl
       ? currentVibeSite.siteUrl
       : undefined;
@@ -1588,7 +1589,7 @@ async function repairStartupSiteBindings(
       !currentVibeSite?.jobId ||
       !currentVibeSite?.developmentUrl ||
       !currentVibeSite?.status ||
-      !isTrustworthySiteUrl(currentVibeSite?.siteUrl)
+      !isVibeSitePublicUrl(currentVibeSite?.siteUrl)
     )
   ) {
     const vibeEvidenceIssues = issues.filter(
@@ -1849,11 +1850,11 @@ async function reopenIncompleteStartupExecutionIssues(
 
   if (vibeSiteIssue?.status === "done") {
     const hasVibeIdentity = Boolean(vibeSite?.siteId || vibeSite?.jobId);
-    const hasVibePublicUrl = isTrustworthySiteUrl(vibeSite?.siteUrl);
+    const hasVibePublicUrl = isVibeSitePublicUrl(vibeSite?.siteUrl);
     const reason = !hasVibeIdentity
       ? "the verified vibe-site identity is still missing from company.description"
       : !hasVibePublicUrl
-        ? "the vibe site still lacks a trustworthy public URL"
+        ? "the vibe site still lacks a verified wix-vibe-site.com public URL"
         : vibeSiteAudit?.reason || vibeDifferentiationAudit?.reason;
 
     if (reason) {

@@ -153,7 +153,7 @@ function isDisallowedPublicSiteHost(hostname: string) {
   );
 }
 
-function normalizePublicSiteUrl(value: unknown): string | undefined {
+function normalizeHttpUrl(value: unknown): string | undefined {
   const raw = getString(value)?.trim();
   if (!raw) {
     return undefined;
@@ -170,6 +170,39 @@ function normalizePublicSiteUrl(value: unknown): string | undefined {
     return undefined;
   }
 
+  return parsed.toString();
+}
+
+export function isVibeSitePublicUrl(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.trim().toLowerCase();
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      (hostname === "wix-vibe-site.com" || hostname.endsWith(".wix-vibe-site.com"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeVibeSiteUrl(value: unknown): string | undefined {
+  const normalized = normalizeHttpUrl(value);
+  return isVibeSitePublicUrl(normalized) ? normalized : undefined;
+}
+
+function normalizePublicSiteUrl(value: unknown): string | undefined {
+  const normalized = normalizeHttpUrl(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const parsed = new URL(normalized);
+
   if (/^www\.wix\.com$/i.test(parsed.hostname) && (parsed.pathname === "/" || parsed.pathname === "")) {
     return undefined;
   }
@@ -178,7 +211,7 @@ function normalizePublicSiteUrl(value: unknown): string | undefined {
     return undefined;
   }
 
-  return parsed.toString();
+  return normalized;
 }
 
 function getStringMap(value: unknown): Record<string, string> | undefined {
@@ -242,14 +275,19 @@ function normalizePicassoBridge(value: unknown): PicassoBridgeMetadata | undefin
     return undefined;
   }
 
+  const directSiteUrl = normalizeVibeSiteUrl(value.siteUrl);
+  const rawDevelopmentUrl = normalizeHttpUrl(value.developmentUrl);
+  const fallbackDevelopmentUrl =
+    !directSiteUrl && !rawDevelopmentUrl ? normalizeHttpUrl(value.siteUrl) : undefined;
+
   return {
     jobId: getString(value.jobId),
     status: getString(value.status),
     siteId: getString(value.siteId),
-    siteUrl: normalizePublicSiteUrl(value.siteUrl),
+    siteUrl: directSiteUrl,
     projectId: getString(value.projectId),
     initialGenerationCompleted: getBoolean(value.initialGenerationCompleted),
-    developmentUrl: getString(value.developmentUrl),
+    developmentUrl: rawDevelopmentUrl || fallbackDevelopmentUrl,
     requestedAt: getString(value.requestedAt),
     updatedAt: getString(value.updatedAt),
     error: getString(value.error),
@@ -348,13 +386,20 @@ function normalizeWixBinding(raw: Record<string, unknown>): WixBindingMetadata |
 
 function normalizeVibeSite(raw: Record<string, unknown>): VibeSiteMetadata | undefined {
   const vibeSource = isRecord(raw.vibeSite) ? raw.vibeSite : raw;
+  const directSiteUrl =
+    normalizeVibeSiteUrl(vibeSource.siteUrl) || normalizeVibeSiteUrl(raw.vibeSiteUrl);
+  const rawDevelopmentUrl =
+    normalizeHttpUrl(vibeSource.developmentUrl) || normalizeHttpUrl(raw.vibeSiteDevelopmentUrl);
+  const fallbackDevelopmentUrl =
+    !directSiteUrl && !rawDevelopmentUrl
+      ? normalizeHttpUrl(vibeSource.siteUrl) || normalizeHttpUrl(raw.vibeSiteUrl)
+      : undefined;
   const vibeSite: VibeSiteMetadata = {
     siteId: getString(vibeSource.siteId) || getString(raw.vibeSiteId),
-    siteUrl: normalizePublicSiteUrl(vibeSource.siteUrl) || normalizePublicSiteUrl(raw.vibeSiteUrl),
+    siteUrl: directSiteUrl,
     jobId: getString(vibeSource.jobId) || getString(raw.vibeSiteJobId),
     status: getString(vibeSource.status) || getString(raw.vibeSiteStatus),
-    developmentUrl:
-      getString(vibeSource.developmentUrl) || getString(raw.vibeSiteDevelopmentUrl),
+    developmentUrl: rawDevelopmentUrl || fallbackDevelopmentUrl,
   };
 
   if (
