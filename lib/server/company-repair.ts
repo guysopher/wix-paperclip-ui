@@ -1480,7 +1480,7 @@ async function repairStartupSiteBindings(
   const sanitizedCurrentMainSiteUrl =
     isTrustworthySiteUrl(currentWixBinding?.siteUrl) &&
     currentWixBinding?.siteUrl !== currentVibeSite?.siteUrl
-      ? currentWixBinding.siteUrl
+      ? currentWixBinding?.siteUrl
       : undefined;
 
   if (
