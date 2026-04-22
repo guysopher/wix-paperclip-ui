@@ -409,6 +409,18 @@ export interface PicassoBridgeJobResult {
   siteUrl?: string | null;
 }
 
+export interface PicassoProjectVerification {
+  siteId: string;
+  verified: boolean;
+  effectiveStatus: "succeeded" | "incomplete" | "infrastructure_failed";
+  projectId?: string;
+  siteUrl?: string;
+  primarySiteUrl?: string;
+  initialGenerationCompleted?: boolean;
+  devMachineStatus?: string;
+  incompleteReason?: string;
+}
+
 export interface PicassoBridgeJob {
   id: string;
   mode: "create_site";
@@ -438,3 +450,16 @@ export const createPicassoBridgeJob = (data: PicassoBridgeJobRequest) =>
 
 export const getPicassoBridgeJob = (jobId: string, includeLogs = false) =>
   bridgeRequest<PicassoBridgeJob>(`/jobs/${jobId}${includeLogs ? "?includeLogs=1" : ""}`);
+
+export async function getPicassoProjectVerification(siteId: string) {
+  const res = await fetch(`/api/picasso-project/${siteId}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(message || `Failed to verify Picasso project for ${siteId}`);
+  }
+
+  return res.json() as Promise<PicassoProjectVerification>;
+}

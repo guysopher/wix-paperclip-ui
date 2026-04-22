@@ -15,6 +15,7 @@ import {
   deleteCompany,
   getCompany,
   getPicassoBridgeJob,
+  getPicassoProjectVerification,
   getCompanies,
   getComments,
   getHeartbeatRuns,
@@ -27,6 +28,7 @@ import {
   type Comment,
   type HeartbeatRun,
   type PicassoBridgeJob,
+  type PicassoProjectVerification,
 } from "@/lib/api";
 import {
   type ActivationMetadata,
@@ -78,6 +80,21 @@ interface ActivationChatResponse {
 }
 
 type NewSiteConversationStatus = "gathering" | "ready_to_activate" | "activate_now";
+
+function getEffectivePicassoStatus(
+  bridgeJob: PicassoBridgeJob | null,
+  verification: PicassoProjectVerification | null,
+) {
+  if (!bridgeJob) {
+    return "not_started";
+  }
+
+  if (bridgeJob.status !== "succeeded") {
+    return bridgeJob.status;
+  }
+
+  return verification?.effectiveStatus || "incomplete";
+}
 
 interface NewSiteIntakeResponse {
   text?: string;
@@ -404,6 +421,11 @@ function NewCompanyPageContent() {
     ? selectedDraftHireTitles.filter((title) => proposedDraftTeamTitles.includes(title)).length
     : hireWidgetTeamTitles.length;
   const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
+  const vibeBuildBlocked =
+    bridgeStatus === "incomplete" ||
+    bridgeStatus === "infrastructure_failed" ||
+    bridgeStatus === "failed" ||
+    bridgeStatus === "canceled";
   const buildInProgress =
     Boolean(
       activationSession?.mode === "new_site" &&
@@ -423,7 +445,9 @@ function NewCompanyPageContent() {
         : isNewSiteFlow
           ? bridgeStatus === "queued" || bridgeStatus === "running"
             ? "Team kickoff in progress"
-            : interviewStage === "building" || interviewStage === "complete"
+            : vibeBuildBlocked
+              ? "Vibe site blocked"
+              : interviewStage === "building" || interviewStage === "complete"
               ? "Kickoff approved"
               : "Kickoff approved"
           : backendBusy
@@ -438,6 +462,8 @@ function NewCompanyPageContent() {
       : isNewSiteFlow
         ? bridgeStatus === "queued" || bridgeStatus === "running"
           ? "Your AI Team Lead has kicked off the main live-site track and the separate vibe-site track, and is coordinating the team around both."
+          : vibeBuildBlocked
+            ? "The main execution can continue, but the experimental vibe-site track is currently incomplete and is not being treated as a successful build."
           : interviewStage === "building" || interviewStage === "complete"
             ? "Your AI Team Lead has the approved brief and is turning it into execution across the live site, the vibe site, the team, and the business."
             : "Your AI Team Lead has the approved brief and is ready to move into execution."
@@ -905,6 +931,14 @@ function NewCompanyPageContent() {
             ? getPicassoBridgeJob(currentBridgeJobId).catch(() => null)
             : Promise.resolve(null)
         );
+        const picassoSiteId =
+          nextBridgeJob?.result?.siteId ||
+          currentActivation?.picassoBridge?.siteId;
+        const picassoVerification = await (
+          picassoSiteId
+            ? getPicassoProjectVerification(picassoSiteId).catch(() => null)
+            : Promise.resolve(null)
+        );
         const hasActiveRuns =
           nextRuns.some((run) => ["queued", "running"].includes(run.status)) ||
           Boolean(nextBridgeJob && ["queued", "running"].includes(nextBridgeJob.status));
@@ -930,23 +964,41 @@ function NewCompanyPageContent() {
         });
 
         if (nextBridgeJob && activationSession.mode === "new_site") {
+          const effectiveBridgeStatus = getEffectivePicassoStatus(
+            nextBridgeJob,
+            picassoVerification,
+          );
+          const verifiedSiteUrl =
+            picassoVerification?.primarySiteUrl ||
+            picassoVerification?.siteUrl ||
+            nextBridgeJob.result?.siteUrl ||
+            undefined;
           const nextActivation: ActivationMetadata = {
             mode: "new_site",
             newSiteInterview: {
               ...(currentActivation?.newSiteInterview || {
                 stage: "building",
               }),
-              stage: nextBridgeJob.status === "succeeded" ? "complete" : "building",
+              stage: effectiveBridgeStatus === "succeeded" ? "complete" : "building",
             },
             picassoBridge: {
               jobId: nextBridgeJob.id,
-              status: nextBridgeJob.status,
+              status: effectiveBridgeStatus,
               siteId: nextBridgeJob.result?.siteId || undefined,
-              siteUrl: nextBridgeJob.result?.siteUrl || undefined,
+              siteUrl: verifiedSiteUrl,
+              projectId:
+                picassoVerification?.projectId ||
+                nextBridgeJob.result?.projectId ||
+                undefined,
+              initialGenerationCompleted:
+                picassoVerification?.initialGenerationCompleted,
               developmentUrl: nextBridgeJob.result?.developmentUrl || undefined,
               requestedAt: currentActivation?.picassoBridge?.requestedAt,
               updatedAt: nextBridgeJob.updatedAt,
-              error: nextBridgeJob.error || undefined,
+              error:
+                picassoVerification?.incompleteReason ||
+                nextBridgeJob.error ||
+                undefined,
             },
           };
 
@@ -964,9 +1016,9 @@ function NewCompanyPageContent() {
             await updateActivationState({
               vibeSite: {
                 siteId: nextBridgeJob.result?.siteId || undefined,
-                siteUrl: nextBridgeJob.result?.siteUrl || undefined,
+                siteUrl: verifiedSiteUrl,
                 jobId: nextBridgeJob.id,
-                status: nextBridgeJob.status,
+                status: effectiveBridgeStatus,
                 developmentUrl: nextBridgeJob.result?.developmentUrl || undefined,
               },
               activation: nextActivation,
@@ -978,7 +1030,7 @@ function NewCompanyPageContent() {
         const nextStage =
           activationSession.mode === "new_site"
             ? nextBridgeJob
-              ? nextBridgeJob.status === "succeeded"
+              ? getEffectivePicassoStatus(nextBridgeJob, picassoVerification) === "succeeded"
                 ? "complete"
                 : "building"
               : currentActivation?.newSiteInterview?.stage || "business_name"

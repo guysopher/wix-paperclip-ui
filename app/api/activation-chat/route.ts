@@ -7,6 +7,7 @@ import {
   getCompanyWixBinding,
   parseCompanyDescription,
 } from "@/lib/company-metadata";
+import { verifyPicassoProject } from "@/lib/server/picasso-project";
 
 const client = new OpenAI();
 
@@ -202,22 +203,31 @@ function buildNewSiteBuildInstruction(
       if (status === "succeeded") {
         return "An experimental Picasso vibe site has succeeded. If it is relevant, mention it briefly as an additional creative direction, never as the main business site. Keep the founder focused on the canonical live site execution and the next business moves.";
       }
-      if (status === "failed" || status === "canceled") {
+      if (status === "failed" || status === "canceled" || status === "infrastructure_failed") {
         return "The experimental Picasso vibe site did not complete successfully. Explain that plainly only if it matters, keep it calm, and immediately pivot back to the main site execution and the next practical business moves.";
+      }
+      if (status === "incomplete") {
+        return "The experimental Picasso vibe site exists in a partial state but is not actually complete yet. Do not frame it as success. If it matters, mention that it is still incomplete in simple language, then pivot back to the main site execution and the next practical business moves.";
       }
       return "The team is underway on the first approved site version. Give the founder a short progress update and suggest 2 to 4 practical next steps the AI Team Lead can help with for the business while execution is moving.";
     case "user_message":
       if (status === "succeeded") {
         return "If the experimental Picasso vibe site exists, treat it as supplementary. Answer like the founder is moving from setup into execution on the canonical live site. Keep it practical and suggest concrete next moves you can help with.";
       }
-      if (status === "failed" || status === "canceled") {
+      if (status === "failed" || status === "canceled" || status === "infrastructure_failed") {
         return "If the experimental Picasso vibe site failed, say that plainly only if useful, keep it calm, and pivot quickly into what you can do next for the founder without sounding technical.";
+      }
+      if (status === "incomplete") {
+        return "If the experimental Picasso vibe site is only partially created, do not present it as done. Explain that simply only if it is useful, keep it calm, and pivot quickly into what you can still do next for the founder.";
       }
       return "The founder just replied during the new-site execution flow. Answer them conversationally, grounded in the current business inputs and execution state. If the main site work is underway, mention that naturally and suggest practical next steps you can help with.";
     case "initial_open":
     default:
-      if (status === "failed" || status === "canceled") {
+      if (status === "failed" || status === "canceled" || status === "infrastructure_failed") {
         return "If the experimental Picasso vibe site failed, explain that simply only if it matters, then suggest the most useful next things the AI Team Lead can still help with for the business.";
+      }
+      if (status === "incomplete") {
+        return "If the experimental Picasso vibe site is only partially created, explain that simply only if it matters, and do not frame it as done. Then suggest the most useful next things the AI Team Lead can still help with for the business.";
       }
       return "The founder just completed the intake and approved kickoff. Tell them the team is starting the main live-site track and the separate experimental vibe-site track now, keep it warm and practical, and mention a few concrete business areas you can help with next beyond just the site.";
   }
@@ -246,7 +256,19 @@ export async function POST(request: NextRequest) {
     const activeRunCount = runs.filter((run) => ["queued", "running"].includes(run.status)).length;
 
     if (activation?.mode === "new_site") {
-      const vibeStatus = vibeSite?.status || activation.picassoBridge?.status || "not_started";
+      const picassoVerification = (vibeSite?.siteId || activation.picassoBridge?.siteId)
+        ? await verifyPicassoProject(vibeSite?.siteId || activation.picassoBridge?.siteId || "").catch(() => null)
+        : null;
+      const vibeStatus =
+        picassoVerification?.effectiveStatus ||
+        vibeSite?.status ||
+        activation.picassoBridge?.status ||
+        "not_started";
+      const vibeSiteUrl =
+        picassoVerification?.primarySiteUrl ||
+        picassoVerification?.siteUrl ||
+        vibeSite?.siteUrl ||
+        "Unknown";
 
       const buildPrompt = `You are the founder-facing AI Team Lead for a brand new Wix site creation flow.
 
@@ -272,7 +294,7 @@ Current build state:
 - Main site URL: ${wixBinding?.siteUrl || "Unknown"}
 - Experimental vibe site status: ${vibeStatus}
 - Experimental vibe site ID: ${vibeSite?.siteId || "Unknown"}
-- Experimental vibe site URL: ${vibeSite?.siteUrl || "Unknown"}
+- Experimental vibe site URL: ${vibeSiteUrl}
 
 Instruction:
 ${buildNewSiteBuildInstruction(body.trigger, vibeStatus)}

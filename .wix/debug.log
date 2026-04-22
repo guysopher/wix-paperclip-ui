@@ -1,0 +1,34 @@
+----- CLI crash report at 2026-04-20T04:03:40.912Z
+Error Trace
+FailedToFetchPackageDetails: FailedToFetchPackageDetails
+    at fetchPackageDetails (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/@wix/cli-version-manager/src/package-details-reader.ts:54:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async versionNotifier (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/@wix/cli-version-manager/src/version-notifier.tsx:8:26)
+    at async <anonymous> (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/@wix/cli/src/index.tsx:74:26)
+caused by: TypeError: fetch failed
+    at node:internal/deps/undici/undici:14976:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async function_ (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/ky/source/core/Ky.ts:38:19)
+    at async _Ky._retry (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/ky/source/core/Ky.ts:258:11)
+    at async Promise.result.<computed> (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/ky/source/core/Ky.ts:91:22)
+    at async packageJson (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/package-json/index.js:43:10)
+    at async <anonymous> (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/p-timeout/index.js:102:13)
+Error Info
+{}
+----- CLI crash report at 2026-04-21T06:03:54.814Z
+Error Trace
+FailedToFetchPackageDetails: FailedToFetchPackageDetails
+    at fetchPackageDetails (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/@wix/cli-version-manager/src/package-details-reader.ts:54:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async versionNotifier (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/@wix/cli-version-manager/src/version-notifier.tsx:8:26)
+    at async <anonymous> (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/@wix/cli/src/index.tsx:74:26)
+caused by: TypeError: fetch failed
+    at node:internal/deps/undici/undici:13510:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async function_ (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/ky/source/core/Ky.ts:38:19)
+    at async _Ky._retry (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/ky/source/core/Ky.ts:258:11)
+    at async Promise.result.<computed> (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/ky/source/core/Ky.ts:91:22)
+    at async packageJson (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/package-json/index.js:43:10)
+    at async <anonymous> (/Users/guyso/.npm/_npx/d1108f3ee2a97258/node_modules/node_modules/p-timeout/index.js:102:13)
+Error Info
+{}
