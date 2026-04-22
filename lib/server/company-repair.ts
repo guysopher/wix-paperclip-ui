@@ -98,6 +98,23 @@ interface TextEvidence {
   updatedAt?: string | null;
 }
 
+interface StructuredSiteEvidence {
+  mainSite?: {
+    metaSiteId?: string;
+    siteId?: string;
+    siteUrl?: string;
+    publicUrlVerified?: boolean;
+  };
+  vibeSite?: {
+    siteId?: string;
+    jobId?: string;
+    developmentUrl?: string;
+    siteUrl?: string;
+    publicUrlVerified?: boolean;
+    status?: string;
+  };
+}
+
 interface PaperclipRunLogPayload {
   content?: string;
   log?: string;
@@ -171,6 +188,14 @@ function fingerprintPrompt(prompt: string): string {
     hash = (hash * 31 + prompt.charCodeAt(index)) >>> 0;
   }
   return `${prompt.length}:${hash.toString(16)}`;
+}
+
+function tryParseJson<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }
 
 function sleep(ms: number) {
@@ -879,6 +904,81 @@ function parseUrlFromLine(line: string | undefined) {
   return line?.match(/https?:\/\/\S+/i)?.[0];
 }
 
+function extractBalancedJsonObject(source: string, startIndex: number) {
+  let inString = false;
+  let escaped = false;
+  let depth = 0;
+
+  for (let index = startIndex; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(startIndex, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseStructuredSiteEvidenceEntries(body: string): StructuredSiteEvidence[] {
+  const entries: StructuredSiteEvidence[] = [];
+  let searchIndex = 0;
+
+  while (searchIndex < body.length) {
+    const markerIndex = body.indexOf("SITE_EVIDENCE:", searchIndex);
+    if (markerIndex === -1) {
+      break;
+    }
+
+    const jsonStart = body.indexOf("{", markerIndex);
+    if (jsonStart === -1) {
+      break;
+    }
+
+    const jsonBlock = extractBalancedJsonObject(body, jsonStart);
+    if (!jsonBlock) {
+      break;
+    }
+
+    const parsed = tryParseJson<StructuredSiteEvidence>(jsonBlock);
+    if (parsed) {
+      entries.push(parsed);
+    }
+
+    searchIndex = jsonStart + jsonBlock.length;
+  }
+
+  return entries;
+}
+
 function parsePrimaryPublishedSiteUrl(body: string) {
   if (!/published-site-urls|published site urls|published urls|urlType|primary/i.test(body)) {
     return undefined;
@@ -1304,6 +1404,15 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
   let siteUrl: string | undefined;
 
   for (const body of bodies) {
+    const structuredEvidence = parseStructuredSiteEvidenceEntries(body);
+    for (const entry of structuredEvidence) {
+      metaSiteId ||= parseUuidFromLine(entry.mainSite?.metaSiteId);
+      siteId ||= parseUuidFromLine(entry.mainSite?.siteId);
+      if (!siteUrl && entry.mainSite?.publicUrlVerified && isTrustworthySiteUrl(entry.mainSite?.siteUrl)) {
+        siteUrl = entry.mainSite.siteUrl;
+      }
+    }
+
     metaSiteId ||= parseUuidNearKey(body, ["metaSiteId", "metasiteId", "meta site id"]);
     siteId ||= parseUuidNearKey(body, ["siteId", "site id"]);
     siteId ||= parseUuidFromLine(
@@ -1337,6 +1446,14 @@ function extractVibeSiteBindingFromBodies(bodies: string[]) {
   let status: string | undefined;
 
   for (const body of bodies) {
+    const structuredEvidence = parseStructuredSiteEvidenceEntries(body);
+    for (const entry of structuredEvidence) {
+      siteId ||= parseUuidFromLine(entry.vibeSite?.siteId);
+      jobId ||= parseUuidFromLine(entry.vibeSite?.jobId);
+      developmentUrl ||= parseUrlFromLine(entry.vibeSite?.developmentUrl);
+      status ||= entry.vibeSite?.status?.trim().toLowerCase();
+    }
+
     siteId ||= parseUuidNearKey(body, ["vibeSiteId", "siteId", "site id"]);
     jobId ||= parseUuidNearKey(body, ["vibeSiteJobId", "jobId", "job id"]);
     developmentUrl ||= parseUrlNearKey(body, [

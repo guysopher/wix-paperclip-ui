@@ -410,7 +410,7 @@ function filterStarterTeamBySelection(
     return starterTeam;
   }
 
-  const allowedTitles = new Set(selectedTeamTitles);
+  const allowedTitles = new Set([...selectedTeamTitles, ...REQUIRED_STARTER_TEAM_TITLES, "AI Team Lead"]);
   return starterTeam.filter((entry) => entry.role === "AI Team Lead" || allowedTitles.has(entry.role));
 }
 

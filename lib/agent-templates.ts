@@ -70,6 +70,7 @@ const GENERAL_WIX_MCP_PROTOCOL = [
   "If WixMCP tools are unavailable in the runtime, log the exact tooling blocker clearly. Treat that as a team-owned technical blocker, not a business decision.",
   "Never guess canonical site ids or public URLs from free-form comments, vague log lines, shortlinks, editor URLs, localhost URLs, or dashboard/admin URLs.",
   "When you verify a site identity or URL, record the exact ids, exact URLs, and the verification status in the task comment or handoff note so the next run does not have to infer them.",
+  "When you leave machine-readable site evidence, use a JSON block prefixed with SITE_EVIDENCE: so repair can parse it directly.",
 ];
 
 const SITE_EXPERT_WIX_MCP_PROTOCOL = [
@@ -83,6 +84,7 @@ const SITE_EXPERT_WIX_MCP_PROTOCOL = [
   "Treat an assigned public URL and a reachable public URL as different states. A main site is not successful until the public URL is verified reachable.",
   "Do not stop at site creation. Keep going until the public main site is reachable and public template content has been replaced with founder-source content.",
   "When you verify main-site state, always leave exact evidence: metaSiteId, siteId, public URL, whether the URL was verified live, and what public content still needs work.",
+  "When possible, leave that evidence in this machine-readable shape: SITE_EVIDENCE: {\"mainSite\":{\"metaSiteId\":\"...\",\"siteId\":\"...\",\"siteUrl\":\"...\",\"publicUrlVerified\":true}}",
   "If Wix/Harmony tools are unavailable, report the tooling blocker clearly and keep the task blocked.",
 ];
 
@@ -107,6 +109,7 @@ const SITE_EXPERT_PICASSO_PROTOCOL = [
   "If you hit the publish flow, explicitly choose 'Use a free Wix domain' unless the task explicitly requires a custom domain.",
   "After publish, wait for the real public *.wix-vibe-site.com URL, then verify that it returns 200 before calling the vibe site successful.",
   "When you verify vibe-site state, always leave exact evidence: vibe site id, job id, development URL, public URL, and whether the public URL was verified live.",
+  "When possible, leave that evidence in this machine-readable shape: SITE_EVIDENCE: {\"vibeSite\":{\"siteId\":\"...\",\"jobId\":\"...\",\"developmentUrl\":\"...\",\"siteUrl\":\"https://...wix-vibe-site.com/\",\"publicUrlVerified\":true,\"status\":\"published\"}}",
   "If the vibe site is still generic or too similar to the main site, keep working and push it toward a more expressive direction.",
   "If Picasso is blocked, create a precise bridge/tool unblocker. Do not switch to Studio or Harmony as a fallback.",
   "If the Picasso bridge is unavailable or unhealthy, report the tooling blocker clearly and keep the task blocked.",
