@@ -940,6 +940,7 @@ function NewCompanyPageContent() {
     vibeSite?: {
       siteId?: string;
       siteUrl?: string;
+      publicUrlVerified?: boolean;
       jobId?: string;
       status?: string;
       developmentUrl?: string;
