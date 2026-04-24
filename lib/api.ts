@@ -416,6 +416,7 @@ export interface PicassoProjectVerification {
   projectId?: string;
   siteUrl?: string;
   primarySiteUrl?: string;
+  publicUrlVerified?: boolean;
   initialGenerationCompleted?: boolean;
   devMachineStatus?: string;
   incompleteReason?: string;
