@@ -26,13 +26,11 @@ import {
 } from "@/lib/paperclip-runtime-defaults";
 import { syncHeartbeatConfig } from "@/lib/agent-heartbeat";
 import { renderPromptTemplate } from "@/lib/prompt-render";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 import { verifyPicassoProject } from "@/lib/server/picasso-project";
 import { verifyPublicUrlReachable } from "@/lib/server/public-url";
 
-const PAPERCLIP_API_URL =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API_URL = getResolvedPaperclipApiUrl();
 
 const HELPER_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 2_000;

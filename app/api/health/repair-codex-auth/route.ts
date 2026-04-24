@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API_URL =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API_URL = getResolvedPaperclipApiUrl();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const REPAIR_TIMEOUT_MS = 90_000;

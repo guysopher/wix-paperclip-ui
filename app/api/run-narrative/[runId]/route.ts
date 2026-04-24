@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API = getResolvedPaperclipApiUrl();
 
 export async function GET(
   request: NextRequest,

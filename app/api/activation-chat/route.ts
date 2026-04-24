@@ -9,13 +9,12 @@ import {
   getVerifiedWixSiteUrl,
   parseCompanyDescription,
 } from "@/lib/company-metadata";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 import { verifyPicassoProject } from "@/lib/server/picasso-project";
 
 const client = new OpenAI();
 
-const PAPERCLIP_API =
-  process.env.PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API = getResolvedPaperclipApiUrl();
 
 interface ActivationChatRequest {
   companyId?: string;

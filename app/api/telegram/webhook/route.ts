@@ -2,11 +2,9 @@ import { loadConfig, saveConfig, type TelegramUserSession } from "@/lib/telegram
 import { answerTelegramCallbackQuery, sendTelegramMessage, type TelegramInlineKeyboardButton } from "@/lib/telegram";
 import { runCeoChat, type CeoChatMessage } from "@/lib/ceo-chat";
 import { withCompanyId } from "@/lib/msid";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API_URL =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API_URL = getResolvedPaperclipApiUrl();
 
 const TELEGRAM_USER_PREFIX = "[Telegram User]";
 const TELEGRAM_ASSISTANT_PREFIX = "[AI Team Lead via Telegram]";

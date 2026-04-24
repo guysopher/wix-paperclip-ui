@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { getDeploymentTopology } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_RESTART_URL = process.env.PAPERCLIP_RESTART_URL;
+const PAPERCLIP_RESTART_URL = getDeploymentTopology().paperclipRestartUrl;
 const PAPERCLIP_RESTART_TOKEN = process.env.PAPERCLIP_RESTART_TOKEN;
 const RESTART_TIMEOUT_MS = 15000;
 

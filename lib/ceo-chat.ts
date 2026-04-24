@@ -1,11 +1,9 @@
 import OpenAI from "openai";
 import { getCompanyBusinessDescription } from "@/lib/company-metadata";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 
 const client = new OpenAI();
-
-const PAPERCLIP_API =
-  process.env.PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API = getResolvedPaperclipApiUrl();
 
 export interface CeoChatMessage {
   role: "ceo" | "user";

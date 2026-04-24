@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { repairCompanyState } from "@/lib/server/company-repair";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API_URL =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API_URL = getResolvedPaperclipApiUrl();
 
 interface PaperclipCompany {
   id: string;

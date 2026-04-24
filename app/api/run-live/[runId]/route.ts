@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseRunLog } from "@/lib/run-utils";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API = getResolvedPaperclipApiUrl();
 
 function normalizeAssistantText(text: string): string {
   const cleaned = text

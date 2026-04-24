@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDeploymentTopology } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API_URL =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const TOPOLOGY = getDeploymentTopology();
+const PAPERCLIP_API_URL = TOPOLOGY.paperclipApiUrl;
 const UPSTREAM_TIMEOUT_MS = 10000;
 
 const PROXY_HEADERS = {
@@ -15,16 +14,15 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function usesLocalhostUpstream(url: string) {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
-}
-
-function isPaperclipUpstreamConfigured() {
-  return Boolean(process.env.PAPERCLIP_API_URL || process.env.NEXT_PUBLIC_PAPERCLIP_API_URL);
-}
-
 function assertPaperclipUpstream() {
-  if (process.env.VERCEL && (!isPaperclipUpstreamConfigured() || usesLocalhostUpstream(PAPERCLIP_API_URL))) {
+  if (!TOPOLOGY.paperclipUpstreamConfigured) {
+    return jsonError(
+      "Paperclip upstream is not configured. Set PAPERCLIP_API_URL or use PAPERCLIP_DEPLOYMENT_MODE=local.",
+      500,
+    );
+  }
+
+  if (process.env.VERCEL && TOPOLOGY.usesLocalPaperclipUpstream) {
     return jsonError(
       "PAPERCLIP_API_URL is not configured with a deployment-reachable Paperclip backend.",
       500,

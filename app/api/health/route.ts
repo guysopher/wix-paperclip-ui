@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHeartbeatPolicy } from "@/lib/agent-heartbeat";
 import { repairCompanyState } from "@/lib/server/company-repair";
+import { getDeploymentTopology, getSiteAutomationLabel } from "@/lib/server/deployment-topology";
 
-const PAPERCLIP_API_URL =
-  process.env.PAPERCLIP_API_URL ||
-  process.env.NEXT_PUBLIC_PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
-const PICASSO_BRIDGE_URL =
-  process.env.PICASSO_BRIDGE_URL ||
-  "http://localhost:3401";
-const PICASSO_BRIDGE_TOKEN = process.env.PICASSO_BRIDGE_TOKEN || "";
+const TOPOLOGY = getDeploymentTopology();
+const PAPERCLIP_API_URL = TOPOLOGY.paperclipApiUrl;
+const SITE_AUTOMATION_URL = TOPOLOGY.siteAutomationBaseUrl;
+const SITE_AUTOMATION_TOKEN = TOPOLOGY.siteAutomationToken;
 
 const STALE_RUN_THRESHOLD_MS = 15 * 60 * 1000;
 const SCHEDULER_LOOKBACK_MS = 30 * 60 * 1000;
@@ -47,6 +44,12 @@ interface HealthResponseBody {
   status: OverallStatus;
   companyId: string | null;
   checkedAt: string;
+  topology: {
+    paperclipDeploymentMode: string;
+    siteAutomationMode: string;
+    paperclipApiUrl: string;
+    siteAutomationBaseUrl: string;
+  };
   checks: HealthCheckEntry[];
   actions: string[];
   controls: {
@@ -113,7 +116,7 @@ async function paperclip(path: string, options?: RequestInit) {
 }
 
 function restartAvailable() {
-  return Boolean(process.env.PAPERCLIP_RESTART_URL);
+  return Boolean(TOPOLOGY.paperclipRestartUrl);
 }
 
 function deriveOverallStatus(checks: HealthCheckEntry[]): OverallStatus {
@@ -158,10 +161,6 @@ function findCodexHealthCheck(result: AdapterEnvironmentResult): AdapterEnvironm
   );
 }
 
-function usesLocalhostUpstream(url: string) {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
-}
-
 function summarizeWixRuntimeFromLog(logContent: string | null | undefined): HealthCheckEntry | null {
   if (!logContent) {
     return null;
@@ -193,30 +192,42 @@ function summarizeWixRuntimeFromLog(logContent: string | null | undefined): Heal
 }
 
 async function checkPicassoBridge(): Promise<HealthCheckEntry> {
-  if (!PICASSO_BRIDGE_TOKEN) {
+  if (!TOPOLOGY.siteAutomationUpstreamConfigured) {
     return {
-      name: "picasso_bridge",
+      name: "site_automation",
+      status: "warning",
+      detail:
+        TOPOLOGY.siteAutomationMode === "embedded"
+          ? "Embedded site automation is not configured. Set SITE_AUTOMATION_EMBEDDED_URL or switch back to bridge mode."
+          : "PICASSO_BRIDGE_URL is not configured.",
+    };
+  }
+
+  if (TOPOLOGY.siteAutomationTokenRequired && !SITE_AUTOMATION_TOKEN) {
+    return {
+      name: "site_automation",
       status: "warning",
       detail: "PICASSO_BRIDGE_TOKEN is not configured",
     };
   }
 
-  if (process.env.VERCEL && (!process.env.PICASSO_BRIDGE_URL || usesLocalhostUpstream(PICASSO_BRIDGE_URL))) {
+  if (process.env.VERCEL && TOPOLOGY.usesLocalSiteAutomationUpstream) {
     return {
-      name: "picasso_bridge",
+      name: "site_automation",
       status: "error",
-      detail: "PICASSO_BRIDGE_URL is not configured with a deployment-reachable bridge",
+      detail: `${getSiteAutomationLabel(TOPOLOGY)} is not configured with a deployment-reachable upstream`,
     };
   }
 
-  const url = `${PICASSO_BRIDGE_URL.replace(/\/$/, "")}/health`;
+  const url = `${SITE_AUTOMATION_URL.replace(/\/$/, "")}/health`;
 
   try {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (SITE_AUTOMATION_TOKEN) {
+      headers.set("Authorization", `Bearer ${SITE_AUTOMATION_TOKEN}`);
+    }
     const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${PICASSO_BRIDGE_TOKEN}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       cache: "no-store",
       signal: AbortSignal.timeout(TOOLING_TIMEOUT_MS),
     });
@@ -224,22 +235,22 @@ async function checkPicassoBridge(): Promise<HealthCheckEntry> {
     if (!response.ok) {
       const body = await response.text().catch(() => "");
       return {
-        name: "picasso_bridge",
+        name: "site_automation",
         status: "error",
         detail: `Health probe failed (${response.status}): ${body || response.statusText}`,
       };
     }
 
     return {
-      name: "picasso_bridge",
+      name: "site_automation",
       status: "ok",
-      detail: "Picasso bridge reachable",
+      detail: `${getSiteAutomationLabel(TOPOLOGY)} reachable`,
     };
   } catch {
     return {
-      name: "picasso_bridge",
+      name: "site_automation",
       status: "error",
-      detail: `Failed to reach Picasso bridge: ${url}`,
+      detail: `Failed to reach ${getSiteAutomationLabel(TOPOLOGY)}: ${url}`,
     };
   }
 }
@@ -262,6 +273,12 @@ export async function POST(request: NextRequest) {
         status: "error",
         companyId: null,
         checkedAt: new Date().toISOString(),
+        topology: {
+          paperclipDeploymentMode: TOPOLOGY.paperclipDeploymentMode,
+          siteAutomationMode: TOPOLOGY.siteAutomationMode,
+          paperclipApiUrl: PAPERCLIP_API_URL,
+          siteAutomationBaseUrl: SITE_AUTOMATION_URL,
+        },
         checks: [{ name: "api", status: "error", detail: "No companies found" }],
         actions,
         controls: {
@@ -501,6 +518,12 @@ export async function POST(request: NextRequest) {
       status: deriveOverallStatus(checks),
       companyId: targetCompanyId,
       checkedAt: new Date().toISOString(),
+      topology: {
+        paperclipDeploymentMode: TOPOLOGY.paperclipDeploymentMode,
+        siteAutomationMode: TOPOLOGY.siteAutomationMode,
+        paperclipApiUrl: PAPERCLIP_API_URL,
+        siteAutomationBaseUrl: SITE_AUTOMATION_URL,
+      },
       checks,
       actions,
       controls: {
@@ -515,6 +538,12 @@ export async function POST(request: NextRequest) {
       status: "error",
       companyId: targetCompanyId,
       checkedAt: new Date().toISOString(),
+      topology: {
+        paperclipDeploymentMode: TOPOLOGY.paperclipDeploymentMode,
+        siteAutomationMode: TOPOLOGY.siteAutomationMode,
+        paperclipApiUrl: PAPERCLIP_API_URL,
+        siteAutomationBaseUrl: SITE_AUTOMATION_URL,
+      },
       checks: [
         ...checks,
         {

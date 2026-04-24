@@ -20,13 +20,12 @@ import {
   buildSpecialistHeartbeatRuntimeConfig,
   buildTeamLeadHeartbeatRuntimeConfig,
 } from "@/lib/paperclip-runtime-defaults";
+import { getResolvedPaperclipApiUrl } from "@/lib/server/deployment-topology";
 import { repairCompanyState } from "@/lib/server/company-repair";
 
 const client = new OpenAI();
 
-const PAPERCLIP_API =
-  process.env.PAPERCLIP_API_URL ||
-  "http://localhost:3100/api";
+const PAPERCLIP_API = getResolvedPaperclipApiUrl();
 
 interface IntakeMessage {
   role: "ceo" | "user";

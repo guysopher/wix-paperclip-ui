@@ -1,28 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDeploymentTopology, getSiteAutomationLabel } from "@/lib/server/deployment-topology";
 
-const PICASSO_BRIDGE_URL =
-  process.env.PICASSO_BRIDGE_URL ||
-  "http://localhost:3401";
-
-const PICASSO_BRIDGE_TOKEN = process.env.PICASSO_BRIDGE_TOKEN || "";
+const TOPOLOGY = getDeploymentTopology();
+const SITE_AUTOMATION_URL = TOPOLOGY.siteAutomationBaseUrl;
+const SITE_AUTOMATION_TOKEN = TOPOLOGY.siteAutomationToken;
 const UPSTREAM_TIMEOUT_MS = 10000;
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function usesLocalhostUpstream(url: string) {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url);
-}
-
 function assertPicassoBridgeConfiguration() {
-  if (!PICASSO_BRIDGE_TOKEN) {
+  if (!TOPOLOGY.siteAutomationUpstreamConfigured) {
+    return jsonError(
+      TOPOLOGY.siteAutomationMode === "embedded"
+        ? "Embedded site automation is not configured. Set SITE_AUTOMATION_EMBEDDED_URL or use SITE_AUTOMATION_MODE=bridge."
+        : "PICASSO_BRIDGE_URL is not configured. Set it or use SITE_AUTOMATION_MODE=embedded with a supported backend.",
+      501,
+    );
+  }
+
+  if (TOPOLOGY.siteAutomationTokenRequired && !SITE_AUTOMATION_TOKEN) {
     return jsonError("PICASSO_BRIDGE_TOKEN is not configured", 500);
   }
 
-  if (process.env.VERCEL && (!process.env.PICASSO_BRIDGE_URL || usesLocalhostUpstream(PICASSO_BRIDGE_URL))) {
+  if (process.env.VERCEL && TOPOLOGY.usesLocalSiteAutomationUpstream) {
     return jsonError(
-      "PICASSO_BRIDGE_URL is not configured with a deployment-reachable Picasso bridge.",
+      `${getSiteAutomationLabel(TOPOLOGY)} is not configured with a deployment-reachable upstream.`,
       500,
     );
   }
@@ -39,11 +43,12 @@ async function proxyResponse(res: Response) {
 }
 
 function buildHeaders(extra?: HeadersInit): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${PICASSO_BRIDGE_TOKEN}`,
-    ...extra,
-  };
+  const headers = new Headers(extra);
+  headers.set("Content-Type", "application/json");
+  if (SITE_AUTOMATION_TOKEN) {
+    headers.set("Authorization", `Bearer ${SITE_AUTOMATION_TOKEN}`);
+  }
+  return headers;
 }
 
 async function forward(
@@ -56,7 +61,7 @@ async function forward(
     return configurationError;
   }
 
-  const url = `${PICASSO_BRIDGE_URL.replace(/\/$/, "")}/${path.join("/")}${request.nextUrl.search}`;
+  const url = `${SITE_AUTOMATION_URL.replace(/\/$/, "")}/${path.join("/")}${request.nextUrl.search}`;
   try {
     const body = method === "POST" ? await request.text() : undefined;
     return proxyResponse(
@@ -69,7 +74,7 @@ async function forward(
       }),
     );
   } catch {
-    return jsonError(`Failed to reach Picasso bridge: ${url}`, 502);
+    return jsonError(`Failed to reach ${getSiteAutomationLabel(TOPOLOGY)}: ${url}`, 502);
   }
 }
 

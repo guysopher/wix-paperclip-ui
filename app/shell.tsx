@@ -30,6 +30,7 @@ import {
 } from "@/lib/company-metadata";
 
 type CountKey = keyof BadgeCounts;
+type BackendStatus = "checking" | "up" | "down";
 
 const NAV_ITEMS: Array<{ key: string; label: string; Icon: typeof Dashboard; countKey?: CountKey }> = [
   { key: "/", label: "Home", Icon: Dashboard },
@@ -49,6 +50,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
+  const [backendDetail, setBackendDetail] = useState<string | null>(null);
 
   // Close menu on navigation
   useEffect(() => { setMenuOpen(false); }, [pathname]);
@@ -142,6 +145,61 @@ export function Shell({ children }: { children: React.ReactNode }) {
     syncIsMobile();
     window.addEventListener("resize", syncIsMobile);
     return () => window.removeEventListener("resize", syncIsMobile);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const probeBackend = async () => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const response = await fetch("/api/paperclip/health", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(async () => ({ error: await response.text().catch(() => "") }));
+          if (!cancelled) {
+            setBackendStatus("down");
+            setBackendDetail(
+              typeof payload?.error === "string" && payload.error.trim().length > 0
+                ? payload.error.trim()
+                : `Health check failed with status ${response.status}.`,
+            );
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setBackendStatus("up");
+          setBackendDetail(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBackendStatus("down");
+          setBackendDetail(
+            error instanceof Error && error.message
+              ? error.message
+              : "The UI cannot reach the Paperclip backend.",
+          );
+        }
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    };
+
+    void probeBackend();
+    const intervalId = window.setInterval(() => {
+      void probeBackend();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {
@@ -314,6 +372,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <Box direction="vertical" flexGrow={1} overflow="auto" backgroundColor="D70" style={{ paddingTop: "env(safe-area-inset-top)", minWidth: 0 }}>
+        {backendStatus === "down" && (
+          <div
+            style={{
+              background: "#fff1f0",
+              borderBottom: "1px solid #f3b3b3",
+              color: "#8c1d18",
+              padding: isMobile ? "60px 14px 10px" : "10px 16px",
+              fontSize: 13,
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Paperclip backend is down.</strong>
+            {backendDetail ? ` ${backendDetail}` : " The UI cannot reach the backend right now."}
+          </div>
+        )}
         <div className="shell-main-content">
           {children}
         </div>
