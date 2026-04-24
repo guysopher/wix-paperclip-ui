@@ -1542,7 +1542,7 @@ async function repairStartupSiteBindings(
   const currentMainSiteUrlCandidate =
     isTrustworthySiteUrl(currentWixBinding?.siteUrl) &&
     currentWixBinding?.siteUrl !== currentVibeSite?.siteUrl
-      ? currentWixBinding.siteUrl
+      ? currentWixBinding?.siteUrl
       : undefined;
   const currentMainSiteUrlVerified = currentMainSiteUrlCandidate
     ? currentWixBinding?.publicUrlVerified === true ||
@@ -1551,7 +1551,7 @@ async function repairStartupSiteBindings(
   const currentVibeSiteUrlCandidate =
     isVibeSitePublicUrl(currentVibeSite?.siteUrl) &&
     currentVibeSite?.siteUrl !== currentWixBinding?.siteUrl
-      ? currentVibeSite.siteUrl
+      ? currentVibeSite?.siteUrl
       : undefined;
   const currentVibeSiteUrlVerified = currentVibeSiteUrlCandidate
     ? currentVibeSite?.publicUrlVerified === true ||
