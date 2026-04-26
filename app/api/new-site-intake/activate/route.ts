@@ -701,6 +701,12 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "1. This is a build task, not a planning task.",
     "2. If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID first. Do not start by scanning ~/.paperclip folders, sqlite files, run logs, or generic MCP catalogs just to rediscover the task.",
     "3. This is the production-site track. Create the main business site through the standard Wix/Harmony path, using the WixMCP site-creation tool directly when no wixBinding exists, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description.",
+    "3a. On this machine, if the friendly Wix wrapper names are not visible, use `mcp-s-cli check-auth` first and then use the verified Fire Console fallback exactly as follows.",
+    "3b. Resolve the real `userId` and `accountId` through `fire-console__find_user`.",
+    "3c. Create the site shell through `fire-console__invoke_rpc` with target.artifactId `com.wixpress.funnel-intro-site-provisioning-service`, service `wix.api.funnel.intro.meta_site_provision.MetaSiteProvisionService`, method `Provision`, payload `{ type: 'BRANDED_FIRST', name: '<site-name>' }`, and impersonation `{ userId, accountId }`.",
+    "3d. Persist the returned `meta_site_provision_descriptor.meta_site_id` into `company.description.wixBinding.metaSiteId` immediately, then verify it through `fire-console__find_site` using that same user/account context.",
+    "3e. Only after that call Harmony generation through `fire-console__invoke_rpc` with target.artifactId `com.wixpress.harmony-bg-sc.harmony-background-site-creation`, service `com.wixpress.harmony.background.site.creation.api.v1.SiteCreationService`, method `GenerateHarmonySite`, payload `{ user_prompt: '<site prompt>', metasite_id: '<metaSiteId>' }`, and impersonation `{ userId, accountId, metaSiteId }`.",
+    "3f. Treat protobuf wrapper values as canonical protobuf JSON on this path. The verified working create payload uses `name: 'Sweet Marley'`, not `name: { value: 'Sweet Marley' }`.",
     "4. If the site-creation call returns an asynchronous jobId, that job becomes the primary creation flow. Poll it to terminal state before deciding whether creation succeeded.",
     "5. If the completed creation job returns a verified siteId, write that value into wixBinding.siteId and wixBinding.metaSiteId immediately, even if a trustworthy public siteUrl is not available yet.",
     "6. Treat siteId and metaSiteId as the same locked business identity unless Wix explicitly returns different verified values.",
@@ -720,6 +726,9 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "19. After each meaningful publish or placement pass, inspect the live public URL directly. If the page still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
     "20. Replace the bound site's starter-template identity and placeholder sections with founder-source-derived business content before you mark this task done.",
     "21. Do not mark this task done until the bound main site has a real non-placeholder site URL and the public page no longer reads like a generic Wix starter template, unless a concrete tooling blocker is clearly reported.",
+    "22. If `GenerateHarmonySite` fails with `Failed to resolve metaSiteId from context`, stop retrying it and go back to provisioning or recovering the site shell first.",
+    "23. If `GenerateHarmonySite` fails with `siteId not found in metaSite response`, wait about 10 seconds and retry once against the same metasite. If it still fails, report that exact blocker with the metasite id instead of looping.",
+    "24. If the Harmony `fire-console__invoke_rpc` call returns `fetch failed`, report it as a tool/runtime blocker with the exact artifact, service, method, metasite id, and impersonation context you used.",
   ];
 
   return {

@@ -390,6 +390,9 @@ function NewCompanyPageContent() {
   const parsedProposalTeamTitles = uniqueTitles(
     extractAgentTitlesFromText(latestProposalCeoMessage).filter((title) => title !== "AI Team Lead"),
   );
+  const hasProposalApprovalAsk = /may i hire this team|would you like any changes|hire the team so we can get started/i.test(
+    latestProposalCeoMessage.toLowerCase(),
+  );
   const proposedDraftTeamTitles = draftProposedTeamTitles.length > 0
     ? draftProposedTeamTitles
     : parsedProposalTeamTitles;
@@ -423,6 +426,7 @@ function NewCompanyPageContent() {
   const isDraftHireWidgetReady =
     newSiteConversationStatus === "ready_to_activate" ||
     newSiteConversationStatus === "activate_now" ||
+    (hasProposalApprovalAsk && proposedDraftTeamTitles.length > 0) ||
     startingNewSite;
   const isExistingSiteInterviewFlow = activationSession?.mode === "existing_site";
   const canHireExistingSiteTeam =
@@ -438,16 +442,16 @@ function NewCompanyPageContent() {
     Boolean(isExistingSiteInterviewFlow) &&
     approvedTeamTitles.length > 0 &&
     canHireExistingSiteTeam;
-  const canOpenDraftHireWidget = isDraftNewSiteFlow && hasUserSentMessage;
+  const canOpenDraftHireWidget = showDraftHireWidget;
   const hireWidgetTeamTitles = showDraftHireWidget ? proposedDraftTeamTitles : approvedTeamTitles;
   const selectedHireCount = showDraftHireWidget
     ? selectedDraftHireTitles.filter((title) => proposedDraftTeamTitles.includes(title)).length
     : hireWidgetTeamTitles.length;
   const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
   const showCollapsedHireTrigger =
-    !hireWidgetExpanded && (canOpenDraftHireWidget || showExistingSiteHireWidget);
+    !hireWidgetExpanded && (showDraftHireWidget || showExistingSiteHireWidget);
   const showHireWidgetShell =
-    hireWidgetExpanded && (canOpenDraftHireWidget || showExistingSiteHireWidget);
+    hireWidgetExpanded && (showDraftHireWidget || showExistingSiteHireWidget);
   const vibeBuildBlocked =
     bridgeStatus === "incomplete" ||
     bridgeStatus === "infrastructure_failed" ||
@@ -1683,12 +1687,11 @@ function NewCompanyPageContent() {
                     fontSize: 14,
                     fontWeight: 700,
                     color: "#8f2fff",
-                    textDecoration: "underline",
-                    textUnderlineOffset: 3,
+                    textDecoration: "none",
                     cursor: "pointer",
                   }}
                 >
-                  Ready to hire...
+                  Ready to Hire Your AI Team?
                 </button>
               </div>
             </div>
