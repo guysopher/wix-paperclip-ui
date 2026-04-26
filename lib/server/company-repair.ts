@@ -65,6 +65,8 @@ interface PaperclipIssue {
   description: string;
   status: string;
   assigneeUserId: string | null;
+  assigneeAgentId?: string | null;
+  assigneeId?: string | null;
   createdAt?: string;
   updatedAt?: string;
   activeRun?: {
@@ -709,7 +711,28 @@ async function cleanStaleBoardTasks(company: PaperclipCompany, issues: Paperclip
 
   await Promise.all(
     issues.map(async (issue) => {
-      if (issue.assigneeUserId !== "local-board") {
+      const publishBoardHandoff =
+        /publish handoff/i.test(issue.description) ||
+        /next action for board:/i.test(issue.description) ||
+        /\.editor\.wix\.com\/studio\//i.test(issue.description) ||
+        /vibe\.wix\.com\/projects\/[^/\s]+\/v\/editor/i.test(issue.description);
+      const shouldAssignToBoard =
+        publishBoardHandoff &&
+        issue.status !== "done" &&
+        issue.status !== "cancelled" &&
+        issue.assigneeUserId !== "local-board";
+
+      if (shouldAssignToBoard) {
+        changed += 1;
+        await paperclip(`/issues/${issue.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            assigneeUserId: "local-board",
+          }),
+        }).catch(() => null);
+      }
+
+      if ((shouldAssignToBoard ? "local-board" : issue.assigneeUserId) !== "local-board") {
         return;
       }
       if (issue.status === "done" || issue.status === "cancelled") {
