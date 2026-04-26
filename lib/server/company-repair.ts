@@ -2083,7 +2083,6 @@ function getConfiguredStarterTeam(company: PaperclipCompany): StarterTeamPlanEnt
 const REQUIRED_STARTER_TEAM_REPAIR_ENTRIES: StarterTeamPlanEntry[] = [
   { role: "Industry Advisor" },
   { role: "Wix Site Expert" },
-  { role: "Vibe Site Expert" },
   { role: "Content Manager" },
   { role: "Brand Lead" },
 ];

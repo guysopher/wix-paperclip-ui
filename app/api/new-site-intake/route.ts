@@ -38,10 +38,16 @@ function extractProposedTeamTitles(text: string): string[] {
 const REQUIRED_PROPOSAL_TEAM_TITLES = [
   "Industry Advisor",
   "Wix Site Expert",
-  "Vibe Site Expert",
   "Content Manager",
   "Brand Lead",
 ];
+
+function founderExplicitlyRequestsVibe(messages: IntakeMessage[]): boolean {
+  const transcript = messages.map((message) => message.text).join("\n").toLowerCase();
+  return /(vibe site|experimental site|separate site|second site|parallel site|two sites|2 sites|picasso)/.test(
+    transcript,
+  );
+}
 
 const BUSINESS_FIT_PROPOSAL_ROLE_FALLBACKS = {
   commerce: ["eCommerce Lead", "Catalog & Merchandising Manager"],
@@ -63,7 +69,13 @@ function inferBusinessFitProposalRoles(context: string, existingRoles: Set<strin
 
 function ensureProposedTeamTitles(messages: IntakeMessage[], replyText: string) {
   const extractedTitles = extractProposedTeamTitles(replyText);
-  const mergedTitles = Array.from(new Set([...REQUIRED_PROPOSAL_TEAM_TITLES, ...extractedTitles]));
+  const mergedTitles = Array.from(
+    new Set([
+      ...REQUIRED_PROPOSAL_TEAM_TITLES,
+      ...(founderExplicitlyRequestsVibe(messages) ? ["Vibe Site Expert"] : []),
+      ...extractedTitles,
+    ]),
+  );
   const businessFitTitles = inferBusinessFitProposalRoles(
     messages.map((message) => message.text).join("\n"),
     new Set(mergedTitles),
@@ -154,14 +166,16 @@ Rules:
 - Once you genuinely understand the business well enough to make a proposal, present a concise proposal that covers:
   - why this business should have an AI Team and what that team would take off the founder's plate
   - the AI Team advantages for this founder, using the ideas above in plain language
-  - the mandatory core team: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager, and Brand Lead
+  - the mandatory core team: AI Team Lead, Industry Advisor, Wix Site Expert, Content Manager, and Brand Lead
+  - include Vibe Site Expert only if the founder explicitly wants an experimental vibe site, a second parallel site, or a Picasso track
   - 1 to 2 additional specialist roles that would help this business, chosen only from the canonical role list below
   - the starter team of agents you would put in place, with each role tied to a clear goal
   - the team goals for the first phase
   - the expected results that team should produce
   - the first version of the site as one workstream inside that plan
 - When making that proposal, frame it as a team plan you would lead, not as work you personally would do alone.
-- The proposed team must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager, Brand Lead.
+- The proposed team must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Content Manager, Brand Lead.
+- Add the exact canonical role "Vibe Site Expert" only when the founder explicitly asks for an experimental vibe site, a second parallel site, or a Picasso track.
 - On top of that mandatory team, always propose 1 to 2 additional canonical specialist roles that fit the business type and current growth model.
 - In founder-facing copy, use the exact canonical title "Vibe Site Expert". Do not rename it to "Vibe Lead", "Creative Site Lead", or other variants.
 - When naming specialist roles in the proposal, you may only use canonical agent titles from the list below. Use the exact canonical titles as written. Do not invent variants like "Brand & Creative Lead", "Commerce Lead", or "Growth Foundations Lead".

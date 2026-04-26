@@ -101,12 +101,6 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
       "A credible site that clearly explains the offer, supports conversion, and improves as the business learns.",
   },
   {
-    role: "Vibe Site Expert",
-    goal: "Own the experimental Picasso site as a parallel creative track for the launch.",
-    expectedResult:
-      "A separate vibe site with its own metadata that never overwrites the main business site.",
-  },
-  {
     role: "Content Manager",
     goal: "Extract founder-provided source material and turn it into launch-ready site content.",
     expectedResult:
@@ -120,10 +114,16 @@ const REQUIRED_STARTER_TEAM: StarterAgentPlan[] = [
   },
 ];
 
+const OPTIONAL_VIBE_STARTER_AGENT: StarterAgentPlan = {
+  role: "Vibe Site Expert",
+  goal: "Own the experimental Picasso site as a parallel creative track for the launch.",
+  expectedResult:
+    "A separate vibe site with its own metadata that never overwrites the main business site.",
+};
+
 const REQUIRED_STARTUP_AGENT_TITLES = [
   "Industry Advisor",
   "Wix Site Expert",
-  "Vibe Site Expert",
   "Content Manager",
   "Brand Lead",
 ];
@@ -229,6 +229,13 @@ function extractSourceLinks(messages: IntakeMessage[]): string[] {
   return Array.from(links).slice(0, 8);
 }
 
+function founderExplicitlyRequestsVibe(messages: IntakeMessage[]): boolean {
+  const transcript = messages.map((message) => message.text).join("\n").toLowerCase();
+  return /(vibe site|experimental site|separate site|second site|parallel site|two sites|2 sites|picasso)/.test(
+    transcript,
+  );
+}
+
 function renderSourceLinks(lines: string[]): string[] {
   if (lines.length === 0) {
     return ["No explicit public source links were captured from the founder transcript."];
@@ -308,18 +315,24 @@ function toStarterTeam(value: unknown): StarterAgentPlan[] {
     .slice(0, STARTER_TEAM_LIMIT);
 }
 
-function normalizeStarterTeam(starterTeam: StarterAgentPlan[]): StarterAgentPlan[] {
+function normalizeStarterTeam(
+  starterTeam: StarterAgentPlan[],
+  options?: { includeVibe?: boolean },
+): StarterAgentPlan[] {
+  const requiredStarterTeam = options?.includeVibe
+    ? [...REQUIRED_STARTER_TEAM, OPTIONAL_VIBE_STARTER_AGENT]
+    : REQUIRED_STARTER_TEAM;
   const uniqueAllowedAgents = starterTeam.filter((agent, index, agents) => {
     return ALLOWED_STARTER_TEAM_ROLES.has(agent.role)
       && agents.findIndex((entry) => entry.role === agent.role) === index;
   });
 
-  const normalizedCoreTeam = REQUIRED_STARTER_TEAM.map((requiredAgent) => {
+  const normalizedCoreTeam = requiredStarterTeam.map((requiredAgent) => {
     return uniqueAllowedAgents.find((agent) => agent.role === requiredAgent.role) || requiredAgent;
   });
 
   const additionalAgents = uniqueAllowedAgents.filter((agent) => {
-    return !REQUIRED_STARTER_TEAM.some((requiredAgent) => requiredAgent.role === agent.role);
+    return !requiredStarterTeam.some((requiredAgent) => requiredAgent.role === agent.role);
   });
 
   return [...normalizedCoreTeam, ...additionalAgents].slice(0, STARTER_TEAM_LIMIT);
@@ -387,14 +400,15 @@ function ensureStarterTeamCoverage(
   starterTeam: StarterAgentPlan[],
   businessDescription: string,
   siteProposal: string,
+  options?: { includeVibe?: boolean },
 ): StarterAgentPlan[] {
-  const normalizedStarterTeam = normalizeStarterTeam(starterTeam);
+  const normalizedStarterTeam = normalizeStarterTeam(starterTeam, options);
   const existingRoles = new Set(normalizedStarterTeam.map((entry) => entry.role));
   const inferredBusinessFitRoles = inferBusinessFitStarterRoles(
     `${businessDescription}\n${siteProposal}`,
     existingRoles,
   );
-  return normalizeStarterTeam([...normalizedStarterTeam, ...inferredBusinessFitRoles]);
+  return normalizeStarterTeam([...normalizedStarterTeam, ...inferredBusinessFitRoles], options);
 }
 
 function uniqueTitles(titles: string[]): string[] {
@@ -513,7 +527,8 @@ Rules:
 - The proposal is now approved, so write a concrete execution plan, not another interview summary.
 - The center of gravity is the AI team plan, not a solo site-build pitch.
 - "starterTeam" must describe the first agents the AI Team Lead should put in place. Each one needs a clear role, goal, and expected result.
-- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager, Brand Lead.
+- "starterTeam" must always include these exact roles: AI Team Lead, Industry Advisor, Wix Site Expert, Content Manager, Brand Lead.
+- Include "Vibe Site Expert" only if the founder explicitly asked for an experimental vibe site, a second parallel site, or a Picasso track.
 - "starterTeam" must also include 1 to 2 additional canonical specialist roles that fit the business type, business model, and current growth needs.
 - Any additional role in "starterTeam" must use an exact canonical title from the list below. Do not invent role variants.
 - Goals should be practical and outcome-focused. Return 1 to 3.
@@ -545,9 +560,10 @@ ${canonicalAgentOptions}
   const siteProposal =
     parsed.siteProposal?.trim() ||
     "Create a credible first version of the site that clearly explains the business, gives the brand a strong first impression, and makes it easy for customers to understand what to do next.";
+  const includeVibe = founderExplicitlyRequestsVibe(messages);
   const teamHiringPlan =
     parsed.teamHiringPlan?.trim() ||
-    "Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, Vibe Site Expert, Content Manager, and Brand Lead, then add 1 to 2 additional canonical specialist roles that match the business model, launch plan, and growth needs.";
+    `Start with the mandatory core team of AI Team Lead, Industry Advisor, Wix Site Expert, Content Manager, and Brand Lead${includeVibe ? ", add Vibe Site Expert for the requested experimental parallel site," : ","} then add 1 to 2 additional canonical specialist roles that match the business model, launch plan, and growth needs.`;
   const managementPlan =
     parsed.managementPlan?.trim() ||
     "Set the operating rhythm, prioritize the first growth and site improvements, and keep the founder informed while the business setup moves from concept into execution.";
@@ -555,6 +571,7 @@ ${canonicalAgentOptions}
     toStarterTeam(parsed.starterTeam),
     businessDescription,
     siteProposal,
+    { includeVibe },
   );
   const siteSpecifics =
     parsed.siteSpecifics?.trim() ||
@@ -575,7 +592,9 @@ ${canonicalAgentOptions}
     managementPlan,
     starterTeam: starterTeam.length > 0
       ? starterTeam
-      : REQUIRED_STARTER_TEAM,
+      : includeVibe
+        ? [...REQUIRED_STARTER_TEAM, OPTIONAL_VIBE_STARTER_AGENT]
+        : REQUIRED_STARTER_TEAM,
     sourceLinks,
     siteSpecifics,
     firstBuildBrief,
@@ -600,10 +619,12 @@ ${canonicalAgentOptions}
             title: `Launch the first site version for ${companyName}`,
             description: `Create and ship the first version of the site.\n\nSite proposal:\n${siteProposal}\n\nExecution brief:\n${firstBuildBrief}`,
           },
-          {
-            title: `Create the experimental vibe site for ${companyName}`,
-            description: `Create the parallel experimental vibe site.\n\nExecution brief:\n${firstBuildBrief}`,
-          },
+          ...(includeVibe
+            ? [{
+                title: `Create the experimental vibe site for ${companyName}`,
+                description: `Create the parallel experimental vibe site.\n\nExecution brief:\n${firstBuildBrief}`,
+              }]
+            : []),
           {
             title: `Build the starter team for ${companyName}`,
             description: `Decide which specialist roles to hire first, in what order, and why.\n\nHiring plan:\n${teamHiringPlan}`,
@@ -854,10 +875,11 @@ function buildIndustryAdvisorTask(summary: IntakeSummary): KickoffTaskSpec {
 }
 
 function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
+  const includeVibe = summary.starterTeam.some((entry) => entry.role === "Vibe Site Expert");
   return {
     title: `Turn external source content into launch-ready site materials for ${summary.companyName}`,
     description: [
-      `Collect and adapt the best founder-provided source content for ${summary.companyName} so both the production site and the experimental vibe site can launch with real business materials instead of placeholders.`,
+      `Collect and adapt the best founder-provided source content for ${summary.companyName} so the production site${includeVibe ? " and the experimental vibe site" : ""} can launch with real business materials instead of placeholders.`,
       "",
       "Business summary:",
       summary.businessDescription,
@@ -873,9 +895,9 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
       "",
       "Execution rules:",
       "1. If the founder has provided a website, Instagram, Flickr, gallery, blog, or other public source, inspect that exact source first and extract the best reusable content before creating any board ask for starter assets.",
-      "2. Turn that source material into site-ready copy, bios, FAQs, service descriptions, testimonials, galleries, captions, collection text, and product-supporting content for both the main site and the vibe site.",
-      "3. Prefer placing the approved content directly onto the real business site in wixBinding and the separate vibe site when the relevant Wix tools are available. If direct placement is blocked, leave explicit placement-ready packages for both tracks.",
-      "4. Coordinate with Wix Site Expert for main-site placement, Vibe Site Expert for vibe-site placement, and Brand Lead on tone when needed.",
+      `2. Turn that source material into site-ready copy, bios, FAQs, service descriptions, testimonials, galleries, captions, collection text, and product-supporting content for the main site${includeVibe ? " and the vibe site" : ""}.`,
+      `3. Prefer placing the approved content directly onto the real business site in wixBinding${includeVibe ? " and the separate vibe site" : ""} when the relevant Wix tools are available. If direct placement is blocked, leave explicit placement-ready packages for ${includeVibe ? "all active site tracks" : "the main-site track"}.`,
+      `4. Coordinate with Wix Site Expert for main-site placement${includeVibe ? ", Vibe Site Expert for vibe-site placement," : ","} and Brand Lead on tone when needed.`,
       "5. Do not invent product facts or create board tasks for basic copy/image harvesting while the founder-provided public source still has unused material. Only escalate exact missing facts that block a specific mutation.",
       "6. Your handoff is incomplete unless the receiving issue thread contains the actual critical copy, source URLs, and placement instructions. Do not rely on a workspace-local filename as the only artifact.",
       "7. If a source is private, inaccessible, or unclear, report the concrete blocker instead of inventing content.",
@@ -886,6 +908,7 @@ function buildContentManagerTask(summary: IntakeSummary): KickoffTaskSpec {
 }
 
 function buildBrandLeadTask(summary: IntakeSummary): KickoffTaskSpec {
+  const includeVibe = summary.starterTeam.some((entry) => entry.role === "Vibe Site Expert");
   return {
     title: `Define the brand direction for ${summary.companyName}`,
     description: [
@@ -904,7 +927,9 @@ function buildBrandLeadTask(summary: IntakeSummary): KickoffTaskSpec {
       "1. Define the core tone, promise, and visual direction the whole team should follow.",
       "2. Make the live site feel distinctive, warm, and credible rather than generic or template-like.",
       "3. Give the Wix Site Expert and Content Manager clear guidance on homepage story, offer framing, and trust-building direction.",
-      "4. Coordinate with Vibe Site Expert so the experimental site can push into a more expressive direction without duplicating the production site.",
+      ...(includeVibe
+        ? ["4. Coordinate with Vibe Site Expert so the experimental site can push into a more expressive direction without duplicating the production site."]
+        : []),
     ].join("\n"),
     assigneeTitle: "Brand Lead",
     priority: "high",
@@ -912,17 +937,20 @@ function buildBrandLeadTask(summary: IntakeSummary): KickoffTaskSpec {
 }
 
 function buildDeterministicKickoffTasks(summary: IntakeSummary): KickoffTaskSpec[] {
+  const includeVibe = summary.starterTeam.some((entry) => entry.role === "Vibe Site Expert");
   return [
     {
       ...buildSiteExecutionTask(summary),
       assigneeTitle: "Wix Site Expert",
       priority: "critical",
     },
-    {
-      ...buildVibeSiteExecutionTask(summary),
-      assigneeTitle: "Vibe Site Expert",
-      priority: "critical",
-    },
+    ...(includeVibe
+      ? [{
+          ...buildVibeSiteExecutionTask(summary),
+          assigneeTitle: "Vibe Site Expert",
+          priority: "critical" as const,
+        }]
+      : []),
     buildContentManagerTask(summary),
     buildIndustryAdvisorTask(summary),
     buildBrandLeadTask(summary),
@@ -1107,8 +1135,10 @@ export async function POST(request: NextRequest) {
     );
 
     const kickoffTasksToCreate = buildDeterministicKickoffTasks(summary);
-    const siteExecutionTask = kickoffTasksToCreate[0];
-    const vibeSiteExecutionTask = kickoffTasksToCreate[1];
+    const siteExecutionTask =
+      kickoffTasksToCreate.find((task) => task.assigneeTitle === "Wix Site Expert") || null;
+    const vibeSiteExecutionTask =
+      kickoffTasksToCreate.find((task) => task.assigneeTitle === "Vibe Site Expert") || null;
 
     const createdKickoffTasks = await Promise.all(
       kickoffTasksToCreate.map((task) =>
@@ -1137,8 +1167,10 @@ export async function POST(request: NextRequest) {
     );
 
     const kickoffIssueByTitle = new Map(createdKickoffTasks.map((issue) => [issue.title, issue]));
-    const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title) || null;
-    const vibeSiteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === vibeSiteExecutionTask.title) || null;
+    const siteExecutionIssue =
+      (siteExecutionTask && createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title)) || null;
+    const vibeSiteExecutionIssue =
+      (vibeSiteExecutionTask && createdKickoffTasks.find((issue) => issue.title === vibeSiteExecutionTask.title)) || null;
     const contentManagerIssue =
       kickoffIssueByTitle.get(kickoffTasksToCreate.find((task) => task.assigneeTitle === "Content Manager")?.title || "") || null;
     const industryAdvisorIssue =
