@@ -419,6 +419,10 @@ function NewCompanyPageContent() {
     proposedDraftTeamTitles.length > 0 &&
     !chatSending &&
     !startingNewSite;
+  const isDraftHireWidgetReady =
+    newSiteConversationStatus === "ready_to_activate" ||
+    newSiteConversationStatus === "activate_now" ||
+    startingNewSite;
   const isExistingSiteInterviewFlow = activationSession?.mode === "existing_site";
   const canHireExistingSiteTeam =
     Boolean(isExistingSiteInterviewFlow) &&
@@ -426,6 +430,7 @@ function NewCompanyPageContent() {
     !chatSending;
   const showDraftHireWidget =
     isDraftNewSiteFlow &&
+    isDraftHireWidgetReady &&
     proposedDraftTeamTitles.length > 0 &&
     (canHireTeam || startingNewSite);
   const showExistingSiteHireWidget =
@@ -1672,7 +1677,7 @@ function NewCompanyPageContent() {
                     padding: 0,
                     fontSize: 14,
                     fontWeight: 700,
-                    color: "#2f6fed",
+                    color: "#8f2fff",
                     textDecoration: "underline",
                     textUnderlineOffset: 3,
                     cursor: "pointer",
