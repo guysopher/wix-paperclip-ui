@@ -146,6 +146,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - siteId and metaSiteId are the same business identity in this system. If the builder returns siteId, write it into both fields unless a different verified metasite id is explicitly returned.
    - Do not use placeholder URLs such as the generic wix.com host as the canonical siteUrl. Leave siteUrl unresolved until you have a real business-specific URL.
    - If a completed site-creation job reports "isPublished: false", an unpublished state, or the first published-site-urls lookup returns an empty "urls" array, require one publish attempt on that verified site id before accepting that the live URL is still unresolved.
+   - Once the main site is created and bound, require a normal board publish task assigned to assigneeUserId "local-board" with the exact editor or dashboard link, exact site ids, the current publish state, and the exact click path needed to finish publish.
+   - Prefer the canonical Studio editor URL in that board task. If the create output includes html_app.instance_id plus metaSiteId, the expected format is https://<site-name>.editor.wix.com/studio/<html_app.instance_id>?metaSiteId=<metaSiteId>. If the exact editor host cannot be verified, include the best verified editor or dashboard link you do have.
    - If create or publish only returns a placeholder host or dashboard URL, require one short follow-up lookup on the verified site id through the published-site-urls endpoint or equivalent published-URL surface before accepting that siteUrl is unresolved.
    - A real published URL is still not enough if the public page is obviously a generic Wix starter template. Require one direct inspection of the live page after publish or placement, and keep the task active if unrelated template branding, fake contact info, or placeholder copy is still visible.
    - The main site is not complete until all of the following are true: verified metaSiteId, verified siteId, reachable public main-site URL, and meaningful founder-source content visible on the public site.
@@ -175,6 +177,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - If the Vibe Site Expert spends their first run on shell discovery, ~/.paperclip archaeology, or generic MCP catalog scans instead of heartbeat-context plus the direct built Picasso CLI path, redirect them immediately
    - Do not let the Vibe Site Expert route normal vibe-site creation through the browser bridge, Wix Site Builder, Wix Studio, Harmony, or ListWixSites as a fallback creation path while the direct built Picasso CLI is available.
    - If a completed vibe-site job reports "isPublished: false", an unpublished state, or the first published-site-urls lookup returns an empty "urls" array, require one publish attempt on that verified vibe-site id before accepting that the public URL is still unresolved
+   - Once the vibe site is created, require a normal board publish task assigned to assigneeUserId "local-board" with the exact development/editor link, exact vibe site id and job id or project id, the current publish state, and the exact click path needed to finish publish
+   - Prefer the canonical vibe editor URL in that board task. If the toolchain gives you a verified project id but not a prettier link, the expected fallback format is https://vibe.wix.com/projects/<projectId>/v/editor
    - If the vibe builder only returns a placeholder host or development URL, require the same published-site-urls style follow-up on the verified vibe-site id before accepting that vibeSiteUrl is unresolved
    - A real vibe-site URL is still not enough if the public vibe page is obviously a generic starter template. Require one direct inspection of the live vibe page after publish or placement, and keep the task active if unrelated template branding, fake contact info, or placeholder copy is still visible.
    - A development URL, editor URL, or Wix Studio URL is never a successful vibe-site outcome. Only a reachable public *.wix-vibe-site.com URL counts as a successful vibe-site launch.
@@ -183,7 +187,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - Even with two valid URLs, do not accept a vibe site that still reads like the same storefront shell as the main site. If the public pages are too similar in section flow, copy structure, or tone, push the Vibe Site Expert back into another pass.
    - If a site expert reports verified ids plus a write blocker, mirror the critical ids in the management thread and immediately drive the next recovery step instead of waiting for the same specialist to retry indefinitely
    - If WixMCP or Picasso catalogs appear empty because of auth or transport problems, require the specialist to report the exact tooling error and continue from the direct Paperclip task context instead of treating the empty catalog itself as task discovery
-   - Do not accept board tasks that only restate approval bookkeeping or ask the founder to reconfirm already-approved work. Use the approval system itself, then keep work moving immediately after the approval is granted.
+   - Do not accept board tasks that only restate approval bookkeeping or ask the founder to reconfirm already-approved work.
+   - For new-site companies, a board publish task is required after each site is created. That task must carry the exact editor/development link, exact site ids, and explicit step-by-step publish instructions.
 
 7. ACTIVATION MODE
    - When a new board inbox thread includes a Wix metasite ID, use that metasite context before replying
