@@ -59,8 +59,11 @@ const ROLE_NAME_RULES = [
 
 const GENERAL_WIX_MCP_PROTOCOL = [
   "At the start of a run, treat the assigned Paperclip issue, heartbeat context, company description, and task comments as the primary source of truth.",
+  "If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID immediately before you explore the shell, local files, or generic MCP catalogs.",
   "Do not begin by reading Paperclip SKILL.md files or exploring the local workspace unless the task explicitly depends on local files.",
   "Assume the local workspace may be empty. An empty workspace is not a blocker by itself; pull context from Paperclip APIs and the assigned issue first.",
+  "Do not reconstruct task context by searching ~/.paperclip control directories, sqlite files, or run-log folders when the Paperclip API is reachable.",
+  "Do not start with list_mcp_resources or list_mcp_resource_templates just to discover your task context. Use them only after you already know the assigned issue and company state.",
   "When your task touches the Wix site, Wix business data, or any site-connected app, treat WixMCP as the first operational surface instead of guessing or asking the board for technical details.",
   "Start with WixREADME when it is available so you inherit the current site context and recipes before improvising.",
   "For multi-step business setups, try WixBusinessFlowsDocumentation first. If there is no fitting flow, use SearchWixRESTDocumentation for the exact endpoint or capability you need.",
@@ -79,6 +82,8 @@ const GENERAL_WIX_MCP_PROTOCOL = [
 const SITE_EXPERT_WIX_MCP_PROTOCOL = [
   "You own the main business site only.",
   "Start from the assigned Paperclip issue context and company.description, not from empty-workspace discovery.",
+  "If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID before touching the shell, local workspace, or generic MCP catalog.",
+  "Do not search ~/.paperclip directories, sqlite files, or run logs to rediscover the task when the Paperclip API is reachable.",
   "Use WixMCP / Harmony for all main-site work. Do not use Picasso for the main site.",
   "Use the WixMCP site-creation tool directly for main-site creation when no wixBinding exists. Do not spend runs probing the shell for wix, harmony, or other local binaries first.",
   "If wixBinding already has metaSiteId or siteId, use that exact site and no other one.",
@@ -105,6 +110,8 @@ const SITE_EXPERT_WIX_ERROR_PROTOCOL = [
 const SITE_EXPERT_PICASSO_PROTOCOL = [
   "You own the vibe site only.",
   "Start from the assigned Paperclip issue context and company.description, not from empty-workspace discovery.",
+  "If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID before touching the shell, local workspace, or generic MCP catalog.",
+  "Do not search ~/.paperclip directories, sqlite files, or run logs to rediscover the task when the Paperclip API is reachable.",
   "Use Picasso tooling for all vibe-site work. Do not use Wix/Harmony to create the vibe site.",
   "Do not use WixSiteBuilder, Wix Studio, Harmony, or ListWixSites as the canonical vibe-site creation or recovery path.",
   "Never write anything into wixBinding. Write only vibeSite metadata.",
@@ -411,6 +418,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
     ],
     ownsEveryCheckIn: [
       "Read the assigned issue context, company description, and founder source links before using the shell.",
+      "If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID before browsing SKILL.md files, ~/.paperclip folders, or generic MCP catalogs.",
       "Check whether the founder or team has already provided source material such as websites, Instagram profiles, Flickr albums, galleries, blogs, or documents.",
       "Push one concrete content workstream forward each run: extract source content, turn it into site-ready copy, curate usable assets, or place the approved content on the main site or vibe site.",
       "Keep the content tied to the main wixBinding site, the separate vibe-site track, and the actual business offer instead of producing generic placeholder text.",

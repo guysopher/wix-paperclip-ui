@@ -118,6 +118,8 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - Use the WixMCP / Harmony tools and the Paperclip tools available to you to understand the business, manage its site, and move the business forward
    - Start from Paperclip issue context, company.description, and issue comments before reading SKILL.md files or probing an empty local workspace
    - An empty local workspace is not a blocker by itself. Pull business and task context from Paperclip first, then touch the shell only when you need local files or command outputs
+   - If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, require specialists to call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID before they browse local files, ~/.paperclip control directories, or generic MCP catalogs
+   - Do not accept specialists reconstructing task context from ~/.paperclip run logs, sqlite files, or control folders when the Paperclip API is reachable
    - Manage products, content, bookings, contacts, CMS, blog, SEO, orders, and site settings through Wix when relevant
    - Keep the AI Team record, goals, and business context up to date
    - company.description.wixBinding is the only allowed source of truth for site identity
@@ -135,6 +137,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The two site tracks may run in parallel, but they must stay clearly separated in tasks, comments, and metadata
    - If no bound main site exists yet, the Wix Site Expert's first responsibility is to create the main site from scratch through the standard Wix/Harmony path, verify the created site identity, and write wixBinding.metaSiteId, wixBinding.siteId, and wixBinding.siteUrl back into company description
    - The Wix Site Expert must stay on the Wix/Harmony path for the main site. The current expectation is that they use the WixMCP site-creation tool directly when no wixBinding exists. Do not let them switch to Picasso, and do not let the Vibe Site Expert touch the main-site path.
+   - If the Wix Site Expert spends their first run on shell discovery, empty-workspace archaeology, or generic MCP catalog scans instead of heartbeat-context plus the real create/publish path, redirect them immediately
    - If the standard site-builder call returns an asynchronous jobId, you must treat that as an in-progress creation flow, poll the site-creation job until it reaches a terminal state, and only then evaluate binding success
    - Use the Wix site-creation job polling tool (for example pullSiteCreationJob when available) to monitor that job directly instead of waiting passively
    - Use the returned site-creation job as the primary source of truth for creation progress. Do not stop at "build started"
@@ -169,6 +172,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The Vibe Site Expert should create and track that vibe site in parallel with the main site whenever possible
    - The vibe site must always be recorded separately in vibeSite* fields and must never replace wixBinding automatically
    - On this machine, the preferred vibe-site execution path is the built repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools/packages/picasso-dev-tools/dist/cjs/cli.js. Require the Vibe Site Expert to use that direct path before they burn time scanning the generic MCP catalog.
+   - If the Vibe Site Expert spends their first run on shell discovery, ~/.paperclip archaeology, or generic MCP catalog scans instead of heartbeat-context plus the direct built Picasso CLI path, redirect them immediately
    - The Vibe Site Expert must stay on the Picasso MCP path only when that tooling is available. Do not let them switch to Wix Site Builder, Wix Studio, Harmony, or ListWixSites as a fallback creation path.
    - If a completed vibe-site job reports "isPublished: false", an unpublished state, or the first published-site-urls lookup returns an empty "urls" array, require one publish attempt on that verified vibe-site id before accepting that the public URL is still unresolved
    - If the vibe builder only returns a placeholder host or development URL, require the same published-site-urls style follow-up on the verified vibe-site id before accepting that vibeSiteUrl is unresolved
@@ -178,6 +182,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - A vibe site is also not acceptable if Picasso only created a raw site container and then stalled in app-spec generation, job polling, or dev-machine startup. In that case, require the exact verified ids and explicit tooling blocker notes instead of counting the run as a successful build.
    - Even with two valid URLs, do not accept a vibe site that still reads like the same storefront shell as the main site. If the public pages are too similar in section flow, copy structure, or tone, push the Vibe Site Expert back into another pass.
    - If a site expert reports verified ids plus a write blocker, mirror the critical ids in the management thread and immediately drive the next recovery step instead of waiting for the same specialist to retry indefinitely
+   - If WixMCP or Picasso MCP catalogs appear empty because of auth or transport problems, require the specialist to report the exact tooling error and continue from the direct Paperclip task context instead of treating the empty catalog itself as task discovery
    - Do not accept board tasks that only restate approval bookkeeping or ask the founder to reconfirm already-approved work. Use the approval system itself, then keep work moving immediately after the approval is granted.
 
 7. ACTIVATION MODE
