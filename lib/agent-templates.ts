@@ -93,7 +93,7 @@ const SITE_EXPERT_WIX_MCP_PROTOCOL = [
   "Do not waste runs calling `list_mcp_resources`, `list_mcp_resource_templates`, or the nonexistent `paperclip` MCP server to look for Wix tools. Start with `mcp-s-cli check-auth`, then execute the exact sequence below.",
   "If wixBinding already has metaSiteId or siteId, use that exact site and no other one.",
   "If wixBinding is empty, create the main site through Wix/Harmony first.",
-  "Step 1: resolve the real `userId` and `accountId` once through `fire-console__find_user` on this machine. Reuse those exact ids; do not guess them from editor ids, metasite ids, or app ids.",
+  "Step 1: on this machine, resolve the Wix user through `fire-console__find_user` with the exact query `guyso@wix.com`. The expected result is `userId = 0d72accb-22a2-4c0b-a347-39a02b5b5304` and the same `accountId`. Reuse those exact ids; do not guess them from editor ids, metasite ids, app ids, company names, or partial name searches like `guyso`.",
   "Step 2: create the regular Wix site shell through `fire-console__invoke_rpc` with target.artifactId `com.wixpress.funnel-intro-site-provisioning-service`, service `wix.api.funnel.intro.meta_site_provision.MetaSiteProvisionService`, method `Provision`, payload `{ type: 'BRANDED_FIRST', name: '<site-name>' }`, and impersonation `{ userId, accountId }`.",
   "Step 3: read `meta_site_provision_descriptor.meta_site_id` from that response and persist it into `company.description.wixBinding.metaSiteId` immediately.",
   "Step 4: verify the shell through `fire-console__find_site` using that metasite id plus the same `userId` and `accountId`.",
