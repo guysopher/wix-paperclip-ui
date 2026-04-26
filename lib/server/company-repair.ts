@@ -61,6 +61,7 @@ interface PaperclipApproval {
 interface PaperclipIssue {
   id: string;
   parentId?: string | null;
+  goalId?: string | null;
   title: string;
   description: string;
   status: string;
@@ -105,6 +106,7 @@ interface StructuredSiteEvidence {
     siteId?: string;
     siteUrl?: string;
     publicUrlVerified?: boolean;
+    status?: string;
   };
   vibeSite?: {
     siteId?: string;
@@ -884,6 +886,11 @@ function parseUrlFromLine(line: string | undefined) {
   return line?.match(/https?:\/\/\S+/i)?.[0];
 }
 
+function parseBacktickedValueFromLine(line: string | undefined) {
+  const match = line?.match(/`([^`]+)`/);
+  return match?.[1]?.trim();
+}
+
 function extractBalancedJsonObject(source: string, startIndex: number) {
   let inString = false;
   let escaped = false;
@@ -1382,12 +1389,17 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
   let siteId: string | undefined;
   let metaSiteId: string | undefined;
   let siteUrl: string | undefined;
+  let siteName: string | undefined;
+  let editorUrl: string | undefined;
+  let dashboardUrl: string | undefined;
+  let status: string | undefined;
 
   for (const body of bodies) {
     const structuredEvidence = parseStructuredSiteEvidenceEntries(body);
     for (const entry of structuredEvidence) {
       metaSiteId ||= parseUuidFromLine(entry.mainSite?.metaSiteId);
       siteId ||= parseUuidFromLine(entry.mainSite?.siteId);
+      status ||= entry.mainSite?.status?.trim().toLowerCase();
       if (!siteUrl && entry.mainSite?.publicUrlVerified && isTrustworthySiteUrl(entry.mainSite?.siteUrl)) {
         siteUrl = entry.mainSite.siteUrl;
       }
@@ -1406,9 +1418,16 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
         siteUrl = candidatePublishedUrl;
       }
     }
+
+    editorUrl ||= parseUrlNearKey(body, ["editor link", "editor url", "studio editor"]);
+    dashboardUrl ||= parseUrlNearKey(body, ["dashboard link", "dashboard url"]);
+    siteName ||= parseBacktickedValueFromLine(
+      getLatestMatchingLine(body, /site shell exists|site shell name|shell exists as/i),
+    );
+    status ||= parseTextNearKey(body, ["current main-site status", "mainSiteStatus", "status"]);
   }
 
-  if (!siteId && !siteUrl) {
+  if (!metaSiteId && !siteId && !siteUrl && !siteName && !status) {
     return null;
   }
 
@@ -1416,7 +1435,116 @@ function extractMainSiteBindingFromBodies(bodies: string[]) {
     metaSiteId: metaSiteId || siteId,
     siteId,
     siteUrl,
+    siteName,
+    editorUrl,
+    dashboardUrl,
+    status,
   };
+}
+
+function buildWixDashboardUrl(metaSiteId: string | undefined) {
+  return metaSiteId ? `https://manage.wix.com/dashboard/${metaSiteId}/home` : undefined;
+}
+
+async function ensureMainSitePublishHandoffIssue(
+  company: PaperclipCompany,
+  issues: PaperclipIssue[],
+  mainSiteIssue: PaperclipIssue | undefined,
+  wixBinding: ReturnType<typeof getCompanyWixBinding>,
+) {
+  if (!wixBinding?.metaSiteId) {
+    return;
+  }
+
+  if (wixBinding.publicUrlVerified === true && isTrustworthySiteUrl(wixBinding.siteUrl)) {
+    return;
+  }
+
+  const bindingData =
+    wixBinding.data && typeof wixBinding.data === "object"
+      ? (wixBinding.data as Record<string, unknown>)
+      : undefined;
+  const editorUrl =
+    typeof bindingData?.editorUrl === "string" && bindingData.editorUrl.trim()
+      ? bindingData.editorUrl.trim()
+      : undefined;
+  const dashboardUrl =
+    typeof bindingData?.dashboardUrl === "string" && bindingData.dashboardUrl.trim()
+      ? bindingData.dashboardUrl.trim()
+      : buildWixDashboardUrl(wixBinding.metaSiteId);
+  const bestLink = editorUrl || dashboardUrl;
+
+  if (!bestLink) {
+    return;
+  }
+
+  const existingIssue = issues.find(
+    (issue) =>
+      /publish .* main wix site/i.test(issue.title) ||
+      (/publish handoff/i.test(issue.description) &&
+        (/main wix site/i.test(issue.title) || /\.editor\.wix\.com\/studio\//i.test(issue.description))),
+  );
+
+  const publishState =
+    wixBinding.publicUrlVerified === true && isTrustworthySiteUrl(wixBinding.siteUrl)
+      ? "published"
+      : "unpublished_or_unverified";
+  const linkLabel = editorUrl ? "Studio editor link" : "Best verified Wix dashboard link";
+  const clickPath = editorUrl
+    ? "Open the Studio editor, review the site, click Publish, choose the free Wix domain flow if needed, and then send back the resulting public URL."
+    : "Open the Wix dashboard, enter the site editor if prompted, publish the site, choose the free Wix domain flow if needed, and then send back the resulting public URL.";
+
+  const description = [
+    "Publish handoff",
+    "",
+    `Your main Wix site shell already exists for **${company.name}**.`,
+    "",
+    `${linkLabel}: ${bestLink}`,
+    wixBinding.siteName ? `Site shell name: \`${wixBinding.siteName}\`` : null,
+    `metaSiteId: \`${wixBinding.metaSiteId}\``,
+    wixBinding.siteId ? `siteId: \`${wixBinding.siteId}\`` : "siteId: not yet verified",
+    `Current publish state: ${publishState}`,
+    "",
+    "Next action for you:",
+    `- ${clickPath}`,
+    wixBinding.siteUrl ? `- If Wix already shows a public site URL, send back \`${wixBinding.siteUrl}\`.` : "- If Wix shows a public site URL after publish, send that URL back here.",
+    "",
+    "[System context - not visible to user]",
+    "Publish handoff created by startup repair after Wix shell provisioning succeeded but the automated build path still needed a human handoff.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (existingIssue) {
+    if (existingIssue.status === "done" || existingIssue.status === "cancelled") {
+      return;
+    }
+
+    await paperclip(`/issues/${existingIssue.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: `Publish ${company.name} main Wix site`,
+        description,
+        assigneeUserId: "local-board",
+        status: existingIssue.status === "blocked" ? "todo" : existingIssue.status,
+      }),
+    }).catch(() => null);
+
+    return;
+  }
+
+  await paperclip(`/companies/${company.id}/issues`, {
+    method: "POST",
+    body: JSON.stringify({
+      title: `Publish ${company.name} main Wix site`,
+      description,
+      priority: "high",
+      status: "todo",
+      assigneeUserId: "local-board",
+      parentId: mainSiteIssue?.id || undefined,
+      goalId: mainSiteIssue?.goalId || undefined,
+    }),
+  }).catch(() => null);
 }
 
 function extractVibeSiteBindingFromBodies(bodies: string[]) {
@@ -1689,14 +1817,38 @@ async function repairStartupSiteBindings(
         ? extractedMainSiteUrlCandidate
         : undefined;
 
-    if (sanitizedMainSiteId || sanitizedMainSiteUrl) {
+    if (
+      sanitizedMainMetaSiteId ||
+      sanitizedMainSiteId ||
+      sanitizedMainSiteUrl ||
+      extractedBinding?.siteName ||
+      extractedBinding?.editorUrl ||
+      extractedBinding?.dashboardUrl ||
+      extractedBinding?.status
+    ) {
       nextDescription = mergeCompanyDescription(nextDescription, {
         wixBinding: {
           metaSiteId: sanitizedMainMetaSiteId,
           siteId: sanitizedMainSiteId,
           siteUrl: sanitizedMainSiteUrl || sanitizedCurrentMainSiteUrl,
+          siteName: extractedBinding?.siteName || currentWixBinding?.siteName,
           publicUrlVerified:
             sanitizedMainSiteUrl || sanitizedCurrentMainSiteUrl ? true : undefined,
+          data:
+            extractedBinding?.editorUrl || extractedBinding?.dashboardUrl || extractedBinding?.status
+              ? {
+                  ...((currentWixBinding?.data as Record<string, unknown> | undefined) || {}),
+                  ...(extractedBinding?.editorUrl ? { editorUrl: extractedBinding.editorUrl } : {}),
+                  ...(extractedBinding?.dashboardUrl || sanitizedMainMetaSiteId
+                    ? {
+                        dashboardUrl:
+                          extractedBinding?.dashboardUrl ||
+                          buildWixDashboardUrl(sanitizedMainMetaSiteId),
+                      }
+                    : {}),
+                  ...(extractedBinding?.status ? { recoveryStatus: extractedBinding.status } : {}),
+                }
+              : currentWixBinding?.data,
         },
       });
       mainBindingApplied = true;
@@ -1908,6 +2060,9 @@ async function repairStartupSiteBindings(
       }),
     }).catch(() => null);
   }
+
+  const updatedWixBinding = getCompanyWixBinding(updatedCompany.description);
+  await ensureMainSitePublishHandoffIssue(updatedCompany, issues, mainSiteIssue, updatedWixBinding);
 
   return {
     company: updatedCompany,
