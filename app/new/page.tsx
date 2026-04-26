@@ -363,6 +363,7 @@ function NewCompanyPageContent() {
   const [selectedDraftHireTitles, setSelectedDraftHireTitles] = useState<string[]>([]);
   const [draftProposedTeamTitles, setDraftProposedTeamTitles] = useState<string[]>([]);
   const [draftConversationRestored, setDraftConversationRestored] = useState(false);
+  const [hireWidgetExpanded, setHireWidgetExpanded] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -436,6 +437,7 @@ function NewCompanyPageContent() {
     ? selectedDraftHireTitles.filter((title) => proposedDraftTeamTitles.includes(title)).length
     : hireWidgetTeamTitles.length;
   const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
+  const showCollapsedHireTrigger = showHireWidget && !hireWidgetExpanded;
   const vibeBuildBlocked =
     bridgeStatus === "incomplete" ||
     bridgeStatus === "infrastructure_failed" ||
@@ -578,6 +580,12 @@ function NewCompanyPageContent() {
       return validCurrent.length > 0 ? validCurrent : proposedDraftTeamTitles;
     });
   }, [proposedDraftTeamTitles, showDraftHireWidget]);
+
+  useEffect(() => {
+    if (!showHireWidget) {
+      setHireWidgetExpanded(false);
+    }
+  }, [showHireWidget]);
 
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -1641,7 +1649,42 @@ function NewCompanyPageContent() {
             </div>
           ))}
 
-          {showHireWidget && (
+          {showCollapsedHireTrigger && (
+            <div
+              style={{
+                display: "flex",
+                marginBottom: 16,
+                justifyContent: "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  marginLeft: 40,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setHireWidgetExpanded(true)}
+                  style={{
+                    appearance: "none",
+                    border: "none",
+                    background: "transparent",
+                    padding: 0,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: "#2f6fed",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                    cursor: "pointer",
+                  }}
+                >
+                  Ready to Hire Your AI Team?
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showHireWidget && hireWidgetExpanded && (
             <div
               style={{
                 display: "flex",
