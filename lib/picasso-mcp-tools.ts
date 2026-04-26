@@ -58,6 +58,10 @@ function getExpectedRecordingPath(saveToFile: string): string {
   return saveToFile.endsWith(".recording") ? saveToFile : `${saveToFile}.recording`;
 }
 
+function getRecordingBasePath(saveToFile: string): string {
+  return saveToFile.endsWith(".recording") ? saveToFile.slice(0, -".recording".length) : saveToFile;
+}
+
 function toKebab(str: string): string {
   return str.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }
@@ -111,9 +115,16 @@ async function ensureRecordingPath(command: string, params: Record<string, unkno
 
   const explicitSaveToFile = typeof params.saveToFile === "string" ? params.saveToFile : undefined;
   if (explicitSaveToFile) {
+    const recordingBase = path.isAbsolute(explicitSaveToFile)
+      ? getRecordingBasePath(explicitSaveToFile)
+      : path.join(PICASSO_RECORDING_DIR, getRecordingBasePath(explicitSaveToFile));
+    await mkdir(path.dirname(recordingBase), { recursive: true });
     return {
-      params,
-      recordingPath: getExpectedRecordingPath(explicitSaveToFile),
+      params: {
+        ...params,
+        saveToFile: recordingBase,
+      },
+      recordingPath: getExpectedRecordingPath(recordingBase),
     };
   }
 

@@ -694,7 +694,7 @@ function buildSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "15. If the founder provided any public source URL, inspect that exact source directly and use it to place real copy, imagery, or collection content on the main site after binding. Do not stop at empty shell creation.",
     "16. Do not create board tasks asking for basic launch copy, imagery, or starter content while the founder-provided public source links still contain usable material. Only ask for exact missing facts that block a specific Wix mutation such as pricing, policy, or inventory values.",
     "17. After each meaningful publish or placement pass, inspect the live public URL directly. If the page still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
-    "18. Replace the bound site's starter-template identity and placeholder sections with founder-source-derived Sweet Marley content before you mark this task done.",
+    "18. Replace the bound site's starter-template identity and placeholder sections with founder-source-derived business content before you mark this task done.",
     "19. Do not mark this task done until the bound main site has a real non-placeholder site URL and the public page no longer reads like a generic Wix starter template, unless a concrete tooling blocker is clearly reported.",
   ];
 
@@ -719,8 +719,8 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "",
     "Execution rules:",
     "1. This is the vibe-site track, not the production-site track.",
-    "2. Start the experimental Picasso site in parallel with the main site whenever Picasso MCP tooling is available.",
-    "3. Use the Picasso-capable MCP builder surface exposed in the runtime and treat returned job or operation ids as asynchronous work that must be polled to terminal state.",
+    "2. Start the experimental Picasso site in parallel with the main site whenever Picasso tooling is available.",
+    "3. On this machine, prefer the repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools before scanning generic MCP catalogs. Treat returned job or operation ids as asynchronous work that must be polled to terminal state.",
     "4. Record all verified results in vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
     "5. Never write vibe-site data into wixBinding.",
     "6. Use the founder-provided public source links as the content seed for the vibe site too. Adapt the real business material into the experimental direction instead of leaving the vibe site as a generic shell.",
@@ -731,7 +731,7 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "11. After each meaningful publish or placement pass, inspect the public vibe-site URL directly. If it still shows generic starter-template content, unrelated template brand names, fake contact info, or placeholder copy such as 'Use this space to promote the business', the task is still incomplete.",
     "12. Compare the public vibe site directly against the current public main site. If the vibe site still feels like the same storefront shell, same section stack, same headline structure, or same plain commerce presentation, the task is still incomplete even if both URLs are valid.",
     "13. The vibe site must be materially more expressive than the main site in tone, section framing, and overall creative direction while still staying faithful to the real business.",
-    "14. Replace the experimental site's starter-template identity and placeholder sections with founder-source-derived Sweet Marley content before you mark this task done.",
+    "14. Replace the experimental site's starter-template identity and placeholder sections with founder-source-derived business content before you mark this task done.",
     "15. Do not mark this task done until a real vibe site exists with its own different verified site id, real public URL, public-page content that no longer reads like a generic Wix starter template, and a clearly more distinct creative direction than the main site, or a concrete tooling blocker is clearly reported.",
   ];
 

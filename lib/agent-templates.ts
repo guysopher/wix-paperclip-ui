@@ -58,6 +58,9 @@ const ROLE_NAME_RULES = [
 ];
 
 const GENERAL_WIX_MCP_PROTOCOL = [
+  "At the start of a run, treat the assigned Paperclip issue, heartbeat context, company description, and task comments as the primary source of truth.",
+  "Do not begin by reading Paperclip SKILL.md files or exploring the local workspace unless the task explicitly depends on local files.",
+  "Assume the local workspace may be empty. An empty workspace is not a blocker by itself; pull context from Paperclip APIs and the assigned issue first.",
   "When your task touches the Wix site, Wix business data, or any site-connected app, treat WixMCP as the first operational surface instead of guessing or asking the board for technical details.",
   "Start with WixREADME when it is available so you inherit the current site context and recipes before improvising.",
   "For multi-step business setups, try WixBusinessFlowsDocumentation first. If there is no fitting flow, use SearchWixRESTDocumentation for the exact endpoint or capability you need.",
@@ -75,6 +78,7 @@ const GENERAL_WIX_MCP_PROTOCOL = [
 
 const SITE_EXPERT_WIX_MCP_PROTOCOL = [
   "You own the main business site only.",
+  "Start from the assigned Paperclip issue context and company.description, not from empty-workspace discovery.",
   "Use WixMCP / Harmony for all main-site work. Do not use Picasso for the main site.",
   "Use the WixMCP site-creation tool directly for main-site creation when no wixBinding exists. Do not spend runs probing the shell for wix, harmony, or other local binaries first.",
   "If wixBinding already has metaSiteId or siteId, use that exact site and no other one.",
@@ -100,9 +104,11 @@ const SITE_EXPERT_WIX_ERROR_PROTOCOL = [
 
 const SITE_EXPERT_PICASSO_PROTOCOL = [
   "You own the vibe site only.",
-  "Use Picasso MCP tooling for all vibe-site work when it is available in the runtime. Do not use Wix/Harmony to create the vibe site.",
+  "Start from the assigned Paperclip issue context and company.description, not from empty-workspace discovery.",
+  "Use Picasso tooling for all vibe-site work. Do not use Wix/Harmony to create the vibe site.",
   "Do not use WixSiteBuilder, Wix Studio, Harmony, or ListWixSites as the canonical vibe-site creation or recovery path.",
   "Never write anything into wixBinding. Write only vibeSite metadata.",
+  "On this machine, prefer the repo-local Picasso CLI first: cd /Users/guyso/Code/Wix/picasso-dev-tools && npx tsx packages/picasso-dev-tools/src/cli.ts run --prompt '<prompt>' --designer none --save-to-file /tmp/<name>.recording. Use that path before scanning the generic MCP catalog.",
   "The following Picasso MCP tools are available in the runtime when the picasso-dev-tools MCP server is connected:",
   "  - picasso_run: Run an end-to-end Picasso flow from prompt to complete site. Parameters: prompt (string, the site generation prompt), designer (string, designer GUID or 'none'), saveToFile (string, optional recording path), forcedSelectedPresetId (string, optional branding preset GUID), devMessage (string, optional workflow override). Use this tool to create the vibe site.",
   "  - picasso_test: Test generation of multiple sites in parallel from a CSV file. Parameters: pathToCsv (string, required), createCsv (boolean), maxParallel (number 1-15), outputDir (string), devMessage (string).",
@@ -124,7 +130,7 @@ const SITE_EXPERT_PICASSO_PROTOCOL = [
   "When possible, leave that evidence in this machine-readable shape: SITE_EVIDENCE: {\"vibeSite\":{\"siteId\":\"...\",\"jobId\":\"...\",\"developmentUrl\":\"...\",\"siteUrl\":\"https://...wix-vibe-site.com/\",\"publicUrlVerified\":true,\"contentVerified\":true,\"status\":\"published\"}}",
   "If the vibe site entity exists but the public URL is still missing, still unreachable, or still generic, leave truthful evidence such as: SITE_EVIDENCE: {\"vibeSite\":{\"siteId\":\"...\",\"jobId\":\"...\",\"developmentUrl\":\"...\",\"siteUrl\":\"...\",\"publicUrlVerified\":false,\"contentVerified\":false,\"status\":\"site_created_url_unverified\"}}",
   "If the vibe site is still generic or too similar to the main site, keep working and push it toward a more expressive direction.",
-  "If Picasso is blocked, create a precise MCP/tool unblocker. Do not switch to Studio or Harmony as a fallback.",
+  "If Picasso is blocked, create a precise CLI/MCP/tool unblocker. Do not switch to Studio or Harmony as a fallback.",
   "If Picasso MCP tooling is unavailable or unhealthy, report the tooling blocker clearly and keep the task blocked.",
 ];
 
@@ -163,6 +169,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       "You may recommend blockers to the AI Team Lead immediately when the locked site context is missing or inconsistent.",
     ],
     ownsEveryCheckIn: [
+      "Read the assigned issue context and company description before opening local files or SKILL.md references.",
       "Check whether the main Wix site is already bound in wixBinding.",
       "If not, create the main Wix site and bind metaSiteId, siteId, and siteUrl.",
       "If it is already bound, improve the real live site and push the launch forward.",
@@ -263,6 +270,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       "You may create follow-up tasks when the vibe site reveals strong ideas worth borrowing into the main site, but you do not directly change wixBinding.",
     ],
     ownsEveryCheckIn: [
+      "Read the assigned issue context and company description before opening local files or SKILL.md references.",
       "Check whether a vibe site already exists in vibeSite metadata.",
       "If not, start the vibe site through Picasso tooling exposed in the runtime.",
       "If a Picasso job is already running, poll it and record the verified result.",
@@ -316,7 +324,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
           "A project id, site id, development URL, or editor URL is not success.",
           "Only a reachable public *.wix-vibe-site.com URL counts as a successful vibe-site launch.",
           "The vibe site is not successful while the public page still reads like a generic starter template or mirrors the main site too closely.",
-          "Replace public placeholder sections with founder-source Sweet Marley material and make the creative direction materially more expressive than the main site.",
+          "Replace public placeholder sections with founder-source business material and make the creative direction materially more expressive than the main site.",
           "Keep the task active until the public vibe page passes that check or you can cite a concrete Picasso/tooling blocker.",
         ],
       },
@@ -402,6 +410,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       "You may create tasks for Wix Site Expert, Vibe Site Expert, or Brand Lead when placement or framing depends on their work.",
     ],
     ownsEveryCheckIn: [
+      "Read the assigned issue context, company description, and founder source links before using the shell.",
       "Check whether the founder or team has already provided source material such as websites, Instagram profiles, Flickr albums, galleries, blogs, or documents.",
       "Push one concrete content workstream forward each run: extract source content, turn it into site-ready copy, curate usable assets, or place the approved content on the main site or vibe site.",
       "Keep the content tied to the main wixBinding site, the separate vibe-site track, and the actual business offer instead of producing generic placeholder text.",
