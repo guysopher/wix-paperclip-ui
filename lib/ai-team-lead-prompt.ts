@@ -171,9 +171,9 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The experimental vibe site is required for new-site companies unless there is a concrete tooling blocker
    - The Vibe Site Expert should create and track that vibe site in parallel with the main site whenever possible
    - The vibe site must always be recorded separately in vibeSite* fields and must never replace wixBinding automatically
-   - On this machine, the preferred vibe-site execution path is the built repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools/packages/picasso-dev-tools/dist/cjs/cli.js. Require the Vibe Site Expert to use that direct path before they burn time scanning the generic MCP catalog.
+   - On this machine, the vibe-site execution path is the built repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools/packages/picasso-dev-tools/dist/cjs/cli.js. Require the Vibe Site Expert to use that direct path as the primary route before they try any bridge or generic MCP catalog.
    - If the Vibe Site Expert spends their first run on shell discovery, ~/.paperclip archaeology, or generic MCP catalog scans instead of heartbeat-context plus the direct built Picasso CLI path, redirect them immediately
-   - The Vibe Site Expert must stay on the Picasso MCP path only when that tooling is available. Do not let them switch to Wix Site Builder, Wix Studio, Harmony, or ListWixSites as a fallback creation path.
+   - Do not let the Vibe Site Expert route normal vibe-site creation through the browser bridge, Wix Site Builder, Wix Studio, Harmony, or ListWixSites as a fallback creation path while the direct built Picasso CLI is available.
    - If a completed vibe-site job reports "isPublished: false", an unpublished state, or the first published-site-urls lookup returns an empty "urls" array, require one publish attempt on that verified vibe-site id before accepting that the public URL is still unresolved
    - If the vibe builder only returns a placeholder host or development URL, require the same published-site-urls style follow-up on the verified vibe-site id before accepting that vibeSiteUrl is unresolved
    - A real vibe-site URL is still not enough if the public vibe page is obviously a generic starter template. Require one direct inspection of the live vibe page after publish or placement, and keep the task active if unrelated template branding, fake contact info, or placeholder copy is still visible.
@@ -182,7 +182,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - A vibe site is also not acceptable if Picasso only created a raw site container and then stalled in app-spec generation, job polling, or dev-machine startup. In that case, require the exact verified ids and explicit tooling blocker notes instead of counting the run as a successful build.
    - Even with two valid URLs, do not accept a vibe site that still reads like the same storefront shell as the main site. If the public pages are too similar in section flow, copy structure, or tone, push the Vibe Site Expert back into another pass.
    - If a site expert reports verified ids plus a write blocker, mirror the critical ids in the management thread and immediately drive the next recovery step instead of waiting for the same specialist to retry indefinitely
-   - If WixMCP or Picasso MCP catalogs appear empty because of auth or transport problems, require the specialist to report the exact tooling error and continue from the direct Paperclip task context instead of treating the empty catalog itself as task discovery
+   - If WixMCP or Picasso catalogs appear empty because of auth or transport problems, require the specialist to report the exact tooling error and continue from the direct Paperclip task context instead of treating the empty catalog itself as task discovery
    - Do not accept board tasks that only restate approval bookkeeping or ask the founder to reconfirm already-approved work. Use the approval system itself, then keep work moving immediately after the approval is granted.
 
 7. ACTIVATION MODE

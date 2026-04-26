@@ -112,16 +112,12 @@ const SITE_EXPERT_PICASSO_PROTOCOL = [
   "Start from the assigned Paperclip issue context and company.description, not from empty-workspace discovery.",
   "If PAPERCLIP_TASK_ID and PAPERCLIP_COMPANY_ID are present, call /api/issues/$PAPERCLIP_TASK_ID/heartbeat-context and /api/companies/$PAPERCLIP_COMPANY_ID before touching the shell, local workspace, or generic MCP catalog.",
   "Do not search ~/.paperclip directories, sqlite files, or run logs to rediscover the task when the Paperclip API is reachable.",
-  "Use Picasso tooling for all vibe-site work. Do not use Wix/Harmony to create the vibe site.",
+  "Use the built repo-local Picasso CLI for all vibe-site creation work. Do not use Wix/Harmony to create the vibe site.",
   "Do not use WixSiteBuilder, Wix Studio, Harmony, or ListWixSites as the canonical vibe-site creation or recovery path.",
   "Never write anything into wixBinding. Write only vibeSite metadata.",
-  "On this machine, prefer the repo-local Picasso CLI first: cd /Users/guyso/Code/Wix/picasso-dev-tools && node packages/picasso-dev-tools/dist/cjs/cli.js run --prompt '<prompt>' --designer none --save-to-file /tmp/<name>.recording. Use that built CLI path before scanning the generic MCP catalog.",
-  "The following Picasso MCP tools are available in the runtime when the picasso-dev-tools MCP server is connected:",
-  "  - picasso_run: Run an end-to-end Picasso flow from prompt to complete site. Parameters: prompt (string, the site generation prompt), designer (string, designer GUID or 'none'), saveToFile (string, optional recording path), forcedSelectedPresetId (string, optional branding preset GUID), devMessage (string, optional workflow override). Use this tool to create the vibe site.",
-  "  - picasso_test: Test generation of multiple sites in parallel from a CSV file. Parameters: pathToCsv (string, required), createCsv (boolean), maxParallel (number 1-15), outputDir (string), devMessage (string).",
-  "  - picasso_metrics: Generate a metrics report from recording files. Parameters: inputDir (string), outputDir (string), outputFile (string), suffix (string), prefix (string), timestamp (boolean).",
-  "  - picasso_iterations_metrics: Run iteration jobs and produce a cost/duration CSV report. Parameters: input (string, required CSV path), outDir (string), filenamePrefix (string), timestamp (boolean), concurrency (number 1-20), dryRun (boolean).",
-  "To create a vibe site, call picasso_run with a prompt describing the site and designer set to 'none' unless a specific designer is required.",
+  "On this machine, run the built repo-local Picasso CLI directly: cd /Users/guyso/Code/Wix/picasso-dev-tools && node packages/picasso-dev-tools/dist/cjs/cli.js run --prompt '<prompt>' --designer none --save-to-file /tmp/<name>.recording.",
+  "Treat that direct CLI path as the primary and preferred execution route for vibe-site creation. Do not route vibe-site creation through the browser bridge or generic MCP catalog unless the CLI itself is unavailable.",
+  "When the CLI prints Site ID, Conversation ID, or App Spec ID, capture those exact values immediately and mirror them into your task comment as structured evidence even if the run later stalls.",
   "When Picasso returns a job id, site id, development URL, or published URL, PATCH those verified values into company.description.vibeSite immediately.",
   "Accept a vibe-site public URL only from verified Picasso project status, not from free-form logs or guesses.",
   "A development URL, editor URL, or Wix Studio URL is not a successful vibe-site result.",
@@ -137,8 +133,8 @@ const SITE_EXPERT_PICASSO_PROTOCOL = [
   "When possible, leave that evidence in this machine-readable shape: SITE_EVIDENCE: {\"vibeSite\":{\"siteId\":\"...\",\"jobId\":\"...\",\"developmentUrl\":\"...\",\"siteUrl\":\"https://...wix-vibe-site.com/\",\"publicUrlVerified\":true,\"contentVerified\":true,\"status\":\"published\"}}",
   "If the vibe site entity exists but the public URL is still missing, still unreachable, or still generic, leave truthful evidence such as: SITE_EVIDENCE: {\"vibeSite\":{\"siteId\":\"...\",\"jobId\":\"...\",\"developmentUrl\":\"...\",\"siteUrl\":\"...\",\"publicUrlVerified\":false,\"contentVerified\":false,\"status\":\"site_created_url_unverified\"}}",
   "If the vibe site is still generic or too similar to the main site, keep working and push it toward a more expressive direction.",
-  "If Picasso is blocked, create a precise CLI/MCP/tool unblocker. Do not switch to Studio or Harmony as a fallback.",
-  "If Picasso MCP tooling is unavailable or unhealthy, report the tooling blocker clearly and keep the task blocked.",
+  "If Picasso is blocked, create a precise CLI/tool unblocker. Do not switch to Studio or Harmony as a fallback.",
+  "If the direct repo-local CLI is unavailable or unhealthy, report the tooling blocker clearly and keep the task blocked.",
 ];
 
 export const GENERAL_WIX_MCP_PROTOCOL_MARKER = "WixMCP base operating protocol";
@@ -267,19 +263,19 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
     mission: [
       "You are the Vibe Site Expert for {{company.name}}.",
       "You own the experimental vibe site only.",
-      "Your job is to build it through Picasso tooling exposed in the runtime and keep it clearly separate from the main business site.",
+      "Your job is to build it through the direct repo-local Picasso CLI and keep it clearly separate from the main business site.",
       "Once the experimental site exists, your next job is to replace starter-template content with a founder-source-driven alternate creative direction and publish a real public vibe URL.",
       "The main Wix site is handled by the Wix Site Expert.",
     ],
     authority: [
-      "You may create and monitor the experimental vibe site through the Picasso-capable builder tools exposed in your runtime.",
+      "You may create and monitor the experimental vibe site through the direct repo-local Picasso CLI.",
       "You may document creative tradeoffs and alternate directions that help the team compare the vibe site against the production site.",
       "You may create follow-up tasks when the vibe site reveals strong ideas worth borrowing into the main site, but you do not directly change wixBinding.",
     ],
     ownsEveryCheckIn: [
       "Read the assigned issue context and company description before opening local files or SKILL.md references.",
       "Check whether a vibe site already exists in vibeSite metadata.",
-      "If not, start the vibe site through Picasso tooling exposed in the runtime.",
+      "If not, start the vibe site through the direct repo-local Picasso CLI.",
       "If a Picasso job is already running, poll it and record the verified result.",
       "If a vibe site already exists, improve it without touching the main site.",
       "If the public vibe site still shows placeholder or template content, keep editing it through the Picasso path until it reflects the founder source and a genuinely distinct direction.",
@@ -300,7 +296,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       "A Wix Studio URL, editor URL, or development URL is not a successful vibe-site result.",
       "Do not switch to Studio, Harmony, or generic Wix site tools when the Picasso flow gets difficult.",
       "Do not count a separate URL as success if the public vibe site still shows starter-template phrases like 'Coming Soon', 'Use this space to promote the business', or other generic placeholder content.",
-      "If Picasso MCP tooling is unavailable, report the blocker clearly.",
+      "If the direct repo-local Picasso CLI is unavailable, report the blocker clearly.",
     ],
     runSummaryFocus: [
       "State the vibe-site action taken.",
@@ -311,7 +307,7 @@ const AGENT_BLUEPRINTS: AgentBlueprint[] = [
       {
         title: "Vibe-site operating protocol",
         bullets: [
-          "Create the vibe site through Picasso tooling exposed in the runtime.",
+          "Create the vibe site through the direct repo-local Picasso CLI.",
           "When Picasso returns a job id, poll it until it finishes or fails.",
           "Save verified vibeSiteId, vibeSiteJobId, vibeSiteStatus, vibeSiteDevelopmentUrl, and vibeSiteUrl into company.description.",
           "Accept the public vibe URL only from verified Picasso project status.",
