@@ -396,6 +396,7 @@ function NewCompanyPageContent() {
   const approvedTeamTitles = (activationMetadata?.starterTeam || [])
     .map((entry) => entry?.role)
     .filter((role): role is string => typeof role === "string" && role.trim().length > 0 && role !== "AI Team Lead");
+  const hasUserSentMessage = chatMessages.some((message) => message.role === "user");
   const interviewStage = activationMetadata?.newSiteInterview?.stage || "business_name";
   const bridgeStatus = activationMetadata?.picassoBridge?.status || bridgeJob?.status || "not_started";
   const isNewSiteSelected = effectiveActivationMode === "new_site";
@@ -437,12 +438,16 @@ function NewCompanyPageContent() {
     Boolean(isExistingSiteInterviewFlow) &&
     approvedTeamTitles.length > 0 &&
     canHireExistingSiteTeam;
+  const canOpenDraftHireWidget = isDraftNewSiteFlow && hasUserSentMessage;
   const hireWidgetTeamTitles = showDraftHireWidget ? proposedDraftTeamTitles : approvedTeamTitles;
   const selectedHireCount = showDraftHireWidget
     ? selectedDraftHireTitles.filter((title) => proposedDraftTeamTitles.includes(title)).length
     : hireWidgetTeamTitles.length;
   const showHireWidget = showDraftHireWidget || showExistingSiteHireWidget;
-  const showCollapsedHireTrigger = showHireWidget && !hireWidgetExpanded;
+  const showCollapsedHireTrigger =
+    !hireWidgetExpanded && (canOpenDraftHireWidget || showExistingSiteHireWidget);
+  const showHireWidgetShell =
+    hireWidgetExpanded && (canOpenDraftHireWidget || showExistingSiteHireWidget);
   const vibeBuildBlocked =
     bridgeStatus === "incomplete" ||
     bridgeStatus === "infrastructure_failed" ||
@@ -587,10 +592,10 @@ function NewCompanyPageContent() {
   }, [proposedDraftTeamTitles, showDraftHireWidget]);
 
   useEffect(() => {
-    if (!showHireWidget) {
+    if (!(canOpenDraftHireWidget || showExistingSiteHireWidget)) {
       setHireWidgetExpanded(false);
     }
-  }, [showHireWidget]);
+  }, [canOpenDraftHireWidget, showExistingSiteHireWidget]);
 
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {
@@ -1683,13 +1688,13 @@ function NewCompanyPageContent() {
                     cursor: "pointer",
                   }}
                 >
-                  Ready to Hire Your AI Team?
+                  Ready to hire...
                 </button>
               </div>
             </div>
           )}
 
-          {showHireWidget && hireWidgetExpanded && (
+          {showHireWidgetShell && (
             <div
               style={{
                 display: "flex",
@@ -1731,14 +1736,18 @@ function NewCompanyPageContent() {
                     Ready to start
                   </div>
                   <div style={{ fontSize: 16, fontWeight: 600, color: "#16324a", marginBottom: 8 }}>
-                    The team is ready to get to work.
+                    {showHireWidget
+                      ? "The team is ready to get to work."
+                      : "The team is still being shaped."}
                   </div>
                   <div style={{ fontSize: 14, color: "#5f7588", lineHeight: 1.55, marginBottom: 16 }}>
-                    {showDraftHireWidget
-                      ? "Hiring the team will create the workspace, turn this approved plan into real goals and tasks, and kick off the first work."
-                      : "Hiring the team will move this approved plan into execution in the workspace and start the first work."}
+                    {showHireWidget
+                      ? showDraftHireWidget
+                        ? "Hiring the team will create the workspace, turn this approved plan into real goals and tasks, and kick off the first work."
+                        : "Hiring the team will move this approved plan into execution in the workspace and start the first work."
+                      : "Keep chatting with the AI Team Lead. As soon as it decides the team is ready, the checklist and hire action will appear here."}
                   </div>
-                  {hireWidgetTeamTitles.length > 0 && (
+                  {showHireWidget && hireWidgetTeamTitles.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.9, textTransform: "uppercase", color: "#7b8c9d", marginBottom: 8 }}>
                         Team to be hired
@@ -1795,66 +1804,80 @@ function NewCompanyPageContent() {
                       </div>
                     </div>
                   )}
-                  <button
-                    type="button"
-                    disabled={
-                      showDraftHireWidget
-                        ? !canHireTeam || startingNewSite || selectedHireCount === 0
-                        : !canHireExistingSiteTeam
-                    }
-                    onClick={() => {
-                      if (showDraftHireWidget) {
-                        void activateNewSiteConversation(chatMessagesRef.current, selectedDraftHireTitles);
-                        return;
-                      }
-                      handleOpenWorkspace();
-                    }}
-                    style={{
-                      appearance: "none",
-                      border: "none",
-                      borderRadius: 999,
-                      padding: "12px 20px",
-                      minHeight: 40,
-                      background:
+                  {showHireWidget ? (
+                    <button
+                      type="button"
+                      disabled={
                         showDraftHireWidget
-                          ? "linear-gradient(135deg, #8f2fff 0%, #a53ef3 45%, #d66bdc 100%)"
-                          : "linear-gradient(135deg, #8f2fff 0%, #a53ef3 45%, #d66bdc 100%)",
-                      color: "#fff",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      lineHeight: 1,
-                      cursor:
-                        (showDraftHireWidget
                           ? !canHireTeam || startingNewSite || selectedHireCount === 0
-                          : !canHireExistingSiteTeam)
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity:
-                        (showDraftHireWidget
-                          ? !canHireTeam || startingNewSite || selectedHireCount === 0
-                          : !canHireExistingSiteTeam)
-                          ? 0.5
-                          : 1,
-                      boxShadow: "0 10px 24px rgba(143, 47, 255, 0.2)",
-                    }}
-                  >
-                    {showDraftHireWidget && startingNewSite ? (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <Loader size="tiny" />
-                        Hiring...
-                      </span>
-                    ) : (
-                      showDraftHireWidget
-                        ? `Hire ${selectedHireCount} agent${selectedHireCount === 1 ? "" : "s"}`
-                        : "Hire the Team"
-                    )}
-                  </button>
+                          : !canHireExistingSiteTeam
+                      }
+                      onClick={() => {
+                        if (showDraftHireWidget) {
+                          void activateNewSiteConversation(chatMessagesRef.current, selectedDraftHireTitles);
+                          return;
+                        }
+                        handleOpenWorkspace();
+                      }}
+                      style={{
+                        appearance: "none",
+                        border: "none",
+                        borderRadius: 999,
+                        padding: "12px 20px",
+                        minHeight: 40,
+                        background:
+                          "linear-gradient(135deg, #8f2fff 0%, #a53ef3 45%, #d66bdc 100%)",
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        cursor:
+                          (showDraftHireWidget
+                            ? !canHireTeam || startingNewSite || selectedHireCount === 0
+                            : !canHireExistingSiteTeam)
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          (showDraftHireWidget
+                            ? !canHireTeam || startingNewSite || selectedHireCount === 0
+                            : !canHireExistingSiteTeam)
+                            ? 0.5
+                            : 1,
+                        boxShadow: "0 10px 24px rgba(143, 47, 255, 0.2)",
+                      }}
+                    >
+                      {showDraftHireWidget && startingNewSite ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Loader size="tiny" />
+                          Hiring...
+                        </span>
+                      ) : (
+                        showDraftHireWidget
+                          ? `Hire ${selectedHireCount} agent${selectedHireCount === 1 ? "" : "s"}`
+                          : "Hire the Team"
+                      )}
+                    </button>
+                  ) : (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        color: "#7b8c9d",
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Loader size="tiny" />
+                      Waiting for a concrete team proposal...
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
