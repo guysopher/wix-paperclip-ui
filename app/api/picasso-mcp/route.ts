@@ -1,36 +1,56 @@
 import { NextRequest } from "next/server";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { createPicassoMcpServer } from "@/lib/picasso-mcp-tools";
+import { handlePicassoMcpRequest } from "@/lib/picasso-mcp-tools";
 
-async function handleMcp(req: Request): Promise<Response> {
-  const server = createPicassoMcpServer();
-  const transport = new WebStandardStreamableHTTPServerTransport();
-  await server.connect(transport);
-  return transport.handleRequest(req);
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {
-  return handleMcp(request);
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload !== "object") {
+    return jsonResponse(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32700, message: "Parse error" },
+      },
+      400,
+    );
+  }
+
+  const response = await handlePicassoMcpRequest(payload);
+  if (response === null) {
+    return new Response(null, { status: 204 });
+  }
+
+  return jsonResponse(response);
 }
 
 export async function GET() {
-  return new Response(
-    JSON.stringify({
-      jsonrpc: "2.0",
-      error: { code: -32000, message: "Method not allowed. Use POST for MCP requests." },
-      id: null,
-    }),
-    { status: 405, headers: { "Content-Type": "application/json" } },
+  return jsonResponse(
+    {
+      ok: true,
+      protocol: "jsonrpc",
+      endpoint: "/api/picasso-mcp",
+      methods: ["initialize", "tools/list", "tools/call"],
+    },
+    200,
   );
 }
 
 export async function DELETE() {
-  return new Response(
-    JSON.stringify({
+  return jsonResponse(
+    {
       jsonrpc: "2.0",
-      error: { code: -32000, message: "Method not allowed." },
       id: null,
-    }),
-    { status: 405, headers: { "Content-Type": "application/json" } },
+      error: { code: -32000, message: "Method not allowed." },
+    },
+    405,
   );
 }

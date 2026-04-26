@@ -1,5 +1,3 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { execFile } from "node:child_process";
 import { access, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,6 +8,8 @@ const exec = promisify(execFile);
 const PICASSO_RUN_TIMEOUT_MS = 120_000;
 const PICASSO_DEFAULT_TIMEOUT_MS = 600_000;
 const PICASSO_RECORDING_DIR = path.join(tmpdir(), "paperclip-picasso-recordings");
+const MCP_PROTOCOL_VERSION = "2024-11-05";
+
 const PICASSO_REPO_CANDIDATES = [
   process.env.PICASSO_DEV_TOOLS_PATH,
   "/Users/guyso/Code/Wix/picasso-dev-tools",
@@ -33,6 +33,25 @@ interface PicassoRecordingSummary {
   publicUrl?: string;
   appSpecStatus?: string;
   statusOptions?: Record<string, string>;
+}
+
+interface JsonRpcRequest {
+  jsonrpc?: string;
+  id?: string | number | null;
+  method?: string;
+  params?: Record<string, unknown>;
+}
+
+interface ToolResult {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+}
+
+interface PicassoToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  invoke: (args: Record<string, unknown>) => Promise<ToolResult>;
 }
 
 function getExpectedRecordingPath(saveToFile: string): string {
@@ -222,13 +241,10 @@ function formatPicassoSummary(
   return lines.join("\n");
 }
 
-async function runPicasso(
-  command: string,
-  params: Record<string, unknown>,
-  positionals: string[] = [],
-) {
+async function runPicasso(command: string, params: Record<string, unknown>, positionals: string[] = []): Promise<ToolResult> {
   const { params: normalizedParams, recordingPath } = await ensureRecordingPath(command, params);
   const cli = await resolvePicassoCliCommand(command, normalizedParams, positionals);
+
   try {
     const { stdout, stderr } = await exec(cli.command, cli.args, {
       cwd: cli.cwd,
@@ -240,7 +256,7 @@ async function runPicasso(
     return {
       content: [
         {
-          type: "text" as const,
+          type: "text",
           text: formatPicassoSummary(summary, cli.label, output || "Command completed successfully.", false),
         },
       ],
@@ -253,7 +269,7 @@ async function runPicasso(
     return {
       content: [
         {
-          type: "text" as const,
+          type: "text",
           text: formatPicassoSummary(summary, cli.label, output, timedOut),
         },
       ],
@@ -262,65 +278,144 @@ async function runPicasso(
   }
 }
 
-export function createPicassoMcpServer(): McpServer {
-  const server = new McpServer({
-    name: "picasso-dev-tools",
-    version: "1.0.0",
-  });
-
-  server.tool(
-    "picasso_run",
-    "Run an end-to-end flow of Picasso, from prompt to complete site",
-    {
-      prompt: z.string().optional().describe("The prompt to use for site generation"),
-      designer: z.string().optional().describe("Designer ID (GUID) or 'none'"),
-      saveToFile: z.string().optional().describe("Save a recording of this run to a file"),
-      forcedSelectedPresetId: z.string().optional().describe("Force a specific branding preset ID (GUID)"),
-      devMessage: z.string().optional().describe("Override the default codegen workflow"),
+const PICASSO_TOOLS: PicassoToolDefinition[] = [
+  {
+    name: "picasso_run",
+    description: "Run an end-to-end flow of Picasso, from prompt to complete site",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "The prompt to use for site generation" },
+        designer: { type: "string", description: "Designer ID (GUID) or 'none'" },
+        saveToFile: { type: "string", description: "Save a recording of this run to a file" },
+        forcedSelectedPresetId: { type: "string", description: "Force a specific branding preset ID (GUID)" },
+        devMessage: { type: "string", description: "Override the default codegen workflow" },
+      },
+      additionalProperties: false,
     },
-    async (params) => runPicasso("run", params),
-  );
-
-  server.tool(
-    "picasso_test",
-    "Test generation of multiple sites in parallel from a CSV file. CSV must have Prompt and Designer columns, optional forcedSelectedPresetId.",
-    {
-      pathToCsv: z.string().describe("Path to CSV file with test cases"),
-      createCsv: z.boolean().optional().describe("Create a CSV template and exit without running tests"),
-      maxParallel: z.number().min(1).max(15).optional().describe("Max parallel site generations (default: 6)"),
-      outputDir: z.string().optional().describe("Directory to save output files (default: output)"),
-      devMessage: z.string().optional().describe("Override the default codegen workflow"),
+    invoke: (args) => runPicasso("run", args),
+  },
+  {
+    name: "picasso_test",
+    description:
+      "Test generation of multiple sites in parallel from a CSV file. CSV must have Prompt and Designer columns, optional forcedSelectedPresetId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        pathToCsv: { type: "string", description: "Path to CSV file with test cases" },
+        createCsv: { type: "boolean", description: "Create a CSV template and exit without running tests" },
+        maxParallel: { type: "number", minimum: 1, maximum: 15, description: "Max parallel site generations (default: 6)" },
+        outputDir: { type: "string", description: "Directory to save output files (default: output)" },
+        devMessage: { type: "string", description: "Override the default codegen workflow" },
+      },
+      required: ["pathToCsv"],
+      additionalProperties: false,
     },
-    async ({ pathToCsv, ...rest }) => runPicasso("test", rest, [pathToCsv]),
-  );
-
-  server.tool(
-    "picasso_metrics",
-    "Generate a detailed metrics report (CSV) from recording files produced by picasso_test runs.",
-    {
-      inputDir: z.string().optional().describe("Directory with .recording files (default: ./results)"),
-      outputDir: z.string().optional().describe("Directory to save the report (default: same as input)"),
-      outputFile: z.string().optional().describe("Output CSV filename (default: picasso-metrics-report.csv)"),
-      suffix: z.string().optional().describe("Suffix to append before .csv"),
-      prefix: z.string().optional().describe("Prefix to prepend to filename"),
-      timestamp: z.boolean().optional().describe("Auto-append timestamp to filename to avoid overwriting"),
+    invoke: ({ pathToCsv, ...rest }) => runPicasso("test", rest, [String(pathToCsv)]),
+  },
+  {
+    name: "picasso_metrics",
+    description: "Generate a detailed metrics report (CSV) from recording files produced by picasso_test runs.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        inputDir: { type: "string", description: "Directory with .recording files (default: ./results)" },
+        outputDir: { type: "string", description: "Directory to save the report (default: same as input)" },
+        outputFile: { type: "string", description: "Output CSV filename (default: picasso-metrics-report.csv)" },
+        suffix: { type: "string", description: "Suffix to append before .csv" },
+        prefix: { type: "string", description: "Prefix to prepend to filename" },
+        timestamp: { type: "boolean", description: "Auto-append timestamp to filename to avoid overwriting" },
+      },
+      additionalProperties: false,
     },
-    async (params) => runPicasso("metrics", params),
-  );
-
-  server.tool(
-    "picasso_iterations_metrics",
-    "Run iteration jobs and produce a cost/duration CSV report. Input CSV must have msid, prompt columns and optional jobMode (AGENT or ASK).",
-    {
-      input: z.string().describe("Path to CSV with msid, prompt, jobMode headers"),
-      outDir: z.string().optional().describe("Output directory"),
-      filenamePrefix: z.string().optional().describe("CSV filename prefix (default: iteration-metrics-report)"),
-      timestamp: z.boolean().optional().describe("Append timestamp to output filename"),
-      concurrency: z.number().min(1).max(20).optional().describe("Max concurrent jobs (default: 4)"),
-      dryRun: z.boolean().optional().describe("Validate inputs and exit without running"),
+    invoke: (args) => runPicasso("metrics", args),
+  },
+  {
+    name: "picasso_iterations_metrics",
+    description:
+      "Run iteration jobs and produce a cost/duration CSV report. Input CSV must have msid, prompt columns and optional jobMode (AGENT or ASK).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        input: { type: "string", description: "Path to CSV with msid, prompt, jobMode headers" },
+        outDir: { type: "string", description: "Output directory" },
+        filenamePrefix: { type: "string", description: "CSV filename prefix (default: iteration-metrics-report)" },
+        timestamp: { type: "boolean", description: "Append timestamp to output filename" },
+        concurrency: { type: "number", minimum: 1, maximum: 20, description: "Max concurrent jobs (default: 4)" },
+        dryRun: { type: "boolean", description: "Validate inputs and exit without running" },
+      },
+      required: ["input"],
+      additionalProperties: false,
     },
-    async (params) => runPicasso("iterations-metrics", params),
-  );
+    invoke: (args) => runPicasso("iterations-metrics", args),
+  },
+];
 
-  return server;
+function jsonRpcSuccess(id: JsonRpcRequest["id"], result: Record<string, unknown>) {
+  return {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    result,
+  };
+}
+
+function jsonRpcError(id: JsonRpcRequest["id"], code: number, message: string) {
+  return {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    error: { code, message },
+  };
+}
+
+export async function handlePicassoMcpRequest(request: JsonRpcRequest) {
+  const id = request.id ?? null;
+  const method = request.method;
+
+  if (!method) {
+    return jsonRpcError(id, -32600, "Invalid Request");
+  }
+
+  if (method === "initialize") {
+    return jsonRpcSuccess(id, {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: { tools: {} },
+      serverInfo: {
+        name: "picasso-dev-tools",
+        version: "1.0.0",
+      },
+    });
+  }
+
+  if (method === "notifications/initialized") {
+    return null;
+  }
+
+  if (method === "tools/list") {
+    return jsonRpcSuccess(id, {
+      tools: PICASSO_TOOLS.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+    });
+  }
+
+  if (method === "tools/call") {
+    const name = request.params?.name;
+    if (typeof name !== "string") {
+      return jsonRpcError(id, -32602, "Invalid tool call parameters");
+    }
+
+    const tool = PICASSO_TOOLS.find((entry) => entry.name === name);
+    if (!tool) {
+      return jsonRpcError(id, -32601, `Unknown tool: ${name}`);
+    }
+
+    const rawArgs = request.params?.arguments;
+    const args = rawArgs && typeof rawArgs === "object" ? (rawArgs as Record<string, unknown>) : {};
+    const result = await tool.invoke(args);
+    return jsonRpcSuccess(id, result);
+  }
+
+  return jsonRpcError(id, -32601, `Method not found: ${method}`);
 }
