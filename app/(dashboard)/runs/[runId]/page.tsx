@@ -233,6 +233,7 @@ function RunDetailContent({ runId }: { runId: string }) {
   }
 
   const usage = parseUsage(run.usageJson);
+  const visibleLogEntries = logEntries.filter((entry) => entry.kind !== "result");
 
   return (
     <Page>
@@ -450,7 +451,7 @@ function RunDetailContent({ runId }: { runId: string }) {
                     gap: 8,
                   }}
                 >
-                  {logEntries.map((entry, i) => {
+                  {(visibleLogEntries.length > 0 ? visibleLogEntries : logEntries.filter((entry) => entry.kind !== "result")).map((entry, i) => {
                     const ts = entry.timestamp
                       ? new Date(entry.timestamp).toLocaleTimeString([], {
                           hour: "2-digit",
@@ -536,6 +537,21 @@ function RunDetailContent({ runId }: { runId: string }) {
 
                     return null;
                   })}
+                  {visibleLogEntries.length === 0 && (
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        background: "#f7f8fa",
+                        borderRadius: 8,
+                        borderLeft: "3px solid #3899ec",
+                        fontSize: 13,
+                        lineHeight: 1.7,
+                        color: "#333",
+                      }}
+                    >
+                      No readable narrative output in this run. Open Debug to inspect raw command or helper output.
+                    </div>
+                  )}
                 </div>
               )}
             </Card.Content>
