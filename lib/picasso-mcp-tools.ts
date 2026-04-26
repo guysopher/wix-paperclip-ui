@@ -351,7 +351,7 @@ const PICASSO_TOOLS: PicassoToolDefinition[] = [
   },
 ];
 
-function jsonRpcSuccess(id: JsonRpcRequest["id"], result: Record<string, unknown>) {
+function jsonRpcSuccess(id: JsonRpcRequest["id"], result: unknown) {
   return {
     jsonrpc: "2.0",
     id: id ?? null,
