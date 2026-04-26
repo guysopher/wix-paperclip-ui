@@ -720,7 +720,7 @@ function buildVibeSiteExecutionTask(summary: IntakeSummary): KickoffTask {
     "Execution rules:",
     "1. This is the vibe-site track, not the production-site track.",
     "2. Start the experimental Picasso site in parallel with the main site whenever Picasso tooling is available.",
-    "3. On this machine, prefer the repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools before scanning generic MCP catalogs. Treat returned job or operation ids as asynchronous work that must be polled to terminal state.",
+    "3. On this machine, prefer the built repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools/packages/picasso-dev-tools/dist/cjs/cli.js before scanning generic MCP catalogs. Treat returned job or operation ids as asynchronous work that must be polled to terminal state.",
     "4. Record all verified results in vibeSiteId, vibeSiteUrl, vibeSiteJobId, vibeSiteStatus, and vibeSiteDevelopmentUrl.",
     "5. Never write vibe-site data into wixBinding.",
     "6. Use the founder-provided public source links as the content seed for the vibe site too. Adapt the real business material into the experimental direction instead of leaving the vibe site as a generic shell.",
@@ -942,6 +942,21 @@ async function paperclip<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
+async function wakeAgentForIssue(agentId: string, issueId: string, reason = "issue_assigned") {
+  return paperclip(`/agents/${agentId}/wakeup`, {
+    method: "POST",
+    body: JSON.stringify({
+      source: "assignment",
+      triggerDetail: "system",
+      reason,
+      forceFreshSession: true,
+      payload: {
+        issueId,
+      },
+    }),
+  }).catch(() => undefined);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ActivateRequest;
@@ -1065,6 +1080,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         title: `Approved kickoff for ${summary.companyName}`,
         description: buildBoardIssueDescription(summary, messages),
+        status: "todo",
         priority: "high",
         assigneeAgentId: ceoAgent.id,
       }),
@@ -1095,6 +1111,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             title: task.title,
             description: task.description,
+            status: "todo",
             priority: task.priority,
             assigneeAgentId:
               task.assigneeTitle === "Wix Site Expert"
@@ -1113,8 +1130,15 @@ export async function POST(request: NextRequest) {
       ),
     );
 
+    const kickoffIssueByTitle = new Map(createdKickoffTasks.map((issue) => [issue.title, issue]));
     const siteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === siteExecutionTask.title) || null;
     const vibeSiteExecutionIssue = createdKickoffTasks.find((issue) => issue.title === vibeSiteExecutionTask.title) || null;
+    const contentManagerIssue =
+      kickoffIssueByTitle.get(kickoffTasksToCreate.find((task) => task.assigneeTitle === "Content Manager")?.title || "") || null;
+    const industryAdvisorIssue =
+      kickoffIssueByTitle.get(kickoffTasksToCreate.find((task) => task.assigneeTitle === "Industry Advisor")?.title || "") || null;
+    const brandLeadIssue =
+      kickoffIssueByTitle.get(kickoffTasksToCreate.find((task) => task.assigneeTitle === "Brand Lead")?.title || "") || null;
 
     const nextDescription = buildCompanyDescription({
       version: 1,
@@ -1202,6 +1226,15 @@ export async function POST(request: NextRequest) {
       method: "POST",
       body: JSON.stringify({}),
     }).catch(() => undefined);
+
+    await Promise.all([
+      wakeAgentForIssue(ceoAgent.id, boardIssue.id),
+      siteExecutionIssue && wixSiteExpert ? wakeAgentForIssue(wixSiteExpert.id, siteExecutionIssue.id) : undefined,
+      vibeSiteExecutionIssue && vibeSiteExpert ? wakeAgentForIssue(vibeSiteExpert.id, vibeSiteExecutionIssue.id) : undefined,
+      contentManagerIssue && contentManager ? wakeAgentForIssue(contentManager.id, contentManagerIssue.id) : undefined,
+      industryAdvisorIssue && industryAdvisor ? wakeAgentForIssue(industryAdvisor.id, industryAdvisorIssue.id) : undefined,
+      brandLeadIssue && brandLead ? wakeAgentForIssue(brandLead.id, brandLeadIssue.id) : undefined,
+    ]);
 
     const backendSignature = [
       "no-agent-comment",

@@ -90,13 +90,23 @@ async function pathExists(targetPath: string): Promise<boolean> {
 
 async function resolvePicassoCliCommand(command: string, params: Record<string, unknown>, positionals: string[]) {
   for (const repoPath of PICASSO_REPO_CANDIDATES) {
-    const cliPath = path.join(repoPath, "packages/picasso-dev-tools/src/cli.ts");
-    if (await pathExists(cliPath)) {
+    const distCliPath = path.join(repoPath, "packages/picasso-dev-tools/dist/cjs/cli.js");
+    if (await pathExists(distCliPath)) {
+      return {
+        command: "node",
+        args: [distCliPath, command, ...positionals, ...buildCliArgs(params)],
+        cwd: repoPath,
+        label: `repo-local picasso-dev-tools dist CLI (${repoPath})`,
+      } satisfies PicassoCliCommand;
+    }
+
+    const srcCliPath = path.join(repoPath, "packages/picasso-dev-tools/src/cli.ts");
+    if (await pathExists(srcCliPath)) {
       return {
         command: "npx",
         args: ["tsx", "packages/picasso-dev-tools/src/cli.ts", command, ...positionals, ...buildCliArgs(params)],
         cwd: repoPath,
-        label: `repo-local picasso-dev-tools (${repoPath})`,
+        label: `repo-local picasso-dev-tools source CLI (${repoPath})`,
       } satisfies PicassoCliCommand;
     }
   }

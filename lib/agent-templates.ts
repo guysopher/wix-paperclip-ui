@@ -108,7 +108,7 @@ const SITE_EXPERT_PICASSO_PROTOCOL = [
   "Use Picasso tooling for all vibe-site work. Do not use Wix/Harmony to create the vibe site.",
   "Do not use WixSiteBuilder, Wix Studio, Harmony, or ListWixSites as the canonical vibe-site creation or recovery path.",
   "Never write anything into wixBinding. Write only vibeSite metadata.",
-  "On this machine, prefer the repo-local Picasso CLI first: cd /Users/guyso/Code/Wix/picasso-dev-tools && npx tsx packages/picasso-dev-tools/src/cli.ts run --prompt '<prompt>' --designer none --save-to-file /tmp/<name>.recording. Use that path before scanning the generic MCP catalog.",
+  "On this machine, prefer the repo-local Picasso CLI first: cd /Users/guyso/Code/Wix/picasso-dev-tools && node packages/picasso-dev-tools/dist/cjs/cli.js run --prompt '<prompt>' --designer none --save-to-file /tmp/<name>.recording. Use that built CLI path before scanning the generic MCP catalog.",
   "The following Picasso MCP tools are available in the runtime when the picasso-dev-tools MCP server is connected:",
   "  - picasso_run: Run an end-to-end Picasso flow from prompt to complete site. Parameters: prompt (string, the site generation prompt), designer (string, designer GUID or 'none'), saveToFile (string, optional recording path), forcedSelectedPresetId (string, optional branding preset GUID), devMessage (string, optional workflow override). Use this tool to create the vibe site.",
   "  - picasso_test: Test generation of multiple sites in parallel from a CSV file. Parameters: pathToCsv (string, required), createCsv (boolean), maxParallel (number 1-15), outputDir (string), devMessage (string).",

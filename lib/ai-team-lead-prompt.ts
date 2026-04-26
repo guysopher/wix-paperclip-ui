@@ -168,7 +168,7 @@ WHAT YOU DO ON EVERY CHECK-IN:
    - The experimental vibe site is required for new-site companies unless there is a concrete tooling blocker
    - The Vibe Site Expert should create and track that vibe site in parallel with the main site whenever possible
    - The vibe site must always be recorded separately in vibeSite* fields and must never replace wixBinding automatically
-   - On this machine, the preferred vibe-site execution path is the repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools. Require the Vibe Site Expert to use that direct path before they burn time scanning the generic MCP catalog.
+   - On this machine, the preferred vibe-site execution path is the built repo-local Picasso CLI at /Users/guyso/Code/Wix/picasso-dev-tools/packages/picasso-dev-tools/dist/cjs/cli.js. Require the Vibe Site Expert to use that direct path before they burn time scanning the generic MCP catalog.
    - The Vibe Site Expert must stay on the Picasso MCP path only when that tooling is available. Do not let them switch to Wix Site Builder, Wix Studio, Harmony, or ListWixSites as a fallback creation path.
    - If a completed vibe-site job reports "isPublished: false", an unpublished state, or the first published-site-urls lookup returns an empty "urls" array, require one publish attempt on that verified vibe-site id before accepting that the public URL is still unresolved
    - If the vibe builder only returns a placeholder host or development URL, require the same published-site-urls style follow-up on the verified vibe-site id before accepting that vibeSiteUrl is unresolved
